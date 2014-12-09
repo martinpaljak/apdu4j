@@ -134,8 +134,10 @@ TerminalFactory tf = TerminalFactory.getInstance("PC/SC", f, new APDUReplayProvi
  * [Launch4j](http://launch4j.sourceforge.net/) for generating .exe (BSD/MIT)
  * [jnasmartcardio](https://github.com/jnasmartcardio/jnasmartcardio) for PC/SC access (CC0 / public domain)
 
+### History
+
+When working with [GlobalPlatform](https://github.com/martinpaljak/GlobalPlatform) and [JavaCard](http://javacard.pro)-s, some code wanted to sneak into projects where it did not belong, so it made sense to capture it into a separate library. Also, while usable and useful command line tools for accessing readers on APDU (PC/SC) level existed for C, nothing was available for doing the same via Java stack, thus the need for a DWIM command line util.
+
 ### Contact 
 
 * martin@martinpaljak.net
-* [File an issue on Github](https://github.com/martinpaljak/GlobalPlatform/issues/new). Better yet - a pull request!
-
