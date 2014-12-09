@@ -4,9 +4,10 @@ Command line utility and useful Java code library for working with smart cards a
 
 #### Jump to ...
 * [Download](#get-it-now)
-* [Usage](#usage-from-command-line)
-* [Contact](#contact)
+* [Usage from command line](#usage-from-command-line)
+* [Usage from Java](#usage-from-java)
 * [Similar and related projects](#similar-projects)
+* [Contact](#contact)
 
 ### Get it now!
 * Download latest pre-built JAR or .EXE from [release area](https://github.com/martinpaljak/apdu4j/releases)
