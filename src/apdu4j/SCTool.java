@@ -21,9 +21,14 @@
  */
 package apdu4j;
 
+import java.awt.Desktop;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.reflect.InvocationTargetException;
+import java.net.URI;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.Security;
@@ -36,6 +41,7 @@ import javax.smartcardio.CardTerminal;
 import javax.smartcardio.CardTerminals;
 import javax.smartcardio.CardTerminals.State;
 import javax.smartcardio.CommandAPDU;
+import javax.smartcardio.ResponseAPDU;
 import javax.smartcardio.TerminalFactory;
 
 import joptsimple.OptionException;
@@ -52,12 +58,15 @@ public class SCTool {
 	private static final String OPT_ALL = "all";
 	private static final String OPT_VERBOSE = "verbose";
 	private static final String OPT_DEBUG = "debug";
+	private static final String OPT_ERROR = "error";
+	private static final String OPT_DUMP = "dump";
 
 	private static final String OPT_HELP = "help";
 	private static final String OPT_SUN = "sun";
 	private static final String OPT_JNA = "jna";
 	private static final String OPT_T0 = "t0";
 	private static final String OPT_T1 = "t1";
+	private static final String OPT_WEB = "web";
 
 	private static final String OPT_PROVIDERS = "P";
 
@@ -74,9 +83,11 @@ public class SCTool {
 		parser.acceptsAll(Arrays.asList("p", OPT_PROVIDER), "specify provider").withRequiredArg();
 		parser.acceptsAll(Arrays.asList("v", OPT_VERBOSE), "be verbose");
 		parser.acceptsAll(Arrays.asList("d", OPT_DEBUG), "enable debug");
+		parser.acceptsAll(Arrays.asList("e", OPT_ERROR), "fail if not 0x9000");
 		parser.acceptsAll(Arrays.asList("h", OPT_HELP), "show help");
 		parser.acceptsAll(Arrays.asList("r", OPT_READER), "use reader").withRequiredArg();
 		parser.acceptsAll(Arrays.asList("a", CMD_APDU), "send APDU").withRequiredArg();
+		parser.accepts(OPT_DUMP, "save dump to file").withRequiredArg().ofType(File.class);
 
 		parser.accepts(OPT_SUN, "load SunPCSC");
 		parser.accepts(OPT_JNA, "load jnasmartcardio");
@@ -84,6 +95,7 @@ public class SCTool {
 		parser.accepts(OPT_ALL, "process all readers");
 		parser.accepts(OPT_T0, "use T=0");
 		parser.accepts(OPT_T1, "use T=1");
+		parser.accepts(OPT_WEB, "open ATR in web");
 
 
 
@@ -140,7 +152,13 @@ public class SCTool {
 		if (verbose) {
 			System.out.println("# Using " + tf.getProvider().getClass().getCanonicalName() + " - " + tf.getProvider());
 		}
-		CardTerminals terminals = tf.terminals();
+		CardTerminals terminals = null;
+		try {
+			terminals = tf.terminals();
+		} catch (Exception e) {
+			System.out.println("No readers: " + TerminalManager.getExceptionMessage(e));
+			System.exit(1);
+		}
 
 		// List Terminals
 		if (args.has("l")) {
@@ -155,11 +173,16 @@ public class SCTool {
 					String atr = HexUtils.encodeHexString(c.getATR().getBytes()).toUpperCase();
 					c.disconnect(false);
 					System.out.println("    " + atr);
-					System.out.println("    http://smartcard-atr.appspot.com/parse?ATR=" + atr);
-
+					String url = "http://smartcard-atr.appspot.com/parse?ATR=" + atr;
+					if (args.has(OPT_WEB) && Desktop.isDesktopSupported()) {
+						Desktop.getDesktop().browse(new URI(url + "&from=apdu4j"));
+					} else {
+						System.out.println("    " + url);
+					}
 				}
 			}
 		}
+
 		// Select terminals to work on
 		List<CardTerminal> do_readers;
 		if (args.has(OPT_READER)) {
@@ -193,11 +216,19 @@ public class SCTool {
 			return;
 		}
 
+
 		if (debug) {
-			reader = LoggingCardTerminal.getInstance(reader);
+			FileOutputStream o = null;
+			if (args.has(OPT_DUMP)) {
+				try {
+					o = new FileOutputStream((File) args.valueOf(OPT_DUMP));
+				} catch (FileNotFoundException e) {
+					System.err.println("Can not dump to " + args.valueOf(OPT_DUMP));
+				}
+			}
+			reader = LoggingCardTerminal.getInstance(reader, o);
 		}
 
-		System.out.println("Working on " + reader.getName());
 		final String protocol;
 		if (args.has(OPT_T0)) {
 			protocol = "T=0";
@@ -212,9 +243,12 @@ public class SCTool {
 
 			if (args.has(CMD_APDU)) {
 				for (Object s: args.valuesOf(CMD_APDU)) {
-					System.out.println("Sending APDU");
-					CommandAPDU a = new CommandAPDU(HexUtils.decodeHexString((String)s));
-					c.getBasicChannel().transmit(a);
+					CommandAPDU a = new CommandAPDU(HexUtils.stringToBin((String)s));
+					ResponseAPDU r = c.getBasicChannel().transmit(a);
+					if (args.has(OPT_ERROR) && r.getSW() != 0x9000) {
+						System.out.println("Card returned " + String.format("%04X", r.getSW()) + ", exiting!");
+						return;
+					}
 				}
 			}
 		}

@@ -33,4 +33,11 @@ public class HexUtils {
 		return out;
 	}
 	// End of copied code from commons-codec
+
+	public static byte[] stringToBin(String s) {
+		s = s.toLowerCase().replaceAll(" ", "").replaceAll(":", "");
+		s = s.replaceAll("0x", "").replaceAll("\n", "").replaceAll("\t", "");
+		s = s.replaceAll(";", "");
+		return decodeHexString(s);
+	}
 }

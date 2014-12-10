@@ -97,10 +97,11 @@ public class LoggingCardTerminal extends CardTerminal {
 			log.println(" -> " + card.getProtocol() + ", " + atr);
 			if (dump != null) {
 				String ts = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss Z").format(Calendar.getInstance().getTime());
-				dump.println("# Generated on " + ts);
+				dump.println("# Generated on " + ts + " by apdu4j");
 				dump.println("# Using " + terminal.getName());
 				dump.println("# ATR: " + atr);
 				dump.println("# PROTOCOL: " + card.getProtocol());
+				dump.println("#");
 			}
 		}
 

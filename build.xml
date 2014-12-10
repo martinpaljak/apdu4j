@@ -29,6 +29,13 @@
     </jar>
     <delete file="optimized-apdu4j.jar"/>
   </target>
+  <!-- Package for Unix -->
+  <target name="shelldist" depends="dist" description="generate executable shell file">
+    <concat destfile="sc.sh" binary="true">
+      <filelist files="pre.sh,apdu4j.jar"/>
+    </concat>
+    <exec failonerror="true" command="chmod +x sc.sh"/>
+  </target>
   <!-- Wrap the JAR into .EXE for Windows users -->
   <target name="windist" depends="dist" description="package as .exe">
     <property name="launch4j.dir" location="ext/launch4j"/>
