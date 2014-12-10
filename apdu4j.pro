@@ -14,6 +14,12 @@
 -keep public class apdu4j.LoggingCardTerminal {
     public <methods>;
 }
+-keep public class apdu4j.TerminalManager {
+    public <methods>;
+}
+-keep public class apdu4j.ISO7816 {
+    public <fields>;
+}
 -keep public class apdu4j.SCTool {
     public static void main(java.lang.String[]);
 }
