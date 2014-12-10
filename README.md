@@ -51,6 +51,10 @@ ant
 
         sc -l -v
 
+ * Take you directly to the [online ATR database](http://smartcard-atr.appspot.com/)
+
+        sc -l -v -web
+
  * Use a virtual smart card reader provider:
 
         sc -p com.example.VirtualTerminalProvider -lv
@@ -119,12 +123,15 @@ TerminalFactory tf = TerminalFactory.getInstance("PC/SC", f, new APDUReplayProvi
    * has *Provider*-s for weird hardware
  * jnasmartcardio (CC0) - https://github.com/jnasmartcardio/jnasmartcardio
    * written in Java
-   * provides a "better" wrapper for system PC/SC service with JNA
+   * provides a "better" wrapper for system PC/SC service with JNA as a *Provider*
    * used by apdu4j
  * OpenCard Framework (OPEN CARD CONSORTIUM SOURCE LICENSE) - http://www.openscdp.org/ocf/
    * written in Java
    * really old (pre-2000, comparable to CT-API)
    * no command line utility
+ * intarsys smartcard-io (BSD) - https://github.com/intarsys/smartcard-io
+   * written in Java 
+   * similar to jnasmartcardio (alternative native *Provider*)
  * OpenSC (opensc-tool, LGPL) - https://github.com/OpenSC/OpenSC
    * written in C
    * related to rest of OpenSC, but allows to send APDU-s from command line with ```opensc-tool -s XX:XX:XX:XX```
