@@ -1,1 +1,5 @@
 /bin/
+/ext/launch4j/
+/build/
+/apdu4j.jar
+/sc.exe
