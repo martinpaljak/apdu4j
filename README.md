@@ -121,6 +121,10 @@ TerminalFactory tf = TerminalFactory.getInstance("PC/SC", f, new APDUReplayProvi
    * written in Java
    * provides a "better" wrapper for system PC/SC service with JNA
    * used by apdu4j
+ * OpenCard Framework (OPEN CARD CONSORTIUM SOURCE LICENSE) - http://www.openscdp.org/ocf/
+   * written in Java
+   * really old (pre-2000, comparable to CT-API)
+   * no command line utility
  * OpenSC (opensc-tool, LGPL) - https://github.com/OpenSC/OpenSC
    * written in C
    * related to rest of OpenSC, but allows to send APDU-s from command line with ```opensc-tool -s XX:XX:XX:XX```
