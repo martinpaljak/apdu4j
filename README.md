@@ -21,6 +21,7 @@ ant
 
 * Status
   * Travis - [![Build Status](https://travis-ci.org/martinpaljak/apdu4j.png?branch=master)](https://travis-ci.org/martinpaljak/apdu4j)
+  * Coverity - [![Coverity status](https://scan.coverity.com/projects/3664/badge.svg?flat=1)](https://scan.coverity.com/projects/3664/)
 
 ### Usage from command line
  * Before you begin:
