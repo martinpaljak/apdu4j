@@ -11,6 +11,9 @@
 -keep public class apdu4j.APDUReplayProvider {
     public <methods>;
 }
+-keep public class apdu4j.LoggingCardTerminal {
+    public <methods>;
+}
 -keep public class apdu4j.SCTool {
     public static void main(java.lang.String[]);
 }
