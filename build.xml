@@ -8,7 +8,7 @@
   </path>
   <target name="compile" description="compile the source">
     <mkdir dir="build"/>
-    <javac srcdir="src" destdir="build" includeantruntime="false" excludes="**/tests/**" debug="true" debuglevel="lines,vars,source">
+    <javac target="1.7" source="1.7" srcdir="src" destdir="build" includeantruntime="false" excludes="**/tests/**" debug="true" debuglevel="lines,vars,source">
       <compilerarg value="-Xlint"/>
       <classpath refid="build.classpath"/>
     </javac>
