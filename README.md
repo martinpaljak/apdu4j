@@ -1,6 +1,6 @@
 # apdu4j
 
-Command line utility and useful Java code library for working with smart cards and smart card readers via [JSR268](https://jcp.org/en/jsr/detail?id=268) (commonly known as [javax.smartcardio](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/package-summary.html)). While focus is on desktop PC/SC readers, some code can be re-used with arbitrary "APDU-command-response-ish" interfaces.
+Command line tool and library of useful Java classes for working with smart cards and smart card readers via [JSR268](https://jcp.org/en/jsr/detail?id=268) (commonly known as [javax.smartcardio](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/package-summary.html)). While focus is on desktop PC/SC readers, some code can be re-used with arbitrary "APDU-command-response-ish" interfaces, either as CommandAPDU/ResponseAPDU pairs or plain byte arrays.
 
 #### Jump to ...
 * [Download](#get-it-now)
@@ -37,7 +37,7 @@ ant
 
    * On Windows just use pre-packaged ```sc.exe``` like this:
 
-            sc.exe -info
+            sc.exe -h
  
  * Display all options:
 
@@ -169,7 +169,7 @@ TerminalFactory tf = TerminalFactory.getInstance("PC/SC", f, new APDUReplayProvi
 
 ### History
 
-When working with [GlobalPlatform](https://github.com/martinpaljak/GlobalPlatform) and [JavaCard](http://javacard.pro)-s, some low level code wanted to sneak into projects where it did not belong, so it made sense to capture it into a separate library. Also, while command line tools for accessing readers on APDU (PC/SC) level existed for C, nothing was available for doing the same via Java stack, thus the need for a DWIM command line util.
+When working with [GlobalPlatform](https://github.com/martinpaljak/GlobalPlatform) and [JavaCard](http://javacard.pro)-s, some low level code wanted to sneak into projects where it did not belong, so it made sense to capture it into a separate library. Also, while command line tools for accessing readers on APDU (PC/SC) level existed for C, nothing was available for doing the same via Java stack, thus the need for a DWIM command line tool.
 
 ### Contact 
 
