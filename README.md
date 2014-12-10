@@ -71,7 +71,7 @@ ant
  
         sc -t0 -a 00A40C0000 -a 80:01:04:00:00 -dump card.dump 
 
- * Show APDU-s sent to the card:
+ * Show APDU-s sent to the card (using ```LoggingCardTerminal```):
    
    add ```-debug``` or ```-d``` to your command
 
@@ -81,7 +81,7 @@ ant
 
 ### Usage from Java
 #### LoggingCardTerminal
- * Show a debugging trace of PC/SC calls and exhanged APDU-s with timing on System.out:
+ * Show a debugging trace (like ```-d```) of PC/SC calls and exhanged APDU-s with timing on System.out:
  
 ```java
 import apdu4j.LogginCardTerminal;
@@ -90,6 +90,16 @@ TerminalFactory f = TerminalFactory.getDefault();
 CardReader r = f.terminals().terminal("Your Smart Card Reader Name");
 reader = LoggingCardTerminal.getInstance(reader);
 // Now use javax.smartcardio as you normally do
+```
+
+ * This will give you output similar to:
+```
+SCardConnect("SCM Microsystems Inc. SCR 355 00 00", T=*) -> T=1, 3BFC180000813180459067464A00680804000000000E
+SCardBeginTransaction("SCM Microsystems Inc. SCR 355 00 00")
+A>> T=1 (4+0000) 00A40400 00 
+A<< (0018+2) (17ms) 6F108408A000000003000000A5049F6501FF 9000
+A>> T=1 (4+0000) 80CA9F7F 00 
+A<< (0000+2) (11ms) 6A88
 ```
 
  * Dump all APDU communication with a card to a file:
@@ -103,7 +113,18 @@ FileOutputStream o = new FileOutputStream(new File("card.dump"));
 reader = LoggingCardTerminal.getInstance(reader, o);
 // Now use javax.smartcardio as you normally do
 ```
+ * This will make a dump file similar to this:
 
+```
+# Generated on Wed, 10 Dec 2014 22:33:28 +0200
+# Using SCM Microsystems Inc. SCR 355 00 00
+# ATR: 3BFC180000813180459067464A00680804000000000E
+# PROTOCOL: T=1
+# 00A4040000
+6F108408A000000003000000A5049F6501FF9000
+# 80CA9F7F00
+6A88
+```
  
 #### APDUReplayProvider
 ```java
