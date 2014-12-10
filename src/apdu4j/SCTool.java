@@ -115,9 +115,11 @@ public class SCTool {
 		// List TerminalFactory providers
 		if (args.has(OPT_PROVIDERS)) {
 			Provider providers[] = Security.getProviders("TerminalFactory.PC/SC");
-			System.out.println("Existing TerminalFactory providers:");
-			for (Provider p: providers) {
-				System.out.println(p.getName());
+			if (providers != null) {
+				System.out.println("Existing TerminalFactory providers:");
+				for (Provider p: providers) {
+					System.out.println(p.getName());
+				}
 			}
 		}
 
