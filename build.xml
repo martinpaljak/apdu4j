@@ -1,0 +1,73 @@
+<?xml version="1.0"?>
+<project name="apdu4j" default="dist" basedir=".">
+  <description>ANT build file for apdu4j</description>
+  <!-- Build the software -->
+  <path id="build.classpath">
+    <pathelement location="lib/jnasmartcardio.jar"/>
+    <pathelement location="lib/jopt-simple-4.8.jar"/>
+  </path>
+  <target name="compile" description="compile the source">
+    <mkdir dir="build"/>
+    <javac srcdir="src" destdir="build" includeantruntime="false" excludes="**/tests/**" debug="true" debuglevel="lines,vars,source">
+      <compilerarg value="-Xlint"/>
+      <classpath refid="build.classpath"/>
+    </javac>
+  </target>
+  <!-- Package it into a nice little JAR -->
+  <target name="dist" depends="compile" description="generate the distribution">
+    <!-- Build adpu4j.jar -->
+    <java classname="proguard.ProGuard" fork="true" failonerror="true">
+      <arg line="@apdu4j.pro"/>
+      <classpath>
+        <pathelement location="ext/proguard.jar"/>
+      </classpath>
+    </java>
+    <jar destfile="apdu4j.jar" level="9">
+      <zipfileset src="lib/jnasmartcardio.jar"/>
+      <zipfileset src="optimized-apdu4j.jar"/>
+      <manifest><attribute name="Main-Class" value="apdu4j.SCTool"/></manifest>
+    </jar>
+    <delete file="optimized-apdu4j.jar"/>
+  </target>
+  <!-- Wrap the JAR into .EXE for Windows users -->
+  <target name="windist" depends="dist" description="package as .exe">
+    <property name="launch4j.dir" location="ext/launch4j"/>
+    <taskdef name="launch4j" classname="net.sf.launch4j.ant.Launch4jTask" classpath="${launch4j.dir}/launch4j.jar:${launch4j.dir}/lib/xstream.jar"/>
+    <launch4j>
+      <config headerType="console" outfile="sc.exe" jar="apdu4j.jar"
+      errTitle="apdu4j">
+        <jre minVersion="1.7.0"/>
+      </config>
+    </launch4j>
+  </target>
+  <!-- Clean the source tree -->
+  <target name="clean" description="clean up">
+    <delete dir="build"/>
+    <delete dir="javadoc"/>
+    <delete file="apdu4j.jar"/>
+  </target>
+  <!-- Put javadocs online -->
+  <target name="javadoc">
+    <javadoc destdir="javadoc" Doctitle="apdu4j" access="public" linksource="true">
+      <packageset dir="src">
+        <include name="apdu4j/"/>
+        <exclude name="apdu4j/tests/**"/>
+      </packageset>
+      <classpath refid="build.classpath"/>
+    </javadoc>
+  </target>
+  <!-- Do a full release to github -->
+  <target name="release" depends="clean,dist,javadoc">
+    <exec failonerror="true" command="test -n &quot;$(git status -s)&quot;"/>
+    <input message="Publish version:" addproperty="release.version"/>
+    <input message="Do you want to release ${release.version}?" validargs="y,n" addproperty="do.release"/>
+    <condition property="do.abort">
+      <equals arg1="n" arg2="${do.release}"/>
+    </condition>
+    <fail if="do.abort">Not releasing ${release.version}.</fail>
+    <echo message="Releasing ${release.version} to Github"/>
+    <exec failonerror="true" command="git tag -s ${release.version} -m 'Release ${release.version}'"/>
+    <exec failonerror="true" command="git push --tags origin master"/>
+    <exec failonerror="true" command="ghp-import -n -m 'Release ${release.version}' -p javadoc"/>
+  </target>
+</project>
