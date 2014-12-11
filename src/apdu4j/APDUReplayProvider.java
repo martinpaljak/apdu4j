@@ -44,7 +44,7 @@ public class APDUReplayProvider extends Provider {
 	private static final String TERMINAL_NAME = "Replay Terminal";
 
 	public APDUReplayProvider() {
-		super(PROVIDER_NAME, 0.1d, "APDU Replay from javacard.pro");
+		super(PROVIDER_NAME, 0.1d, "APDU Replay from apdu4j");
 		put("TerminalFactory.PC/SC", APDUReplayProviderSpi.class.getName());
 	}
 
