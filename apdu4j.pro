@@ -9,10 +9,11 @@
 -dontobfuscate
 -dontoptimize
 -keep public class apdu4j.APDUReplayProvider {
-    public <methods>;
+    *;
 }
+-keep class apdu4j.APDUReplayProvider$* { *; }
 -keep public class apdu4j.LoggingCardTerminal {
-    public <methods>;
+    *;
 }
 -keep public class apdu4j.TerminalManager {
     public <methods>;

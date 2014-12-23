@@ -216,51 +216,52 @@ public class SCTool {
 			return;
 		}
 
-
-		if (debug) {
-			FileOutputStream o = null;
-			if (args.has(OPT_DUMP)) {
-				try {
-					o = new FileOutputStream((File) args.valueOf(OPT_DUMP));
-				} catch (FileNotFoundException e) {
-					System.err.println("Can not dump to " + args.valueOf(OPT_DUMP));
+		if (args.has(CMD_APDU))  {
+			if (debug) {
+				FileOutputStream o = null;
+				if (args.has(OPT_DUMP)) {
+					try {
+						o = new FileOutputStream((File) args.valueOf(OPT_DUMP));
+					} catch (FileNotFoundException e) {
+						System.err.println("Can not dump to " + args.valueOf(OPT_DUMP));
+					}
 				}
+				reader = LoggingCardTerminal.getInstance(reader, o);
 			}
-			reader = LoggingCardTerminal.getInstance(reader, o);
-		}
 
-		final String protocol;
-		if (args.has(OPT_T0)) {
-			protocol = "T=0";
-		} else if (args.has(OPT_T1)) {
-			protocol = "T=1";
-		} else {
-			protocol = "*";
-		}
-		Card c = null;
-		try {
-			c = reader.connect(protocol);
+			final String protocol;
+			if (args.has(OPT_T0)) {
+				protocol = "T=0";
+			} else if (args.has(OPT_T1)) {
+				protocol = "T=1";
+			} else {
+				protocol = "*";
+			}
+			Card c = null;
+			try {
+				c = reader.connect(protocol);
 
-			if (args.has(CMD_APDU)) {
-				for (Object s: args.valuesOf(CMD_APDU)) {
-					CommandAPDU a = new CommandAPDU(HexUtils.stringToBin((String)s));
-					ResponseAPDU r = c.getBasicChannel().transmit(a);
-					if (args.has(OPT_ERROR) && r.getSW() != 0x9000) {
-						System.out.println("Card returned " + String.format("%04X", r.getSW()) + ", exiting!");
-						return;
+				if (args.has(CMD_APDU)) {
+					for (Object s: args.valuesOf(CMD_APDU)) {
+						CommandAPDU a = new CommandAPDU(HexUtils.stringToBin((String)s));
+						ResponseAPDU r = c.getBasicChannel().transmit(a);
+						if (args.has(OPT_ERROR) && r.getSW() != 0x9000) {
+							System.out.println("Card returned " + String.format("%04X", r.getSW()) + ", exiting!");
+							return;
+						}
 					}
 				}
 			}
-		}
-		catch (CardException e) {
-			if (TerminalManager.getExceptionMessage(e) != null) {
-				System.out.println("PC/SC failure: " + TerminalManager.getExceptionMessage(e));
-			} else {
-				throw e;
-			}
-		} finally {
-			if (c != null) {
-				c.disconnect(true);
+			catch (CardException e) {
+				if (TerminalManager.getExceptionMessage(e) != null) {
+					System.out.println("PC/SC failure: " + TerminalManager.getExceptionMessage(e));
+				} else {
+					throw e;
+				}
+			} finally {
+				if (c != null) {
+					c.disconnect(true);
+				}
 			}
 		}
 	}
