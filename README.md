@@ -38,7 +38,7 @@ ant
    * On Windows just use pre-packaged ```sc.exe``` like this:
 
             sc.exe -h
- 
+
  * Display all options:
 
         sc -h
@@ -78,6 +78,14 @@ ant
  * Be verbose:
    
    add ```-verbose``` or ```-v``` to your command
+
+
+#### Pro Tips
+ * Running with extended classpath
+
+    For some stupid reason Java does not allow to use both ```-jar``` and ```-cp``` in the same command, so you need to manually specify the full classpath and main class, together with any parameters you want to pass to the utility. The main class of the ```sc``` tool is ```apdu4j.SCTool```, so something along the lines:
+
+        java -cp someother.jar:apdu4j.jar apdu4j.SCTool -p org.someother.APDUClass -l
 
 ### Usage from Java
 #### LoggingCardTerminal
