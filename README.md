@@ -1,6 +1,6 @@
 # apdu4j
 
-Command line tool and library of useful Java classes for working with smart cards and smart card readers via [JSR268](https://jcp.org/en/jsr/detail?id=268) (commonly known as [javax.smartcardio](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/package-summary.html)). While focus is on desktop PC/SC readers, some code can be re-used with arbitrary "APDU-command-response-ish" interfaces, either as CommandAPDU/ResponseAPDU pairs or plain byte arrays.
+Command line tool and library of useful Java classes for working with smart cards and smart card readers via [JSR268](https://jcp.org/en/jsr/detail?id=268) (commonly known as [javax.smartcardio](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/package-summary.html)). While focus is on desktop PC/SC readers, some code can be re-used with arbitrary "APDU-command-response-ish" interfaces, either as [CommandAPDU](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/CommandAPDU.html)/[ResponseAPDU](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/ResponseAPDU.html) pairs or plain byte arrays.
 
 #### Jump to ...
 * [Download](#get-it-now)
@@ -53,9 +53,9 @@ ant
 
  * Take you directly to the [online ATR database](http://smartcard-atr.appspot.com/)
 
-        sc -l -v -web
+        sc -l -v -w
 
- * Use a virtual smart card reader provider:
+ * Use a virtual smart card reader provider (NB! See [Pro Tips](#pro-tips)):
 
         sc -p com.example.VirtualTerminalProvider -lv
 
@@ -67,7 +67,7 @@ ant
 
         sc -t0 -a 00A40C0000
 
- * The same, with additional APDU and dumping everything to ```card.dump```
+ * The same, with an additional APDU, while dumping everything to ```card.dump```
  
         sc -t0 -a 00A40C0000 -a 80:01:04:00:00 -dump card.dump 
 
@@ -124,14 +124,19 @@ reader = LoggingCardTerminal.getInstance(reader, o);
  * This will make a dump file similar to this:
 
 ```
-# Generated on Wed, 10 Dec 2014 22:33:28 +0200
+# Generated on Wed, 31 Dec 2014 18:10:35 +0200 by apdu4j
 # Using SCM Microsystems Inc. SCR 355 00 00
-# ATR: 3BFC180000813180459067464A00680804000000000E
+# ATR: 3BFE1800008031FE4553434536302D43443038312D6E46A9
 # PROTOCOL: T=1
-# 00A4040000
+#
+# Sent
+00A4040000
+# Received in 24ms
 6F108408A000000003000000A5049F6501FF9000
-# 80CA9F7F00
-6A88
+# Sent
+80500000084D080A4D1C5EBC92
+# Received in 70ms
+00001248950019F738700103002421796B41BB3B7014659BFC8A54B2479000
 ```
  
 #### APDUReplayProvider
@@ -164,10 +169,16 @@ TerminalFactory tf = TerminalFactory.getInstance("PC/SC", f, new APDUReplayProvi
  * OpenSC (opensc-tool, LGPL) - https://github.com/OpenSC/OpenSC
    * written in C
    * related to rest of OpenSC, but allows to send APDU-s from command line with ```opensc-tool -s XX:XX:XX:XX```
+ * Countless other apdu/script tools
+   * written in different languages
+   * use different input formats and script files
+   * just FYI
 
-### License
 
- * MIT
+### History and motivation
+
+When working with [GlobalPlatformPro](https://github.com/martinpaljak/GlobalPlatformPro) and [JavaCard](http://javacard.pro)-s, some low level code wanted to sneak into projects where it did not belong, so it made sense to capture it into a separate library. Also, while command line tools for accessing readers on APDU (PC/SC) level existed for C, nothing was available for doing the same via Java stack, thus the need for a DWIM command line tool.
+
 
 ### Included/used open source projects
 
@@ -175,9 +186,9 @@ TerminalFactory tf = TerminalFactory.getInstance("PC/SC", f, new APDUReplayProvi
  * [Launch4j](http://launch4j.sourceforge.net/) for generating .exe (BSD/MIT)
  * [jnasmartcardio](https://github.com/jnasmartcardio/jnasmartcardio) for PC/SC access (CC0 / public domain)
 
-### History
+### License
 
-When working with [GlobalPlatform](https://github.com/martinpaljak/GlobalPlatform) and [JavaCard](http://javacard.pro)-s, some low level code wanted to sneak into projects where it did not belong, so it made sense to capture it into a separate library. Also, while command line tools for accessing readers on APDU (PC/SC) level existed for C, nothing was available for doing the same via Java stack, thus the need for a DWIM command line tool.
+ * MIT
 
 ### Contact 
 
