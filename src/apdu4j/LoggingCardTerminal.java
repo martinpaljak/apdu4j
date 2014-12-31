@@ -212,8 +212,8 @@ public class LoggingCardTerminal extends CardTerminal {
 				}
 				log.println(" " + HexUtils.encodeHexString(Arrays.copyOfRange(rb, rb.length-2, rb.length)));
 				if (dump != null) {
-					dump.println("# " + HexUtils.encodeHexString(cb));
-					dump.println(HexUtils.encodeHexString(rb));
+					dump.println("# Sent\n" + HexUtils.encodeHexString(cb));
+					dump.println("# Received in " + time + "\n" + HexUtils.encodeHexString(rb));
 				}
 				return response;
 			}
@@ -231,7 +231,8 @@ public class LoggingCardTerminal extends CardTerminal {
 				rsp.position(0);
 				log.println("B<< (" + responseBytes.length + ") " + HexUtils.encodeHexString(responseBytes));
 				if (dump != null) {
-					dump.println(HexUtils.encodeHexString(responseBytes));
+					dump.println("# Sent\n" + HexUtils.encodeHexString(commandBytes));
+					dump.println("# Received\n" + HexUtils.encodeHexString(responseBytes));
 				}
 				return response;
 			}

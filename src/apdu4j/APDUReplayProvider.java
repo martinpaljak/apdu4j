@@ -25,6 +25,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.security.Provider;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
 
@@ -41,7 +42,7 @@ import javax.smartcardio.TerminalFactorySpi;
 @SuppressWarnings("serial")
 public class APDUReplayProvider extends Provider {
 	private static final String PROVIDER_NAME = "APDUReplay";
-	private static final String TERMINAL_NAME = "Replay Terminal";
+	private static final String TERMINAL_NAME = "Replay Terminal 0";
 
 	public APDUReplayProvider() {
 		super(PROVIDER_NAME, 0.1d, "APDU Replay from apdu4j");
@@ -49,8 +50,11 @@ public class APDUReplayProvider extends Provider {
 	}
 
 	public static class APDUReplayProviderSpi extends TerminalFactorySpi {
+		boolean strict = true;
 		InputStream script = null;
+		List<byte[]> commands = null;
 		List<byte[]> responses = null;
+
 		public APDUReplayProviderSpi(Object parameter) {
 			if (parameter != null && (parameter instanceof InputStream)) {
 				script = (InputStream) parameter;
@@ -63,12 +67,19 @@ public class APDUReplayProvider extends Provider {
 		}
 
 		public synchronized byte[] replay_transmit(byte[] cmd) throws CardException {
-			// Just drop the command for now.
-			if (responses.size() == 0)
+			if (commands.size() == 0) {
 				throw new CardException("Replay script depleted!");
+			}
+			byte [] expected_cmd = commands.remove(0);
+			if (strict) {
+				if (!Arrays.equals(cmd, expected_cmd)) {
+					throw new CardException("Expected " + HexUtils.encodeHexString(expected_cmd) + " but got " + HexUtils.encodeHexString(cmd));
+				}
+			}
 			return responses.remove(0);
 		}
 
+		// FIXME: this needs to be in Spi
 		private final class ReplayTerminals extends CardTerminals {
 			final Scanner script;
 			private static final String PROTOCOL = "# PROTOCOL: ";
@@ -78,12 +89,13 @@ public class APDUReplayProvider extends Provider {
 			String protocol;
 			protected ReplayTerminals(InputStream script_stream) {
 				script = new Scanner(script_stream);
+				commands = new ArrayList<>();
 				responses = new ArrayList<>();
+				boolean is_cmd = true;
 				// Parse script file and fail to initiate if it can not be parsed
 				while (script.hasNextLine()) {
 					String l = script.nextLine().trim();
 					// Skip comments
-
 					if (l.startsWith("#")) {
 						if (l.startsWith(ATR)) {
 							atr = new ATR(HexUtils.decodeHexString(l.substring(ATR.length())));
@@ -93,10 +105,18 @@ public class APDUReplayProvider extends Provider {
 						continue;
 					}
 					byte[] r = HexUtils.decodeHexString(l);
-					responses.add(r);
+					if (is_cmd) {
+						commands.add(r);
+					} else {
+						responses.add(r);
+					}
+					// flip
+					is_cmd = !is_cmd;
 				}
-				if (atr == null || protocol == null || responses.size() == 0)
+				// Consistency check
+				if (atr == null || protocol == null || responses.size() == 0 || responses.size() != commands.size()) {
 					throw new IllegalArgumentException("Incomplete APDU dump!");
+				}
 			}
 
 			@Override
