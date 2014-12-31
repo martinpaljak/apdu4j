@@ -54,6 +54,8 @@ public class SCTool {
 	private static final String CMD_APDU = "apdu";
 
 	private static final String OPT_PROVIDER = "provider";
+	private static final String OPT_PROVIDER_TYPE = "type";
+
 	private static final String OPT_READER = "reader";
 	private static final String OPT_ALL = "all";
 	private static final String OPT_VERBOSE = "verbose";
@@ -87,6 +89,7 @@ public class SCTool {
 		parser.acceptsAll(Arrays.asList("h", OPT_HELP), "show help");
 		parser.acceptsAll(Arrays.asList("r", OPT_READER), "use reader").withRequiredArg();
 		parser.acceptsAll(Arrays.asList("a", CMD_APDU), "send APDU").withRequiredArg();
+		parser.acceptsAll(Arrays.asList("w", OPT_WEB), "open ATR in web");
 		parser.accepts(OPT_DUMP, "save dump to file").withRequiredArg().ofType(File.class);
 
 		parser.accepts(OPT_SUN, "load SunPCSC");
@@ -95,7 +98,7 @@ public class SCTool {
 		parser.accepts(OPT_ALL, "process all readers");
 		parser.accepts(OPT_T0, "use T=0");
 		parser.accepts(OPT_T1, "use T=1");
-		parser.accepts(OPT_WEB, "open ATR in web");
+		parser.accepts(OPT_PROVIDER_TYPE, "provider type if not PC/SC").withRequiredArg();
 
 
 
@@ -140,11 +143,12 @@ public class SCTool {
 		// Overload if necessary
 		if (args.has(OPT_PROVIDER)) {
 			String pn = (String)args.valueOf(OPT_PROVIDER);
-			tf = loadFactory(pn);
+			String pt = (String) args.valueOf(OPT_PROVIDER_TYPE);
+			tf = loadFactory(pn, pt);
 		} else if (args.has(OPT_SUN)) {
-			tf = loadFactory(SUN_CLASS);
+			tf = loadFactory(SUN_CLASS, null);
 		} else if (args.has(OPT_JNA)) {
-			tf = loadFactory(JNA_CLASS);
+			tf = loadFactory(JNA_CLASS, null);
 		} else {
 			tf = TerminalFactory.getDefault();
 		}
@@ -161,7 +165,7 @@ public class SCTool {
 		}
 
 		// List Terminals
-		if (args.has("l")) {
+		if (args.has(CMD_LIST)) {
 			List<CardTerminal> terms = terminals.list();
 			if (verbose) {
 				System.out.println("# Found " + terms.size() + " terminal" + (terms.size() == 1 ? "" : "s"));
@@ -199,7 +203,7 @@ public class SCTool {
 				System.err.println("More than one reader with a card found.");
 				System.err.println("Run with --"+OPT_ALL+" to work with all found cards");
 				System.exit(1);
-			} else if (do_readers.size() == 0) {
+			} else if (do_readers.size() == 0 && !args.has(CMD_LIST)) {
 				System.err.println("No reader with a card found!");
 				System.exit(1);
 			}
@@ -266,18 +270,20 @@ public class SCTool {
 		}
 	}
 
-	private static TerminalFactory loadFactory(String pn) {
+	private static TerminalFactory loadFactory(String pn, String type) {
 		TerminalFactory tf = null;
 		try {
 			Class<?> cls = Class.forName(pn);
 			Provider p = (Provider) cls.getConstructor().newInstance();
-			tf = TerminalFactory.getInstance("PC/SC", null, p);
+			tf = TerminalFactory.getInstance(type == null ? "PC/SC" : type, null, p);
 		} catch (ClassNotFoundException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException | NoSuchMethodException | SecurityException e) {
-			System.err.println("Could not load " + pn + ": " + e.getClass().getCanonicalName());
-			throw new RuntimeException(e);
-		}
-		catch (NoSuchAlgorithmException e) {
-			throw new RuntimeException("Platform does not support PC/SC");
+			throw new RuntimeException("Could not load "+ pn, e);
+		} catch (NoSuchAlgorithmException e) {
+			String msg = "Platform does not support PC/SC";
+			if (type != null && type != "PC/SC") {
+				msg = "Provider type " + type + " not supported by " + pn;
+			}
+			throw new RuntimeException(msg, e);
 		}
 		return tf;
 	}
@@ -287,5 +293,4 @@ public class SCTool {
 		parser.printHelpOn(o);
 		System.exit(1);
 	}
-
 }
