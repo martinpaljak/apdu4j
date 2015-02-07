@@ -167,9 +167,7 @@ public class APDUReplayProvider extends Provider {
 
 					@Override
 					public void beginExclusive() throws CardException {
-						// TODO Auto-generated method stub
-						// This makes no sense as there is just this JVM instance
-						// Maybe synchronize on transmit?
+
 					}
 
 					@Override
@@ -179,7 +177,7 @@ public class APDUReplayProvider extends Provider {
 
 					@Override
 					public void endExclusive() throws CardException {
-						// TODO Auto-generated method stub
+
 					}
 
 					@Override
@@ -208,7 +206,7 @@ public class APDUReplayProvider extends Provider {
 					}
 
 
-					public class ReplayChannel extends  CardChannel {
+					public final class ReplayChannel extends CardChannel {
 
 						@Override
 						public void close() throws CardException {

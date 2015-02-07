@@ -160,6 +160,7 @@ public class SCTool {
 		try {
 			terminals = tf.terminals();
 		} catch (Exception e) {
+			// TODO: less generic catch
 			System.out.println("No readers: " + TerminalManager.getExceptionMessage(e));
 			System.exit(1);
 		}
@@ -169,6 +170,10 @@ public class SCTool {
 			List<CardTerminal> terms = terminals.list();
 			if (verbose) {
 				System.out.println("# Found " + terms.size() + " terminal" + (terms.size() == 1 ? "" : "s"));
+			}
+			if (terms.size() == 0) {
+				System.err.println("No readers found");
+				System.exit(1);
 			}
 			for (CardTerminal t: terms) {
 				System.out.println((t.isCardPresent() ? "[*] " : "[ ] ") + t.getName());
@@ -255,8 +260,7 @@ public class SCTool {
 						}
 					}
 				}
-			}
-			catch (CardException e) {
+			} catch (CardException e) {
 				if (TerminalManager.getExceptionMessage(e) != null) {
 					System.out.println("PC/SC failure: " + TerminalManager.getExceptionMessage(e));
 				} else {
