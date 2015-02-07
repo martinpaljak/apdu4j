@@ -39,9 +39,10 @@ import javax.smartcardio.TerminalFactory;
  *
  */
 public class TerminalManager {
-
+	public static final String lib_prop = "sun.security.smartcardio.library";
 	private static final String debian_path = "/usr/lib/libpcsclite.so.1";
 	private static final String ubuntu_path = "/lib/libpcsclite.so.1";
+	private static final String freebsd_path = "/usr/local/lib/libpcsclite.so";
 
 	private static boolean buggy = true;
 
@@ -55,9 +56,15 @@ public class TerminalManager {
 		// http://ludovicrousseau.blogspot.com.es/2013/03/oracle-javaxsmartcardio-failures.html
 		if (System.getProperty("os.name").equalsIgnoreCase("Linux")) {
 			if (new File(debian_path).exists()) {
-				System.setProperty("sun.security.smartcardio.library", debian_path);
+				System.setProperty(lib_prop, debian_path);
 			} else if (new File(ubuntu_path).exists()) {
-				System.setProperty("sun.security.smartcardio.library", ubuntu_path);
+				System.setProperty(lib_prop, ubuntu_path);
+			}
+		} else if (System.getProperty("os.name").equalsIgnoreCase("FreeBSD")) {
+			if (new File(freebsd_path).exists()) {
+				System.setProperty(lib_prop, freebsd_path);
+			} else {
+				System.err.println("pcsc-lite missing. pkg install devel/libccid");
 			}
 		}
 
