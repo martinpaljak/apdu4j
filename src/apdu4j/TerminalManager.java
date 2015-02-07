@@ -50,24 +50,31 @@ public class TerminalManager {
 		return getTerminalFactory(true);
 	}
 
-	public static TerminalFactory getTerminalFactory(boolean fix) throws NoSuchAlgorithmException {
-		// Set necessary parameters for seamless PC/SC access. OpenJDK has wrong
-		// paths (without .1) See this blog post:
-		// http://ludovicrousseau.blogspot.com.es/2013/03/oracle-javaxsmartcardio-failures.html
-		if (System.getProperty("os.name").equalsIgnoreCase("Linux")) {
-			if (new File(debian_path).exists()) {
-				System.setProperty(lib_prop, debian_path);
-			} else if (new File(ubuntu_path).exists()) {
-				System.setProperty(lib_prop, ubuntu_path);
+	public static void fixPlatformPaths() {
+		if (System.getProperty(lib_prop) == null) {
+			// Set necessary parameters for seamless PC/SC access. OpenJDK has wrong
+			// paths (without .1) See this blog post:
+			// http://ludovicrousseau.blogspot.com.es/2013/03/oracle-javaxsmartcardio-failures.html
+			if (System.getProperty("os.name").equalsIgnoreCase("Linux")) {
+				if (new File(debian_path).exists()) {
+					System.setProperty(lib_prop, debian_path);
+				} else if (new File(ubuntu_path).exists()) {
+					System.setProperty(lib_prop, ubuntu_path);
+				}
+			} else if (System.getProperty("os.name").equalsIgnoreCase("FreeBSD")) {
+				if (new File(freebsd_path).exists()) {
+					System.setProperty(lib_prop, freebsd_path);
+				} else {
+					System.err.println("pcsc-lite missing. pkg install devel/libccid");
+				}
 			}
-		} else if (System.getProperty("os.name").equalsIgnoreCase("FreeBSD")) {
-			if (new File(freebsd_path).exists()) {
-				System.setProperty(lib_prop, freebsd_path);
-			} else {
-				System.err.println("pcsc-lite missing. pkg install devel/libccid");
-			}
+		} else {
+			// TODO: display some helping information?
 		}
+	}
 
+	public static TerminalFactory getTerminalFactory(boolean fix) throws NoSuchAlgorithmException {
+		fixPlatformPaths();
 		TerminalFactory tf = TerminalFactory.getDefault();
 		// OSX is horribly broken. Use JNA based approach if not already
 		// installed and used as default

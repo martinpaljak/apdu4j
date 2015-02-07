@@ -138,6 +138,8 @@ public class SCTool {
 			}
 		}
 
+		// Fix properties if necessary.
+		TerminalManager.fixPlatformPaths();
 		// Get a terminal factory
 		TerminalFactory tf = null;
 		// Overload if necessary
