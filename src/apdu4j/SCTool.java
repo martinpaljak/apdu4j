@@ -155,6 +155,9 @@ public class SCTool {
 
 		if (verbose) {
 			System.out.println("# Using " + tf.getProvider().getClass().getCanonicalName() + " - " + tf.getProvider());
+			if (System.getProperty(TerminalManager.lib_prop) != null) {
+				System.out.println("# " + TerminalManager.lib_prop + "=" + System.getProperty(TerminalManager.lib_prop));
+			}
 		}
 		CardTerminals terminals = null;
 		try {
