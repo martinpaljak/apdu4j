@@ -53,8 +53,7 @@ public class TerminalManager {
 
 	public static void fixPlatformPaths() {
 		if (System.getProperty(lib_prop) == null) {
-			// Set necessary parameters for seamless PC/SC access. OpenJDK has wrong
-			// paths (without .1) See this blog post:
+			// Set necessary parameters for seamless PC/SC access.
 			// http://ludovicrousseau.blogspot.com.es/2013/03/oracle-javaxsmartcardio-failures.html
 			if (System.getProperty("os.name").equalsIgnoreCase("Linux")) {
 				if (new File(debian_path).exists()) {
