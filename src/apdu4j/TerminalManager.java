@@ -43,7 +43,7 @@ public class TerminalManager {
 	private static final String debian_path = "/usr/lib/libpcsclite.so.1";
 	private static final String ubuntu_path = "/lib/libpcsclite.so.1";
 	private static final String freebsd_path = "/usr/local/lib/libpcsclite.so";
-	private static final String redhat_path = "/usr/lib64/libpcsclite.so.1";
+	private static final String fedora64_path = "/usr/lib64/libpcsclite.so.1";
 
 	private static boolean buggy = true;
 
@@ -61,8 +61,8 @@ public class TerminalManager {
 					System.setProperty(lib_prop, debian_path);
 				} else if (new File(ubuntu_path).exists()) {
 					System.setProperty(lib_prop, ubuntu_path);
-				} else if (new File(redhat_path).exists()) {
-					System.setProperty(lib_prop, redhat_path);
+				} else if (new File(fedora64_path).exists()) {
+					System.setProperty(lib_prop, fedora64_path);
 				} else {
 					System.err.println("pcsc-lite probably missing.");
 				}
