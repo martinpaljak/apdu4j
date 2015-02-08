@@ -90,7 +90,10 @@ ant
 ### Usage from Java
 Before anything make sure you set the necessary properties to make javax.smartcardio work without tuning:
 
-`TerminalManager.fixPlatformPaths();`
+```java
+import apdu4j.TerminalManager;
+TerminalManager.fixPlatformPaths();
+```
 
 #### LoggingCardTerminal
  * Show a debugging trace (like ```-d```) of PC/SC calls and exhanged APDU-s with timing on System.out:
