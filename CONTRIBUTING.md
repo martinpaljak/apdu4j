@@ -1,4 +1,5 @@
-# Working with apdu4j
+# Working with apdu4j and contributing
+ * All patches require MIT license
 
 ## Building the software
 Simple `ant` will produce working results if you have the dependencies.
