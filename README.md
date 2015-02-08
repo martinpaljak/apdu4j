@@ -88,6 +88,10 @@ ant
         java -cp someother.jar:apdu4j.jar apdu4j.SCTool -p org.someother.APDUClass -l
 
 ### Usage from Java
+Before anything make sure you set the necessary properties to make javax.smartcardio work without tuning:
+
+```TerminalManager.fixPlatformPaths();```
+
 #### LoggingCardTerminal
  * Show a debugging trace (like ```-d```) of PC/SC calls and exhanged APDU-s with timing on System.out:
  
