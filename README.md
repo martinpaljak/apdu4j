@@ -6,7 +6,7 @@ Command line tool and library of useful Java classes for working with smart card
 * [Download](#get-it-now)
 * [Usage from command line](#usage-from-command-line)
 * [Usage from Java](#usage-from-java)
-* [Similar and related projects](#similar-projects)
+* [Similar and related projects](#similar-and-related-projects)
 * [Contact](#contact)
 
 ### Get it now!
