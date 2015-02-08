@@ -1,6 +1,6 @@
 # apdu4j
 
-Command line tool and library of useful Java classes for working with smart cards and smart card readers via [JSR268](https://jcp.org/en/jsr/detail?id=268) (commonly known as [javax.smartcardio](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/package-summary.html)). While focus is on desktop PC/SC readers, some code can be re-used with arbitrary "APDU-command-response-ish" interfaces, either as [CommandAPDU](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/CommandAPDU.html)/[ResponseAPDU](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/ResponseAPDU.html) pairs or plain byte arrays. Fixes all the stupid things with Java on non-windows platforms: OSX, Debian, Ubuntu, Fedora, CentOS, FreeBSD.
+Command line tool and library of useful Java 1.7+ classes for working with smart cards and smart card readers via [JSR268](https://jcp.org/en/jsr/detail?id=268) (commonly known as [javax.smartcardio](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/package-summary.html)). While focus is on desktop PC/SC readers, some code can be re-used with arbitrary "APDU-command-response-ish" interfaces, either as [CommandAPDU](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/CommandAPDU.html)/[ResponseAPDU](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/ResponseAPDU.html) pairs or plain byte arrays. Fixes all the stupid things with Java on non-windows platforms: OSX, Debian, Ubuntu, Fedora, CentOS, FreeBSD.
 
 #### Jump to ...
 * [Download](#get-it-now)
@@ -10,8 +10,8 @@ Command line tool and library of useful Java classes for working with smart card
 * [Contact](#contact)
 
 ### Get it now!
-* Download latest pre-built JAR or .EXE from [release area](https://github.com/martinpaljak/apdu4j/releases)
-* Or fetch from github and build it yourself, it is really easy:
+* Download latest pre-built .JAR or .EXE from [release area](https://github.com/martinpaljak/apdu4j/releases)
+* Or fetch from github and build it yourself, it is really easy (more instructions in [CONTRIBUTING](./CONTRIBUTING.md):
 
 ```shell
 git clone https://github.com/martinpaljak/apdu4j
