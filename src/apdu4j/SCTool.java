@@ -32,6 +32,7 @@ import java.net.URI;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.Security;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -180,6 +181,9 @@ public class SCTool {
 			System.exit(1);
 		}
 
+		// Terminals to work on
+		List<CardTerminal> do_readers = new ArrayList<CardTerminal>();
+
 		try {
 			// List Terminals
 			if (args.has(CMD_LIST)) {
@@ -207,29 +211,30 @@ public class SCTool {
 					}
 				}
 			}
+
+			// Select terminals to work on
+			if (args.has(OPT_READER)) {
+				String reader = (String) args.valueOf(OPT_READER);
+				CardTerminal t = terminals.getTerminal(reader);
+				if (t == null) {
+					System.err.println("Reader \"" + reader + "\" not found.");
+					System.exit(1);
+				}
+				do_readers = Arrays.asList(t);
+			} else {
+				do_readers = terminals.list(State.CARD_PRESENT);
+				if (do_readers.size() > 1 && !args.hasArgument(OPT_ALL)) {
+					System.err.println("More than one reader with a card found.");
+					System.err.println("Run with --"+OPT_ALL+" to work with all found cards");
+					System.exit(1);
+				} else if (do_readers.size() == 0 && !args.has(CMD_LIST)) {
+					System.err.println("No reader with a card found!");
+					System.exit(1);
+				}
+			}
+
 		} catch (CardException e) {
 			System.out.println("Could not list readers: " + TerminalManager.getExceptionMessage(e));
-		}
-		// Select terminals to work on
-		List<CardTerminal> do_readers;
-		if (args.has(OPT_READER)) {
-			String reader = (String) args.valueOf(OPT_READER);
-			CardTerminal t = terminals.getTerminal(reader);
-			if (t == null) {
-				System.err.println("Reader \"" + reader + "\" not found.");
-				System.exit(1);
-			}
-			do_readers = Arrays.asList(t);
-		} else {
-			do_readers = terminals.list(State.CARD_PRESENT);
-			if (do_readers.size() > 1 && !args.hasArgument(OPT_ALL)) {
-				System.err.println("More than one reader with a card found.");
-				System.err.println("Run with --"+OPT_ALL+" to work with all found cards");
-				System.exit(1);
-			} else if (do_readers.size() == 0 && !args.has(CMD_LIST)) {
-				System.err.println("No reader with a card found!");
-				System.exit(1);
-			}
 		}
 
 		for (CardTerminal t: do_readers) {
