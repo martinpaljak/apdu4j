@@ -78,7 +78,7 @@ public class SCTool {
 	private static boolean verbose = false;
 	private static boolean debug = false;
 
-	public static void main(String[] argv) throws Exception {
+	private static OptionSet parseOptions(String [] argv) throws IOException {
 		OptionSet args = null;
 		OptionParser parser = new OptionParser();
 		parser.acceptsAll(Arrays.asList("l", CMD_LIST), "list readers");
@@ -116,10 +116,14 @@ public class SCTool {
 			System.err.println();
 			help_and_exit(parser, System.err);
 		}
-
 		if (args.has(OPT_HELP)) {
 			help_and_exit(parser, System.out);
 		}
+		return args;
+	}
+
+	public static void main(String[] argv) throws Exception {
+		OptionSet args = parseOptions(argv);
 		if (args.has(OPT_VERBOSE)) {
 			verbose = true;
 		}
@@ -138,35 +142,41 @@ public class SCTool {
 			}
 		}
 
-		// Fix properties if necessary.
+		// Fix properties on non-windows platforms
 		TerminalManager.fixPlatformPaths();
-		// Get a terminal factory
-		TerminalFactory tf = null;
-		// Overload if necessary
-		if (args.has(OPT_PROVIDER)) {
-			String pn = (String)args.valueOf(OPT_PROVIDER);
-			String pt = (String) args.valueOf(OPT_PROVIDER_TYPE);
-			tf = loadFactory(pn, pt);
-		} else if (args.has(OPT_SUN)) {
-			tf = loadFactory(SUN_CLASS, null);
-		} else if (args.has(OPT_JNA)) {
-			tf = loadFactory(JNA_CLASS, null);
-		} else {
-			tf = TerminalFactory.getDefault();
-		}
 
-		if (verbose) {
-			System.out.println("# Using " + tf.getProvider().getClass().getCanonicalName() + " - " + tf.getProvider());
-			if (System.getProperty(TerminalManager.lib_prop) != null) {
-				System.out.println("# " + TerminalManager.lib_prop + "=" + System.getProperty(TerminalManager.lib_prop));
-			}
-		}
+		TerminalFactory tf = null;
 		CardTerminals terminals = null;
+
 		try {
+			// Get a terminal factory
+			if (args.has(OPT_PROVIDER)) {
+				String pn = (String)args.valueOf(OPT_PROVIDER);
+				String pt = (String) args.valueOf(OPT_PROVIDER_TYPE);
+				tf = loadFactory(pn, pt);
+			} else if (args.has(OPT_SUN)) {
+				tf = loadFactory(SUN_CLASS, null);
+			} else if (args.has(OPT_JNA)) {
+				tf = loadFactory(JNA_CLASS, null);
+			} else {
+				tf = TerminalFactory.getDefault();
+			}
+
+			if (verbose) {
+				System.out.println("# Using " + tf.getProvider().getClass().getCanonicalName() + " - " + tf.getProvider());
+				if (System.getProperty(TerminalManager.lib_prop) != null) {
+					System.out.println("# " + TerminalManager.lib_prop + "=" + System.getProperty(TerminalManager.lib_prop));
+				}
+			}
+			// Get all terminals
 			terminals = tf.terminals();
 		} catch (Exception e) {
-			// TODO: less generic catch
-			System.out.println("No readers: " + TerminalManager.getExceptionMessage(e));
+			// XXX: we catch generic Exception here to avoid importing JNA.
+			// Try to get a meaningful message
+			String msg = TerminalManager.getExceptionMessage(e);
+			if (msg == null)
+				msg = e.getMessage();
+			System.out.println("No readers: " + msg);
 			System.exit(1);
 		}
 
@@ -279,20 +289,25 @@ public class SCTool {
 		}
 	}
 
-	private static TerminalFactory loadFactory(String pn, String type) {
+	private static TerminalFactory loadFactory(String pn, String type) throws NoSuchAlgorithmException {
 		TerminalFactory tf = null;
 		try {
 			Class<?> cls = Class.forName(pn);
 			Provider p = (Provider) cls.getConstructor().newInstance();
 			tf = TerminalFactory.getInstance(type == null ? "PC/SC" : type, null, p);
 		} catch (ClassNotFoundException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException | NoSuchMethodException | SecurityException e) {
-			throw new RuntimeException("Could not load "+ pn, e);
+			throw new RuntimeException("Could not load " + pn, e);
 		} catch (NoSuchAlgorithmException e) {
-			String msg = "Platform does not support PC/SC";
-			if (type != null && type != "PC/SC") {
-				msg = "Provider type " + type + " not supported by " + pn;
+			if (e.getCause() != null) {
+				String causename = e.getCause().getClass().getCanonicalName();
+				if (causename.equalsIgnoreCase("java.lang.UnsupportedOperationException")) {
+					throw new NoSuchAlgorithmException(e.getCause().getMessage());
+				}
+				if (causename.equalsIgnoreCase("java.lang.UnsatisfiedLinkError")) {
+					throw new NoSuchAlgorithmException(e.getCause().getMessage());
+				}
 			}
-			throw new RuntimeException(msg, e);
+			throw e;
 		}
 		return tf;
 	}

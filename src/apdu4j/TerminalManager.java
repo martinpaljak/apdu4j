@@ -63,13 +63,13 @@ public class TerminalManager {
 				} else if (new File(fedora64_path).exists()) {
 					System.setProperty(lib_prop, fedora64_path);
 				} else {
-					System.err.println("pcsc-lite probably missing.");
+					System.err.println("Hint: pcsc-lite probably missing.");
 				}
 			} else if (System.getProperty("os.name").equalsIgnoreCase("FreeBSD")) {
 				if (new File(freebsd_path).exists()) {
 					System.setProperty(lib_prop, freebsd_path);
 				} else {
-					System.err.println("pcsc-lite missing. pkg install devel/libccid");
+					System.err.println("Hint: pcsc-lite missing. pkg install devel/libccid");
 				}
 			}
 		} else {
@@ -134,16 +134,20 @@ public class TerminalManager {
 	// return a meaningful PC/SC error name.
 	public static String getExceptionMessage(Exception e) {
 		String classname = e.getClass().getCanonicalName();
-		if (e instanceof CardException) {
+		if (e instanceof CardException || e instanceof NoSuchAlgorithmException) {
 			// This comes from SunPCSC most probably and already contains the PC/SC error in the cause
 			if (e.getCause() != null) {
 				if (e.getCause().getMessage() != null) {
 					if (e.getCause().getMessage().indexOf("SCARD_") != -1) {
 						return e.getCause().getMessage();
 					}
+					if (e.getCause().getMessage().indexOf("PC/SC") != -1) {
+						return e.getCause().getMessage();
+					}
 				}
 			}
 		}
+		// Extract "nicer" PC/SC messages
 		if (classname != null && classname.equalsIgnoreCase("jnasmartcardio.Smartcardio.EstablishContextException")) {
 			if (e.getCause().getMessage().indexOf("SCARD_E_NO_SERVICE") != -1)
 				return "SCARD_E_NO_SERVICE";
