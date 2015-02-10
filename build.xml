@@ -28,6 +28,8 @@
       <manifest><attribute name="Main-Class" value="apdu4j.SCTool"/></manifest>
     </jar>
     <delete file="optimized-apdu4j.jar"/>
+    <!-- JAR without jnasmartcardio and command line -->
+    <jar destfile="apdu4j-vanilla.jar" level="9" basedir="build" excludes="**/apdu4j/SCTool.class"/>
   </target>
   <!-- Package for Unix -->
   <target name="shelldist" depends="dist" description="generate executable shell file">
@@ -52,6 +54,7 @@
     <delete dir="javadoc"/>
     <delete file="apdu4j.jar"/>
     <delete file="sc.exe"/>
+    <delete file="apdu4j-vanilla.jar"/>
   </target>
   <!-- Put javadocs online -->
   <target name="javadoc">
