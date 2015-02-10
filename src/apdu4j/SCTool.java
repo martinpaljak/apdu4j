@@ -180,33 +180,36 @@ public class SCTool {
 			System.exit(1);
 		}
 
-		// List Terminals
-		if (args.has(CMD_LIST)) {
-			List<CardTerminal> terms = terminals.list();
-			if (verbose) {
-				System.out.println("# Found " + terms.size() + " terminal" + (terms.size() == 1 ? "" : "s"));
-			}
-			if (terms.size() == 0) {
-				System.err.println("No readers found");
-				System.exit(1);
-			}
-			for (CardTerminal t: terms) {
-				System.out.println((t.isCardPresent() ? "[*] " : "[ ] ") + t.getName());
-				if (args.has(OPT_VERBOSE) && t.isCardPresent()) {
-					Card c = t.connect("*");
-					String atr = HexUtils.encodeHexString(c.getATR().getBytes()).toUpperCase();
-					c.disconnect(false);
-					System.out.println("    " + atr);
-					String url = "http://smartcard-atr.appspot.com/parse?ATR=" + atr;
-					if (args.has(OPT_WEB) && Desktop.isDesktopSupported()) {
-						Desktop.getDesktop().browse(new URI(url + "&from=apdu4j"));
-					} else {
-						System.out.println("    " + url);
+		try {
+			// List Terminals
+			if (args.has(CMD_LIST)) {
+				List<CardTerminal> terms = terminals.list();
+				if (verbose) {
+					System.out.println("# Found " + terms.size() + " terminal" + (terms.size() == 1 ? "" : "s"));
+				}
+				if (terms.size() == 0) {
+					System.err.println("No readers found");
+					System.exit(1);
+				}
+				for (CardTerminal t: terms) {
+					System.out.println((t.isCardPresent() ? "[*] " : "[ ] ") + t.getName());
+					if (args.has(OPT_VERBOSE) && t.isCardPresent()) {
+						Card c = t.connect("*");
+						String atr = HexUtils.encodeHexString(c.getATR().getBytes()).toUpperCase();
+						c.disconnect(false);
+						System.out.println("    " + atr);
+						String url = "http://smartcard-atr.appspot.com/parse?ATR=" + atr;
+						if (args.has(OPT_WEB) && Desktop.isDesktopSupported()) {
+							Desktop.getDesktop().browse(new URI(url + "&from=apdu4j"));
+						} else {
+							System.out.println("    " + url);
+						}
 					}
 				}
 			}
+		} catch (CardException e) {
+			System.out.println("Could not list readers: " + TerminalManager.getExceptionMessage(e));
 		}
-
 		// Select terminals to work on
 		List<CardTerminal> do_readers;
 		if (args.has(OPT_READER)) {
