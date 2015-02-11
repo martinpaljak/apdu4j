@@ -70,6 +70,7 @@ public class SCTool {
 	private static final String OPT_T0 = "t0";
 	private static final String OPT_T1 = "t1";
 	private static final String OPT_NO_GET_RESPONSE = "no-get-response";
+	private static final String OPT_LIB = "lib";
 
 	private static final String OPT_WEB = "web";
 
@@ -102,6 +103,7 @@ public class SCTool {
 		parser.accepts(OPT_T0, "use T=0");
 		parser.accepts(OPT_T1, "use T=1");
 		parser.accepts(OPT_NO_GET_RESPONSE, "don't use GET RESPONSE with SunPCSC");
+		parser.accepts(OPT_LIB, "use specific PC/SC lib with SunPCSC").withRequiredArg();
 		parser.accepts(OPT_PROVIDER_TYPE, "provider type if not PC/SC").withRequiredArg();
 
 
@@ -149,9 +151,15 @@ public class SCTool {
 		// Fix properties on non-windows platforms
 		TerminalManager.fixPlatformPaths();
 
+		// Only applies to SunPCSC
 		if (args.has(OPT_NO_GET_RESPONSE)) {
 			System.setProperty("sun.security.smartcardio.t0GetResponse", "false");
 			System.setProperty("sun.security.smartcardio.t1GetResponse", "false");
+		}
+
+		// Override PC/SC library path
+		if (args.has(OPT_LIB)) {
+			System.setProperty("sun.security.smartcardio.library", (String) args.valueOf(OPT_LIB));
 		}
 
 		TerminalFactory tf = null;

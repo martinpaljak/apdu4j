@@ -69,7 +69,15 @@ ant
 
  * The same, with an additional APDU, while dumping everything to ```card.dump```
  
-        sc -t0 -a 00A40C0000 -a 80:01:04:00:00 -dump card.dump 
+        sc -t0 -a 00A40C0000 -a 80:01:04:00:00 -dump card.dump
+
+ * SunPCSC - use specific PC/SC library:
+
+        sc -lib /usr/local/lib/pcsclite.so -l
+
+ * SunPCSC - don't issue `GET RESPONSE` commands:
+
+        sc -no-get-response -a 00A4040000 -v
 
  * Show APDU-s sent to the card (using ```LoggingCardTerminal```):
    
