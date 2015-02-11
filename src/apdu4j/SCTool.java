@@ -69,6 +69,8 @@ public class SCTool {
 	private static final String OPT_JNA = "jna";
 	private static final String OPT_T0 = "t0";
 	private static final String OPT_T1 = "t1";
+	private static final String OPT_NO_GET_RESPONSE = "no-get-response";
+
 	private static final String OPT_WEB = "web";
 
 	private static final String OPT_PROVIDERS = "P";
@@ -99,6 +101,7 @@ public class SCTool {
 		parser.accepts(OPT_ALL, "process all readers");
 		parser.accepts(OPT_T0, "use T=0");
 		parser.accepts(OPT_T1, "use T=1");
+		parser.accepts(OPT_NO_GET_RESPONSE, "don't use GET RESPONSE with SunPCSC");
 		parser.accepts(OPT_PROVIDER_TYPE, "provider type if not PC/SC").withRequiredArg();
 
 
@@ -145,6 +148,11 @@ public class SCTool {
 
 		// Fix properties on non-windows platforms
 		TerminalManager.fixPlatformPaths();
+
+		if (args.has(OPT_NO_GET_RESPONSE)) {
+			System.setProperty("sun.security.smartcardio.t0GetResponse", "false");
+			System.setProperty("sun.security.smartcardio.t1GetResponse", "false");
+		}
 
 		TerminalFactory tf = null;
 		CardTerminals terminals = null;
