@@ -36,7 +36,7 @@
     <concat destfile="apdu4j.sh" binary="true">
       <filelist files="pre.sh,apdu4j.jar"/>
     </concat>
-    <exec failonerror="true" command="chmod +x sc.sh"/>
+    <exec failonerror="true" command="chmod +x apdu4j.sh"/>
   </target>
   <!-- Wrap the JAR into .EXE for Windows users -->
   <target name="windist" depends="dist" description="package as .exe">
