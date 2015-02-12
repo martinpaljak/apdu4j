@@ -1,6 +1,12 @@
 # apdu4j
 
-Command line tool and library of useful Java 1.7+ classes for working with smart cards and smart card readers via [JSR268](https://jcp.org/en/jsr/detail?id=268) (commonly known as [javax.smartcardio](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/package-summary.html)). While focus is on desktop PC/SC readers, some code can be re-used with arbitrary "APDU-command-response-ish" interfaces, either as [CommandAPDU](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/CommandAPDU.html)/[ResponseAPDU](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/ResponseAPDU.html) pairs or plain byte arrays. Fixes all the stupid things with Java on non-windows platforms: OSX, Debian, Ubuntu, Fedora, CentOS, FreeBSD.
+Command line tool and library of useful Java 1.7+ classes for working with smart cards and smart card readers via [JSR268](https://jcp.org/en/jsr/detail?id=268) (commonly known as [javax.smartcardio](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/package-summary.html)). While focus is on desktop PC/SC readers, some code can be re-used with arbitrary "APDU-command-response-ish" interfaces, either as [CommandAPDU](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/CommandAPDU.html)/[ResponseAPDU](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/ResponseAPDU.html) pairs or plain byte arrays. 
+
+## Features
+* PinPad support (PC/SC v2 part 10 / CCID)
+* Fixes all the stupid things with Java on non-windows platforms: OSX, Debian, Ubuntu, Fedora, CentOS, FreeBSD.
+* Java tools for convenient APDU logging, PIN handling and more
+* Bundles jnasmartcardio in the command line tool for easy testing
 
 #### Jump to ...
 * [Download](#get-it-now)
@@ -155,6 +161,8 @@ reader = LoggingCardTerminal.getInstance(reader, o);
 ```
  
 #### APDUReplayProvider
+This is a TerminalFactory that presents a single reader that will reply to commands from a session stored with `LoggingCardTerminal`. This allows to test certain code in a way that doesn't require physical readers or tokens.
+
 ```java
 import apdu4j.APDUReplayProvider;
 
@@ -164,30 +172,29 @@ TerminalFactory tf = TerminalFactory.getInstance("PC/SC", f, new APDUReplayProvi
 // There is only one terminal exposed
 ```
 
-
 ### Similar and related projects
  * SCUBA (LGPL) - http://scuba.sourceforge.net/
-   * written in Java 
-   * no command line utility
-   * has *Provider*-s for weird hardware
+   * :| written in Java 
+   * :( no command line utility
+   * :) has *Provider*-s for weird hardware
  * jnasmartcardio (CC0) - https://github.com/jnasmartcardio/jnasmartcardio
-   * written in Java
-   * provides a "better" wrapper for system PC/SC service with JNA as a *Provider*
-   * used by apdu4j
+   * :| written in Java
+   * :) provides a "better" wrapper for system PC/SC service with JNA as a *Provider*
+   * :) used by apdu4j
  * OpenCard Framework (OPEN CARD CONSORTIUM SOURCE LICENSE) - http://www.openscdp.org/ocf/
-   * written in Java
-   * really old (pre-2000, comparable to CT-API)
-   * no command line utility
+   * :| written in Java
+   * :( really old (pre-2000, comparable to CT-API)
+   * :( no command line utility
  * intarsys smartcard-io (BSD) - https://github.com/intarsys/smartcard-io
-   * written in Java 
-   * similar to jnasmartcardio (alternative native *Provider*)
+   * :| written in Java 
+   * :| similar to jnasmartcardio (alternative native *Provider*)
  * OpenSC (opensc-tool, LGPL) - https://github.com/OpenSC/OpenSC
-   * written in C
-   * related to rest of OpenSC, but allows to send APDU-s from command line with ```opensc-tool -s XX:XX:XX:XX```
+   * :| written in C
+   * :| related to rest of OpenSC, but allows to send APDU-s from command line with ```opensc-tool -s XX:XX:XX:XX```
  * Countless other apdu/script tools
-   * written in different languages
-   * use different input formats and script files
-   * just FYI
+   * :| written in different languages
+   * :| use different input formats and script files
+   * :| just FYI
 
 
 ### History and motivation
