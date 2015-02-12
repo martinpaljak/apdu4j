@@ -345,11 +345,13 @@ public class SCTool {
 		} catch (NoSuchAlgorithmException e) {
 			if (e.getCause() != null) {
 				String causename = e.getCause().getClass().getCanonicalName();
-				if (causename.equalsIgnoreCase("java.lang.UnsupportedOperationException")) {
-					throw new NoSuchAlgorithmException(e.getCause().getMessage());
-				}
-				if (causename.equalsIgnoreCase("java.lang.UnsatisfiedLinkError")) {
-					throw new NoSuchAlgorithmException(e.getCause().getMessage());
+				if (causename != null) {
+					if (causename.equalsIgnoreCase("java.lang.UnsupportedOperationException")) {
+						throw new NoSuchAlgorithmException(e.getCause().getMessage());
+					}
+					if (causename.equalsIgnoreCase("java.lang.UnsatisfiedLinkError")) {
+						throw new NoSuchAlgorithmException(e.getCause().getMessage());
+					}
 				}
 			}
 			throw e;

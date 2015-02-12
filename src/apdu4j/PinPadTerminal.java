@@ -32,7 +32,6 @@ import javax.smartcardio.Card;
 import javax.smartcardio.CardException;
 import javax.smartcardio.CardTerminal;
 
-// FIXME: cleanup (disconnect) is missing
 public class PinPadTerminal implements AutoCloseable {
 	private static final int CM_IOCTL_GET_FEATURE_REQUEST = CARD_CTL_CODE(3400);
 
