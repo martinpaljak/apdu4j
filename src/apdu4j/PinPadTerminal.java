@@ -21,6 +21,7 @@
  */
 package apdu4j;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
@@ -32,11 +33,12 @@ import javax.smartcardio.CardException;
 import javax.smartcardio.CardTerminal;
 
 // FIXME: cleanup (disconnect) is missing
-public class PinPadTerminal {
+public class PinPadTerminal implements AutoCloseable {
 	private static final int CM_IOCTL_GET_FEATURE_REQUEST = CARD_CTL_CODE(3400);
 
 	private Map<FEATURE, Integer> features = new HashMap<PinPadTerminal.FEATURE, Integer>();
 	private boolean display = false;
+	private CardTerminal t = null;
 	private Card c = null;
 
 	// IOCTL-s of this terminal
@@ -138,39 +140,40 @@ public class PinPadTerminal {
 	}
 
 	public void probe() throws CardException {
-
-		// Probe for features.
-		byte [] resp = c.transmitControlCommand(CM_IOCTL_GET_FEATURE_REQUEST, new byte[]{});
-
-		// Parse features
-		Map<FEATURE, Integer> props = tokenize(resp);
-		features.putAll(props);
-
-		// Get PIN properties, if possible
-		if (props.containsKey(FEATURE.IFD_PIN_PROPERTIES)) {
-			resp = c.transmitControlCommand(props.get(FEATURE.IFD_PIN_PROPERTIES), new byte[]{});
-			if (resp != null && resp.length > 0) {
-				parse_pin_properties(resp);
-			}
+		// probe() only makes sense when applied to terminal
+		if (t != null && c == null) {
+			c = t.connect("DIRECT");
 		}
+		try {
+			// Probe for features.
+			byte [] resp = c.transmitControlCommand(CM_IOCTL_GET_FEATURE_REQUEST, new byte[]{});
 
-		// Get other properties
-		if (props.containsKey(FEATURE.GET_TLV_PROPERTIES)) {
-			resp = c.transmitControlCommand(props.get(FEATURE.GET_TLV_PROPERTIES), new byte[]{});
-			if (resp != null && resp.length > 0) {
-				//parse_tlv_properties(resp);
+			// Parse features
+			Map<FEATURE, Integer> props = tokenize(resp);
+			features.putAll(props);
+
+			// Get PIN properties, if possible
+			if (props.containsKey(FEATURE.IFD_PIN_PROPERTIES)) {
+				resp = c.transmitControlCommand(props.get(FEATURE.IFD_PIN_PROPERTIES), new byte[]{});
+				if (resp != null && resp.length > 0) {
+					parse_pin_properties(resp);
+				}
 			}
-		}
 
+			// Get other properties
+			if (props.containsKey(FEATURE.GET_TLV_PROPERTIES)) {
+				resp = c.transmitControlCommand(props.get(FEATURE.GET_TLV_PROPERTIES), new byte[]{});
+				if (resp != null && resp.length > 0) {
+					//parse_tlv_properties(resp);
+				}
+			}
+		} finally {
+			c.disconnect(false);
+		}
 	}
 
-	public PinPadTerminal(CardTerminal t) {
-		// Connect to reader in direct mode
-		try {
-			c = t.connect("DIRECT");
-		} catch (CardException e) {
-			throw new RuntimeException("Can not probe pinpad capabilities", e);
-		}
+	public PinPadTerminal(CardTerminal terminal) {
+		t = terminal;
 	}
 
 	public PinPadTerminal(Card card) {
@@ -191,5 +194,12 @@ public class PinPadTerminal {
 	}
 	public boolean hasDisplay() {
 		return display;
+	}
+
+	@Override
+	public void close() throws IOException, CardException {
+		if (t != null && c != null) {
+			c.disconnect(false); // FIXME: might be true
+		}
 	}
 }

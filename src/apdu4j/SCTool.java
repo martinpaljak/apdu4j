@@ -211,27 +211,25 @@ public class SCTool {
 					System.exit(1);
 				}
 				for (CardTerminal t: terms) {
-					PinPadTerminal pp = new PinPadTerminal(t);
-
-					try {
+					String vmd = " ";
+					try (PinPadTerminal pp = new PinPadTerminal(t)) {
 						pp.probe();
+						// Verify, Modify, Display
+						if (verbose) {
+							vmd += "[";
+							vmd += pp.canVerify() ? "V":" ";
+							vmd += pp.canModify() ? "M":" ";
+							vmd += pp.hasDisplay() ? "D":" ";
+							vmd += "] ";
+						}
 					} catch (CardException e) {
 						if (verbose) {
 							System.err.println("Could not probe PinPad: " + e.getMessage());
 						}
 					}
 
-					// Verify, Modify, Display
-					String vmd = " ";
-					if (verbose) {
-						vmd += "[";
-						vmd += pp.canVerify() ? "V":" ";
-						vmd += pp.canModify() ? "M":" ";
-						vmd += pp.hasDisplay() ? "D":" ";
-						vmd += "] ";
-					}
-					System.out.println((t.isCardPresent() ? "[*]" : "[ ]") + vmd + t.getName());
 
+					System.out.println((t.isCardPresent() ? "[*]" : "[ ]") + vmd + t.getName());
 
 					if (args.has(OPT_VERBOSE) && t.isCardPresent()) {
 						Card c = t.connect("DIRECT");
