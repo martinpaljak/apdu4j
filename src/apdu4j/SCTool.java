@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Martin Paljak
+ * Copyright (c) 2014-2015 Martin Paljak
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -69,11 +69,10 @@ public class SCTool {
 	private static final String OPT_JNA = "jna";
 	private static final String OPT_T0 = "t0";
 	private static final String OPT_T1 = "t1";
+
 	private static final String OPT_NO_GET_RESPONSE = "no-get-response";
 	private static final String OPT_LIB = "lib";
-
 	private static final String OPT_WEB = "web";
-
 	private static final String OPT_PROVIDERS = "P";
 
 	private static final String SUN_CLASS = "sun.security.smartcardio.SunPCSC";
@@ -212,7 +211,20 @@ public class SCTool {
 					System.exit(1);
 				}
 				for (CardTerminal t: terms) {
-					System.out.println((t.isCardPresent() ? "[*] " : "[ ] ") + t.getName());
+					PinPadTerminal pp = new PinPadTerminal(t);
+					pp.probe();
+
+					String vmd = " ";
+					if (verbose) {
+						vmd += "[";
+						vmd += pp.canVerify() ? "V":" ";
+						vmd += pp.canModify() ? "M":" ";
+						vmd += pp.hasDisplay() ? "D":" ";
+						vmd += "] ";
+					}
+					System.out.println((t.isCardPresent() ? "[*]" : "[ ]") + vmd + t.getName());
+
+
 					if (args.has(OPT_VERBOSE) && t.isCardPresent()) {
 						Card c = t.connect("*");
 						String atr = HexUtils.encodeHexString(c.getATR().getBytes()).toUpperCase();
@@ -251,6 +263,7 @@ public class SCTool {
 
 		} catch (CardException e) {
 			System.out.println("Could not list readers: " + TerminalManager.getExceptionMessage(e));
+			e.printStackTrace();
 		}
 
 		for (CardTerminal t: do_readers) {
