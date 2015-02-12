@@ -41,9 +41,9 @@ ant
             # Now you can avoid typing java -jar and sc works from any folder
             sc -h
 
-   * On Windows just use pre-packaged ```sc.exe``` like this:
+   * On Windows just use pre-packaged ```apdu4j.exe``` like this or rename it:
 
-            sc.exe -h
+            apdu4j.exe -h
 
  * Display all options:
 
@@ -52,10 +52,26 @@ ant
  * List readers:
 
         sc -l
-
+   
+   Will produce something like
+   ```
+[ ] Gemalto Ezio Shield 01 00
+[*] ACS ACR 38U-CCID 02 00
+```
+   The presence of a card or token is indicated with the asterisk
  * Be verbose:
 
         sc -l -v
+   Will produce:
+   ```
+# Using sun.security.smartcardio.SunPCSC - SunPCSC version 1.7
+# Found 3 terminals
+[ ] [VMD] Gemalto Ezio Shield 01 00
+[*] [   ] ACS ACR 38U-CCID 02 00
+          3BF91300008131FE454A434F503234325233A2
+[ ] [   ] ACS ACR 38U-CCID 03 00
+```
+   In addition to the ATR of the inserted card below the reader, PinPad features of the terminal are shown: V - PIN verification, M - PIN modification, D - display
 
  * Take you directly to the [online ATR database](http://smartcard-atr.appspot.com/)
 
