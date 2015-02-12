@@ -63,7 +63,8 @@ public class TerminalManager {
 				} else if (new File(fedora64_path).exists()) {
 					System.setProperty(lib_prop, fedora64_path);
 				} else {
-					System.err.println("Hint: pcsc-lite probably missing.");
+					// XXX: dlopen() works properly on Debian
+					// System.err.println("Hint: pcsc-lite probably missing.");
 				}
 			} else if (System.getProperty("os.name").equalsIgnoreCase("FreeBSD")) {
 				if (new File(freebsd_path).exists()) {
@@ -116,7 +117,7 @@ public class TerminalManager {
 			CardTerminals tl = tf.terminals();
 			List<CardTerminal> list = tl.list(State.CARD_PRESENT);
 			if (list.size() == 0) {
-				// No readers with cards. Maybe empty readers?
+				// No readers with cards. Maybe empty readers or OSX?
 				list = tl.list(State.ALL);
 			}
 
