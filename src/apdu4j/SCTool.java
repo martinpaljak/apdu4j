@@ -212,8 +212,16 @@ public class SCTool {
 				}
 				for (CardTerminal t: terms) {
 					PinPadTerminal pp = new PinPadTerminal(t);
-					pp.probe();
 
+					try {
+						pp.probe();
+					} catch (CardException e) {
+						if (verbose) {
+							System.err.println("Could not probe PinPad: " + e.getMessage());
+						}
+					}
+
+					// Verify, Modify, Display
 					String vmd = " ";
 					if (verbose) {
 						vmd += "[";
@@ -226,15 +234,17 @@ public class SCTool {
 
 
 					if (args.has(OPT_VERBOSE) && t.isCardPresent()) {
-						Card c = t.connect("*");
+						Card c = t.connect("DIRECT");
 						String atr = HexUtils.encodeHexString(c.getATR().getBytes()).toUpperCase();
 						c.disconnect(false);
-						System.out.println("    " + atr);
-						String url = "http://smartcard-atr.appspot.com/parse?ATR=" + atr;
-						if (args.has(OPT_WEB) && Desktop.isDesktopSupported()) {
-							Desktop.getDesktop().browse(new URI(url + "&from=apdu4j"));
-						} else {
-							System.out.println("    " + url);
+						System.out.println("          " + atr);
+						if (args.has(OPT_WEB)) {
+							String url = "http://smartcard-atr.appspot.com/parse?ATR=" + atr;
+							if (Desktop.isDesktopSupported()) {
+								Desktop.getDesktop().browse(new URI(url + "&from=apdu4j"));
+							} else {
+								System.out.println("          " + url);
+							}
 						}
 					}
 				}

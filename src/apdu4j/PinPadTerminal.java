@@ -161,10 +161,7 @@ public class PinPadTerminal {
 				//parse_tlv_properties(resp);
 			}
 		}
-		if (c!= null) {
-			// XXX: by default this resets on buggy implementations
-			c.disconnect(false);
-		}
+
 	}
 
 	public PinPadTerminal(CardTerminal t) {
