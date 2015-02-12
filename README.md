@@ -68,7 +68,7 @@ ant
 # Found 3 terminals
 [ ] [VMD] Gemalto Ezio Shield 01 00
 [*] [   ] ACS ACR 38U-CCID 02 00
-          3BF91300008131FE454A434F503234325233A2
+              3BF91300008131FE454A434F503234325233A2
 [ ] [   ] ACS ACR 38U-CCID 03 00
 ```
    In addition to the ATR of the inserted card below the reader, PinPad features of the terminal are shown: V - PIN verification, M - PIN modification, D - display
