@@ -3,5 +3,5 @@
 /build/
 /apdu4j.jar
 /apdu4j-vanilla.jar
-/sc.exe
-/sc.sh
+/apdu4j.exe
+/apdu4j.sh

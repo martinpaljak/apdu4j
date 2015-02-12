@@ -33,7 +33,7 @@
   </target>
   <!-- Package for Unix -->
   <target name="shelldist" depends="dist" description="generate executable shell file">
-    <concat destfile="sc.sh" binary="true">
+    <concat destfile="apdu4j.sh" binary="true">
       <filelist files="pre.sh,apdu4j.jar"/>
     </concat>
     <exec failonerror="true" command="chmod +x sc.sh"/>
@@ -43,7 +43,7 @@
     <property name="launch4j.dir" location="ext/launch4j"/>
     <taskdef name="launch4j" classname="net.sf.launch4j.ant.Launch4jTask" classpath="${launch4j.dir}/launch4j.jar:${launch4j.dir}/lib/xstream.jar"/>
     <launch4j>
-      <config headerType="console" outfile="sc.exe" jar="apdu4j.jar" errTitle="apdu4j">
+      <config headerType="console" outfile="apdu4j.exe" jar="apdu4j.jar" errTitle="apdu4j">
         <jre minVersion="1.7.0"/>
       </config>
     </launch4j>
