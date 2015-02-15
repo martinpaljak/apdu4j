@@ -6,7 +6,7 @@ Command line tool and library of useful Java 1.7+ classes for working with smart
 * PinPad support (PC/SC v2 part 10 / CCID)
 * Fixes all the stupid things with Java on non-windows platforms: OSX, Debian, Ubuntu, Fedora, CentOS, FreeBSD.
 * Java tools for convenient APDU logging, PIN handling and more
-* Bundles jnasmartcardio in the command line tool for easy testing
+* Bundles [jnasmartcardio][jnasmartcardio] in the command line tool for easy testing with a sane javax.smartcardio implementation
 
 #### Jump to ...
 * [Download](#get-it-now)
@@ -177,7 +177,7 @@ reader = LoggingCardTerminal.getInstance(reader, o);
 ```
  
 #### APDUReplayProvider
-This is a TerminalFactory that presents a single reader that will reply to commands from a session stored with `LoggingCardTerminal`. This allows to test certain code in a way that doesn't require physical readers or tokens.
+This is a [TerminalFactory][TerminalFactory] that presents a single reader that will reply to commands from a session stored with [LoggingCardTerminal](#LoggingCardTerminal). This allows to test certain code in a way that doesn't require physical readers or tokens.
 
 ```java
 import apdu4j.APDUReplayProvider;
@@ -222,7 +222,7 @@ When working with [GlobalPlatformPro](https://github.com/martinpaljak/GlobalPlat
 
  * [JOpt Simple](http://pholser.github.io/jopt-simple/) for parsing command line (MIT)
  * [Launch4j](http://launch4j.sourceforge.net/) for generating .exe (BSD/MIT)
- * [jnasmartcardio](https://github.com/jnasmartcardio/jnasmartcardio) for PC/SC access (CC0 / public domain)
+ * [jnasmartcardio][jnasmartcardio] for PC/SC access (CC0 / public domain)
 
 ### License
 
@@ -231,3 +231,7 @@ When working with [GlobalPlatformPro](https://github.com/martinpaljak/GlobalPlat
 ### Contact 
 
 * martin@martinpaljak.net
+
+
+[TerminalFactory]: https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/TerminalFactory.html
+[jnasmartcardio]: https://github.com/jnasmartcardio/jnasmartcardio
