@@ -177,7 +177,7 @@ reader = LoggingCardTerminal.getInstance(reader, o);
 ```
  
 #### APDUReplayProvider
-This is a [TerminalFactory][TerminalFactory] that presents a single reader that will reply to commands from a session stored with [LoggingCardTerminal](#LoggingCardTerminal). This allows to test certain code in a way that doesn't require physical readers or tokens.
+This is a [TerminalFactory][TerminalFactory] that presents a single reader that will reply to commands from a session stored with [LoggingCardTerminal](#loggingcardterminal). This allows to test certain code in a way that doesn't require physical readers or tokens.
 
 ```java
 import apdu4j.APDUReplayProvider;
