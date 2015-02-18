@@ -63,6 +63,7 @@ public class SCTool {
 	private static final String OPT_DEBUG = "debug";
 	private static final String OPT_ERROR = "error";
 	private static final String OPT_DUMP = "dump";
+	private static final String OPT_REPLAY = "replay";
 
 	private static final String OPT_HELP = "help";
 	private static final String OPT_SUN = "sun";
@@ -94,6 +95,7 @@ public class SCTool {
 		parser.acceptsAll(Arrays.asList("a", CMD_APDU), "send APDU").withRequiredArg();
 		parser.acceptsAll(Arrays.asList("w", OPT_WEB), "open ATR in web");
 		parser.accepts(OPT_DUMP, "save dump to file").withRequiredArg().ofType(File.class);
+		parser.accepts(OPT_REPLAY, "replay command from dump").withRequiredArg().ofType(File.class);
 
 		parser.accepts(OPT_SUN, "load SunPCSC");
 		parser.accepts(OPT_JNA, "load jnasmartcardio");
