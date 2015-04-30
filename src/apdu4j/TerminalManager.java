@@ -40,7 +40,7 @@ import javax.smartcardio.TerminalFactory;
  */
 public class TerminalManager {
 	public static final String lib_prop = "sun.security.smartcardio.library";
-	private static final String debian_path = "/usr/lib/libpcsclite.so.1";
+	private static final String debian64_path = "/usr/lib/x86_64-linux-gnu/libpcsclite.so.1";
 	private static final String ubuntu_path = "/lib/libpcsclite.so.1";
 	private static final String freebsd_path = "/usr/local/lib/libpcsclite.so";
 	private static final String fedora64_path = "/usr/lib64/libpcsclite.so.1";
@@ -56,14 +56,17 @@ public class TerminalManager {
 			// Set necessary parameters for seamless PC/SC access.
 			// http://ludovicrousseau.blogspot.com.es/2013/03/oracle-javaxsmartcardio-failures.html
 			if (System.getProperty("os.name").equalsIgnoreCase("Linux")) {
-				if (new File(debian_path).exists()) {
-					System.setProperty(lib_prop, debian_path);
+				// Only try loading 64b paths if JVM can use them.
+				if (System.getProperty("os.arch").contains("64")) {
+					if (new File(debian64_path).exists()) {
+						System.setProperty(lib_prop, debian64_path);
+					} else if (new File(fedora64_path).exists()) {
+						System.setProperty(lib_prop, fedora64_path);
+					}
 				} else if (new File(ubuntu_path).exists()) {
 					System.setProperty(lib_prop, ubuntu_path);
-				} else if (new File(fedora64_path).exists()) {
-					System.setProperty(lib_prop, fedora64_path);
 				} else {
-					// XXX: dlopen() works properly on Debian
+					// XXX: dlopen() works properly on Debian OpenJDK 7
 					// System.err.println("Hint: pcsc-lite probably missing.");
 				}
 			} else if (System.getProperty("os.name").equalsIgnoreCase("FreeBSD")) {
