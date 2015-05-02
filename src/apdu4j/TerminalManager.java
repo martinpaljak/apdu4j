@@ -119,15 +119,16 @@ public class TerminalManager {
 			TerminalFactory tf = getTerminalFactory();
 			CardTerminals tl = tf.terminals();
 			List<CardTerminal> list = tl.list(State.CARD_PRESENT);
-			if (list.size() == 0) {
+			if (list.size() == 0 && System.getProperty("os.name").equalsIgnoreCase("Mac OS X")) {
 				// No readers with cards. Maybe empty readers or OSX?
+				// FIXME: this is incorrect and requires a rewrite
 				list = tl.list(State.ALL);
 			}
 
 			if (list.size() != 1) {
 				throw new IllegalStateException("This application expects one and only one card reader (with an inserted card)");
 			} else {
-				return tl.list().get(0);
+				return list.get(0);
 			}
 		} catch (NoSuchAlgorithmException e) {
 			throw new CardException(e);
