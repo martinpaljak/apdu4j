@@ -42,8 +42,10 @@ public class TerminalManager {
 	public static final String lib_prop = "sun.security.smartcardio.library";
 	private static final String debian64_path = "/usr/lib/x86_64-linux-gnu/libpcsclite.so.1";
 	private static final String ubuntu_path = "/lib/libpcsclite.so.1";
+	private static final String ubuntu64_path = "/lib/x86_64-linux-gnu/libpcsclite.so.1";
 	private static final String freebsd_path = "/usr/local/lib/libpcsclite.so";
 	private static final String fedora64_path = "/usr/lib64/libpcsclite.so.1";
+	private static final String raspbian_path = "/usr/lib/arm-linux-gnueabihf/libpcsclite.so.1";
 
 	private static boolean buggy = true;
 
@@ -62,9 +64,13 @@ public class TerminalManager {
 						System.setProperty(lib_prop, debian64_path);
 					} else if (new File(fedora64_path).exists()) {
 						System.setProperty(lib_prop, fedora64_path);
+					} else if (new File(ubuntu64_path).exists()) {
+						System.setProperty(lib_prop, ubuntu64_path);
 					}
 				} else if (new File(ubuntu_path).exists()) {
 					System.setProperty(lib_prop, ubuntu_path);
+				} else if (new File(raspbian_path).exists()) {
+					System.setProperty(lib_prop, raspbian_path);
 				} else {
 					// XXX: dlopen() works properly on Debian OpenJDK 7
 					// System.err.println("Hint: pcsc-lite probably missing.");
