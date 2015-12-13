@@ -53,6 +53,7 @@
   </target>
   <!-- Clean the source tree -->
   <target name="clean" description="clean up">
+    <ant dir="ext/jnasmartcardio" target="clean"/>
     <delete dir="build"/>
     <delete dir="javadoc"/>
     <delete file="apdu4j.jar"/>
