@@ -26,7 +26,7 @@
       </classpath>
     </java>
     <jar destfile="apdu4j.jar" level="9">
-      <zipfileset src="lib/jnasmartcardio.jar"/>
+      <zipfileset src="ext/jnasmartcardio/jnasmartcardio.jar"/>
       <zipfileset src="optimized-apdu4j.jar" excludes="META-INF/maven/"/>
       <manifest><attribute name="Main-Class" value="apdu4j.SCTool"/></manifest>
     </jar>
