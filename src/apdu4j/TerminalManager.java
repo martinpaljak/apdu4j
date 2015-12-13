@@ -42,7 +42,7 @@ public class TerminalManager {
 	public static final String lib_prop = "sun.security.smartcardio.library";
 	private static final String debian64_path = "/usr/lib/x86_64-linux-gnu/libpcsclite.so.1";
 	private static final String ubuntu_path = "/lib/libpcsclite.so.1";
-	private static final String ubuntu_alt_path = "/lib/i386-linux-gnu/libpcsclite.so.1";
+	private static final String ubuntu32_path = "/lib/i386-linux-gnu/libpcsclite.so.1";
 	private static final String ubuntu64_path = "/lib/x86_64-linux-gnu/libpcsclite.so.1";
 	private static final String freebsd_path = "/usr/local/lib/libpcsclite.so";
 	private static final String fedora64_path = "/usr/lib64/libpcsclite.so.1";
@@ -70,8 +70,8 @@ public class TerminalManager {
 					}
 				} else if (new File(ubuntu_path).exists()) {
 					System.setProperty(lib_prop, ubuntu_path);
-				} else if (new File(ubuntu_alt_path).exists()) {
-					System.setProperty(lib_prop, ubuntu_alt_path);
+				} else if (new File(ubuntu32_path).exists()) {
+					System.setProperty(lib_prop, ubuntu32_path);
 				} else if (new File(raspbian_path).exists()) {
 					System.setProperty(lib_prop, raspbian_path);
 				} else {
@@ -82,7 +82,7 @@ public class TerminalManager {
 				if (new File(freebsd_path).exists()) {
 					System.setProperty(lib_prop, freebsd_path);
 				} else {
-					System.err.println("Hint: pcsc-lite missing. pkg install devel/libccid");
+					System.err.println("Hint: pcsc-lite is missing. pkg install devel/libccid");
 				}
 			}
 		} else {
