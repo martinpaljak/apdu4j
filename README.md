@@ -20,7 +20,7 @@ Command line tool and library of useful Java 1.7+ classes for working with smart
 * Or fetch from github and build it yourself, it is really easy (more instructions in [CONTRIBUTING](./CONTRIBUTING.md):
 
 ```shell
-git clone https://github.com/martinpaljak/apdu4j
+git clone --recursive https://github.com/martinpaljak/apdu4j
 cd apdu4j
 ant
 ```

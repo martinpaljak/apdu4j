@@ -1,0 +1,3 @@
+[submodule "ext/jnasmartcardio"]
+	path = ext/jnasmartcardio
+	url = ../jnasmartcardio

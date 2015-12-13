@@ -3,10 +3,13 @@
   <description>ANT build file for apdu4j</description>
   <!-- Build the software -->
   <path id="build.classpath">
-    <pathelement location="lib/jnasmartcardio.jar"/>
+    <pathelement location="ext/jnasmartcardio/jnasmartcardio.jar"/>
     <pathelement location="lib/jopt-simple-4.8.jar"/>
   </path>
-  <target name="compile" description="compile the source">
+  <target name="deps" description="build jnasmartcardio">
+    <ant dir="ext/jnasmartcardio"/>
+  </target>
+  <target name="compile" description="compile the source" depends="deps">
     <mkdir dir="build"/>
     <javac target="1.7" source="1.7" srcdir="src" destdir="build" includeantruntime="false" excludes="**/tests/**" debug="true" debuglevel="lines,vars,source">
       <compilerarg value="-Xlint"/>
@@ -24,7 +27,7 @@
     </java>
     <jar destfile="apdu4j.jar" level="9">
       <zipfileset src="lib/jnasmartcardio.jar"/>
-      <zipfileset src="optimized-apdu4j.jar"/>
+      <zipfileset src="optimized-apdu4j.jar" excludes="META-INF/maven/"/>
       <manifest><attribute name="Main-Class" value="apdu4j.SCTool"/></manifest>
     </jar>
     <delete file="optimized-apdu4j.jar"/>
