@@ -39,7 +39,7 @@ import javax.smartcardio.TerminalFactory;
  *
  */
 public class TerminalManager {
-	public static final String lib_prop = "sun.security.smartcardio.library";
+	protected static final String lib_prop = "sun.security.smartcardio.library";
 	private static final String debian64_path = "/usr/lib/x86_64-linux-gnu/libpcsclite.so.1";
 	private static final String ubuntu_path = "/lib/libpcsclite.so.1";
 	private static final String ubuntu64_path = "/lib/x86_64-linux-gnu/libpcsclite.so.1";
@@ -114,7 +114,7 @@ public class TerminalManager {
 	 *
 	 * @param card The card on what to act
 	 * @param reset The intended operation after disconnect
-	 * @throws CardException
+	 * @throws CardException if the card operation failed
 	 */
 	public static void disconnect(Card card, boolean reset) throws CardException {
 		card.disconnect(buggy ? !reset : reset);

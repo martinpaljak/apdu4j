@@ -1,12 +1,33 @@
 <?xml version="1.0"?>
 <project name="apdu4j" default="dist" basedir=".">
-  <description>ANT build file for apdu4j</description>
+  <description>apdu4j - smart card utilities for Java</description>
+  <!-- Fetch and integrity check dependencies -->
+  <target name="fetch" description="fetch dependencies">
+    <!-- Remember to update apdu4j.pro and .classpath as well! -->
+    <get src="https://repo1.maven.org/maven2/net/sf/jopt-simple/jopt-simple/4.9/jopt-simple-4.9.jar" dest="lib" verbose="true" skipexisting="true"/>
+    <get src="http://central.maven.org/maven2/com/googlecode/json-simple/json-simple/1.1.1/json-simple-1.1.1.jar" dest="lib" verbose="true" skipexisting="true"/>
+    <get src="http://central.maven.org/maven2/com/googlecode/lanterna/lanterna/3.0.0-beta1/lanterna-3.0.0-beta1.jar" dest="lib" verbose="true" skipexisting="true"/>
+    <checksum algorithm="SHA1" file="lib/jopt-simple-4.9.jar" property="ee9e9eaa0a35360dcfeac129ff4923215fd65904" verifyProperty="joptOK"/>
+    <checksum algorithm="SHA1" file="lib/json-simple-1.1.1.jar" property="c9ad4a0850ab676c5c64461a05ca524cdfff59f1" verifyProperty="jsonOK"/>
+    <checksum algorithm="SHA1" file="lib/lanterna-3.0.0-beta1.jar" property="0ec22faf7c2070a68f162f73370972c186dcae90" verifyProperty="lanternaOK"/>
+    <fail message="Checksum failure">
+      <condition>
+        <or>
+          <isfalse value="${joptOK}"/>
+          <isfalse value="${jsonOK}"/>
+          <isfalse value="${lanternaOK}"/>
+        </or>
+      </condition>
+    </fail>
+  </target>
   <!-- Build the software -->
   <path id="build.classpath">
     <pathelement location="lib/jnasmartcardio.jar"/>
-    <pathelement location="lib/jopt-simple-4.8.jar"/>
+    <pathelement location="lib/jopt-simple-4.9.jar"/>
+    <pathelement location="lib/json-simple-1.1.1.jar"/>
+    <pathelement location="lib/lanterna-3.0.0-beta1.jar"/>
   </path>
-  <target name="compile" description="compile the source">
+  <target name="compile" description="compile the source" depends="fetch">
     <mkdir dir="build"/>
     <javac target="1.7" source="1.7" srcdir="src" destdir="build" includeantruntime="false" excludes="**/tests/**" debug="true" debuglevel="lines,vars,source">
       <compilerarg value="-Xlint"/>
@@ -53,12 +74,14 @@
     <delete dir="build"/>
     <delete dir="javadoc"/>
     <delete file="apdu4j.jar"/>
-    <delete file="sc.exe"/>
+    <delete file="apdu4j.exe"/>
     <delete file="apdu4j-vanilla.jar"/>
   </target>
   <!-- Put javadocs online -->
   <target name="javadoc">
-    <javadoc destdir="javadoc" Doctitle="apdu4j" access="public" linksource="true">
+    <javadoc destdir="javadoc" Overview="doc/overview.html" Windowtitle="apdu4j - smart card utilities for Java" Doctitle="apdu4j tools and classes" access="public" linksource="true">
+      <link href="https://docs.oracle.com/javase/8/docs/api/" offline="true" packagelistLoc="misc/javadoc/api"/>
+      <link href="https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/" offline="true" packagelistLoc="misc/javadoc/smartcardio"/>
       <packageset dir="src">
         <include name="apdu4j/"/>
         <exclude name="apdu4j/tests/**"/>

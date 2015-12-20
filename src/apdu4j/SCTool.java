@@ -45,6 +45,8 @@ import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 import javax.smartcardio.TerminalFactory;
 
+import apdu4j.json.CmdlineRemoteTerminal;
+import apdu4j.json.SocketTransport;
 import joptsimple.OptionException;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
@@ -70,6 +72,9 @@ public class SCTool {
 	private static final String OPT_JNA = "jna";
 	private static final String OPT_T0 = "t0";
 	private static final String OPT_T1 = "t1";
+	private static final String OPT_CONNECT = "connect";
+	private static final String OPT_WAIT = "wait";
+
 
 	private static final String OPT_NO_GET_RESPONSE = "no-get-response";
 	private static final String OPT_LIB = "lib";
@@ -99,8 +104,10 @@ public class SCTool {
 
 		parser.accepts(OPT_SUN, "load SunPCSC");
 		parser.accepts(OPT_JNA, "load jnasmartcardio");
+		parser.accepts(OPT_CONNECT, "connect to host:port").withRequiredArg();
 		parser.accepts(OPT_PROVIDERS, "list providers");
 		parser.accepts(OPT_ALL, "process all readers");
+		parser.accepts(OPT_WAIT, "wait for card insertion");
 		parser.accepts(OPT_T0, "use T=0");
 		parser.accepts(OPT_T1, "use T=1");
 		parser.accepts(OPT_NO_GET_RESPONSE, "don't use GET RESPONSE with SunPCSC");
@@ -170,7 +177,7 @@ public class SCTool {
 			// Get a terminal factory
 			if (args.has(OPT_PROVIDER)) {
 				String pn = (String)args.valueOf(OPT_PROVIDER);
-				String pt = (String) args.valueOf(OPT_PROVIDER_TYPE);
+				String pt = (String)args.valueOf(OPT_PROVIDER_TYPE);
 				tf = loadFactory(pn, pt);
 			} else if (args.has(OPT_SUN)) {
 				tf = loadFactory(SUN_CLASS, null);
@@ -266,8 +273,20 @@ public class SCTool {
 					System.err.println("Run with --"+OPT_ALL+" to work with all found cards");
 					System.exit(1);
 				} else if (do_readers.size() == 0 && !args.has(CMD_LIST)) {
-					System.err.println("No reader with a card found!");
-					System.exit(1);
+					// But if there is a single reader, wait for a card insertion
+					List<CardTerminal> empty = terminals.list(State.CARD_ABSENT);
+					if (empty.size() == 1 && args.has(OPT_WAIT)) {
+						CardTerminal rdr = empty.get(0);
+						System.out.println("Please enter a card into " + rdr.getName());
+						if (!empty.get(0).waitForCardPresent(30000)) {
+							System.out.println("Timeout.");
+						} else {
+							do_readers = Arrays.asList(rdr);
+						}
+					} else {
+						System.err.println("No reader with a card found!");
+						System.exit(1);
+					}
 				}
 			}
 
@@ -287,27 +306,28 @@ public class SCTool {
 			return;
 		}
 
-		if (args.has(CMD_APDU))  {
-			if (debug) {
-				FileOutputStream o = null;
-				if (args.has(OPT_DUMP)) {
-					try {
-						o = new FileOutputStream((File) args.valueOf(OPT_DUMP));
-					} catch (FileNotFoundException e) {
-						System.err.println("Can not dump to " + args.valueOf(OPT_DUMP));
-					}
+		if (debug) {
+			FileOutputStream o = null;
+			if (args.has(OPT_DUMP)) {
+				try {
+					o = new FileOutputStream((File) args.valueOf(OPT_DUMP));
+				} catch (FileNotFoundException e) {
+					System.err.println("Can not dump to " + args.valueOf(OPT_DUMP));
 				}
-				reader = LoggingCardTerminal.getInstance(reader, o);
 			}
+			reader = LoggingCardTerminal.getInstance(reader, o);
+		}
+		// This allows to override the protocol for RemoteTerminal as well.
+		final String protocol;
+		if (args.has(OPT_T0)) {
+			protocol = "T=0";
+		} else if (args.has(OPT_T1)) {
+			protocol = "T=1";
+		} else {
+			protocol = "*";
+		}
+		if (args.has(CMD_APDU))  {
 
-			final String protocol;
-			if (args.has(OPT_T0)) {
-				protocol = "T=0";
-			} else if (args.has(OPT_T1)) {
-				protocol = "T=1";
-			} else {
-				protocol = "*";
-			}
 			Card c = null;
 			try {
 				c = reader.connect(protocol);
@@ -332,6 +352,25 @@ public class SCTool {
 				if (c != null) {
 					c.disconnect(true);
 				}
+			}
+		} else if (args.has(OPT_CONNECT)) {
+			String[] hostport = ((String) args.valueOf(OPT_CONNECT)).split(":");
+			// FIXME: move this check earlier
+			if (hostport.length != 2) {
+				throw new IllegalArgumentException("JSON target must be host:port pair!");
+			}
+			// Construct a remote terminal, by default ignoring certificate errors and using SocketTransport
+			try (SocketTransport s = SocketTransport.connect(hostport[0], Integer.valueOf(hostport[1]), null)) {
+				if (args.has(OPT_VERBOSE)) {
+					s.beVerbose(true);
+				}
+				// Connect the socket and the terminal
+				CmdlineRemoteTerminal c = new CmdlineRemoteTerminal(s, reader);
+				c.forceProtocol(protocol);
+				// Run
+				c.run();
+			} catch (IOException e) {
+				System.err.println("Communication error: " + e.getMessage());
 			}
 		}
 	}
