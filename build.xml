@@ -3,6 +3,7 @@
   <description>apdu4j - smart card utilities for Java</description>
   <!-- Fetch and integrity check dependencies -->
   <target name="fetch" description="fetch dependencies">
+    <mkdir dir="lib"/>
     <!-- Remember to update apdu4j.pro and .classpath as well! -->
     <get src="https://repo1.maven.org/maven2/net/sf/jopt-simple/jopt-simple/4.9/jopt-simple-4.9.jar" dest="lib" verbose="true" skipexisting="true"/>
     <get src="http://central.maven.org/maven2/com/googlecode/json-simple/json-simple/1.1.1/json-simple-1.1.1.jar" dest="lib" verbose="true" skipexisting="true"/>
