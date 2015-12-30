@@ -36,7 +36,13 @@ import javax.smartcardio.CardTerminal;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 
-// TODO: Unify the APDU related code with ByteBuffer so that both would log nicely
+/**
+ * Log everything going through this CardTerminal, also hypothetical SCard API calls for connect/disconnect.
+ *
+ * Dump APDU-s to a file for automatic playback and inspection
+ *
+ * @author Martin Paljak
+ */
 public class LoggingCardTerminal extends CardTerminal {
 
 	// The actual terminal
@@ -148,7 +154,7 @@ public class LoggingCardTerminal extends CardTerminal {
 
 		@Override
 		public byte[] transmitControlCommand(int arg0, byte[] arg1) throws CardException {
-			throw new CardException("Control commands not supported");
+			throw new CardException("Control commands not (yet) supported");
 		}
 
 		public final class LoggingCardChannel extends CardChannel {
@@ -181,7 +187,7 @@ public class LoggingCardTerminal extends CardTerminal {
 				log.print(" " + HexUtils.encodeHexString(Arrays.copyOfRange(cb, 0, 4)));
 
 				// Only if Case 2, 3 or 4 APDU
-				if (apdu.getBytes().length > 4) {
+				if (cb.length > 4) {
 					int cmdlen = cb[ISO7816.OFFSET_LC] & 0xFF;
 					if (cmdlen == 0 && apdu.getData().length > 6) {
 						cmdlen = ((cb[ISO7816.OFFSET_LC +1] & 0xff << 8) | cb[ISO7816.OFFSET_LC+2] & 0xff);
@@ -207,8 +213,8 @@ public class LoggingCardTerminal extends CardTerminal {
 				}
 				byte [] rb = response.getBytes();
 				System.out.print("A<< (" + String.format("%04d", response.getData().length) + "+2) (" + time + ")");
-				if (response.getData().length > 2) {
-					log.print(" " + HexUtils.encodeHexString(response.getData()));
+				if (rb.length > 2) {
+					log.print(" " + HexUtils.encodeHexString(Arrays.copyOfRange(rb, 0, rb.length-2)));
 				}
 				log.println(" " + HexUtils.encodeHexString(Arrays.copyOfRange(rb, rb.length-2, rb.length)));
 				if (dump != null) {

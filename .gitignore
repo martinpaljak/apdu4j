@@ -1,4 +1,6 @@
 *~
+.DS_Store
+/javadoc/
 /bin/
 /ext/launch4j/
 /build/
@@ -6,3 +8,4 @@
 /apdu4j-vanilla.jar
 /apdu4j.exe
 /apdu4j.sh
+/lib/*.jar
