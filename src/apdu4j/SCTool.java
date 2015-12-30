@@ -41,12 +41,14 @@ import javax.smartcardio.CardException;
 import javax.smartcardio.CardTerminal;
 import javax.smartcardio.CardTerminals;
 import javax.smartcardio.CardTerminals.State;
+
+import apdu4j.remote.CmdlineRemoteTerminal;
+import apdu4j.remote.SocketTransport;
+
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 import javax.smartcardio.TerminalFactory;
 
-import apdu4j.json.CmdlineRemoteTerminal;
-import apdu4j.json.SocketTransport;
 import joptsimple.OptionException;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;

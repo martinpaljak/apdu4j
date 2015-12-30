@@ -12,9 +12,9 @@
 # APDUReplayProvider is supposed to be used by others
 -keep public class apdu4j.APDUReplayProvider {*;}
 -keep public class apdu4j.APDUReplayProvider$* {*;}
--keep public class apdu4j.json.* {*;}
 # Everything about RemoteTerminal is kept
-#-keep public class apdu4j.json.RemoteTerminal {*;}
+-keep public class apdu4j.remote.RemoteTerminal {*;}
+-keep public class apdu4j.remote.SocketTransport {*;}
 -keep public class apdu4j.LoggingCardTerminal {*;}
 -keep public class apdu4j.TerminalManager {
     public <methods>;
