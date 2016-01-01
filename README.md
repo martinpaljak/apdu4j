@@ -118,6 +118,8 @@ ant
         java -cp someother.jar:apdu4j.jar apdu4j.SCTool -p org.someother.APDUClass -l
 
 ### Usage from Java
+More information can be found from [Javadocs](https://martinpaljak.github.io/apdu4j), which are always improving.
+
 Before anything make sure you set the necessary properties to make javax.smartcardio work without tuning:
 
 ```java

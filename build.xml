@@ -3,6 +3,7 @@
   <description>apdu4j - smart card utilities for Java</description>
   <!-- Fetch and integrity check dependencies -->
   <target name="fetch" description="fetch dependencies">
+    <ant dir="ext/jnasmartcardio" target="init"/>
     <mkdir dir="lib"/>
     <!-- Remember to update apdu4j.pro and .classpath as well! -->
     <get src="https://repo1.maven.org/maven2/net/sf/jopt-simple/jopt-simple/4.9/jopt-simple-4.9.jar" dest="lib" verbose="true" skipexisting="true"/>
@@ -82,7 +83,7 @@
     <delete file="apdu4j.exe"/>
     <delete file="apdu4j-vanilla.jar"/>
   </target>
-  <!-- Put javadocs online -->
+  <!-- Make javadocs -->
   <target name="javadoc">
     <javadoc destdir="javadoc" Overview="doc/overview.html" Windowtitle="apdu4j - smart card utilities for Java" Doctitle="apdu4j tools and classes" access="public" linksource="true">
       <link href="https://docs.oracle.com/javase/8/docs/api/" offline="true" packagelistLoc="misc/javadoc/api"/>
@@ -93,6 +94,10 @@
       </packageset>
       <classpath refid="build.classpath"/>
     </javadoc>
+  </target>
+  <!-- Put javadocs online -->
+  <target name="javadoc-publish" depends="javadoc">
+    <exec failonerror="true" command="misc/ghp-import -n -m 'Publish updated javadocs' -p javadoc"/>
   </target>
   <!-- Do a full release to github -->
   <target name="release" depends="clean,dist,javadoc">
@@ -106,6 +111,6 @@
     <echo message="Releasing ${release.version} to Github"/>
     <exec failonerror="true" command="git tag -s ${release.version} -m 'Release ${release.version}'"/>
     <exec failonerror="true" command="git push --tags origin master"/>
-    <exec failonerror="true" command="ghp-import -n -m 'Release ${release.version}' -p javadoc"/>
+    <antcall task="javadoc-publish"/>
   </target>
 </project>
