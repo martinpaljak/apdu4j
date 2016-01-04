@@ -31,11 +31,6 @@ import javax.smartcardio.CardTerminal;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 
-import com.googlecode.lanterna.input.KeyStroke;
-import com.googlecode.lanterna.input.KeyType;
-import com.googlecode.lanterna.terminal.DefaultTerminalFactory;
-import com.googlecode.lanterna.terminal.Terminal;
-
 import apdu4j.HexUtils;
 
 /**
@@ -103,11 +98,8 @@ public class CmdlineRemoteTerminal implements Runnable {
 		Map< String, Object> m = JSONProtocol.ok(msg);
 		boolean yes = false;
 
-		if (System.getProperty("os.name").equalsIgnoreCase("Linux")) {
-			yes = get_yes_or_no_lantern();
-		} else {
-			yes = get_yes_or_no_console();
-		}
+		// lanterna requires work as it screws up Console.readPassword()
+		yes = get_yes_or_no_console();
 
 		if (!yes) {
 			m.put("button", "red");
@@ -136,42 +128,6 @@ public class CmdlineRemoteTerminal implements Runnable {
 			System.out.println("Disconnecting, STOP received.");
 		} else {
 			System.out.println("No idea how to process: " + msg.toString());
-		}
-	}
-
-	private boolean get_yes_or_no_lantern() throws IOException {
-		Terminal term = null;
-		try {
-			// Handle all the nice things.
-			DefaultTerminalFactory tf = new DefaultTerminalFactory();
-			// Otherwise a window is created on Linux
-			tf.setSuppressSwingTerminalFrame(true);
-			term = tf.createTerminal();
-		}
-		catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		System.out.print("Y/Enter N/Escape ? ");
-		while (true) {
-			KeyStroke k = term.readInput();
-			if (k.getKeyType().equals(KeyType.Enter)) {
-				return true;
-			} else if (k.getKeyType().equals(KeyType.Escape)) {
-				return false;
-			} else if (k.getKeyType().equals(KeyType.Character)) {
-				char c = k.getCharacter();
-				if (c == 'y' || c == 'Y') {
-					return true;
-				} else if (c == 'n' || c == 'N') {
-					return false;
-				} else {
-					System.out.println("Please enter 'y' or 'n', enter, cancel");
-				}
-			} else {
-				System.out.println("y/n ? ");
-				System.out.println(k);
-			}
 		}
 	}
 

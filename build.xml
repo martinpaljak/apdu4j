@@ -11,13 +11,11 @@
     <get src="http://central.maven.org/maven2/com/googlecode/lanterna/lanterna/3.0.0-beta1/lanterna-3.0.0-beta1.jar" dest="lib" verbose="true" skipexisting="true"/>
     <checksum algorithm="SHA1" file="lib/jopt-simple-4.9.jar" property="ee9e9eaa0a35360dcfeac129ff4923215fd65904" verifyProperty="joptOK"/>
     <checksum algorithm="SHA1" file="lib/json-simple-1.1.1.jar" property="c9ad4a0850ab676c5c64461a05ca524cdfff59f1" verifyProperty="jsonOK"/>
-    <checksum algorithm="SHA1" file="lib/lanterna-3.0.0-beta1.jar" property="0ec22faf7c2070a68f162f73370972c186dcae90" verifyProperty="lanternaOK"/>
     <fail message="Checksum failure">
       <condition>
         <or>
           <isfalse value="${joptOK}"/>
           <isfalse value="${jsonOK}"/>
-          <isfalse value="${lanternaOK}"/>
         </or>
       </condition>
     </fail>

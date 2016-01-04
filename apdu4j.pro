@@ -1,7 +1,6 @@
 -injars build
 -injars lib/jopt-simple-4.9.jar(!META-INF/**)
 -injars lib/json-simple-1.1.1.jar(!META-INF/**)
--injars lib/lanterna-3.0.0-beta1.jar(!META-INF/**)
 # JNA is library because we package everything back in
 -libraryjars ext/jnasmartcardio/jnasmartcardio.jar
 -libraryjars  <java.home>/lib/rt.jar
