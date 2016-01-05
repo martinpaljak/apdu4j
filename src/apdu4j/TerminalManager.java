@@ -25,7 +25,6 @@ import java.io.File;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
 
-import javax.smartcardio.Card;
 import javax.smartcardio.CardException;
 import javax.smartcardio.CardTerminal;
 import javax.smartcardio.CardTerminals;
@@ -47,8 +46,6 @@ public class TerminalManager {
 	private static final String freebsd_path = "/usr/local/lib/libpcsclite.so";
 	private static final String fedora64_path = "/usr/lib64/libpcsclite.so.1";
 	private static final String raspbian_path = "/usr/lib/arm-linux-gnueabihf/libpcsclite.so.1";
-
-	private static boolean buggy = true;
 
 	public static TerminalFactory getTerminalFactory() throws NoSuchAlgorithmException {
 		return getTerminalFactory(true);
@@ -92,35 +89,7 @@ public class TerminalManager {
 
 	public static TerminalFactory getTerminalFactory(boolean fix) throws NoSuchAlgorithmException {
 		fixPlatformPaths();
-		TerminalFactory tf = TerminalFactory.getDefault();
-		// OSX is horribly broken. Use JNA based approach if not already
-		// installed and used as default
-		if (fix) {
-			if (System.getProperty("os.name").equalsIgnoreCase("Mac OS X")) {
-				if (tf.getProvider().getName() != jnasmartcardio.Smartcardio.PROVIDER_NAME) {
-					tf = TerminalFactory.getInstance("PC/SC", null, new jnasmartcardio.Smartcardio());
-				}
-			}
-		}
-
-		// Right now only JNA based approach should be correct.
-		if (tf.getProvider().getName() == jnasmartcardio.Smartcardio.PROVIDER_NAME) {
-			buggy = false;
-		}
-		return tf;
-	}
-
-	/**
-	 * Calls {@link javax.smartcardio.Card#disconnect(boolean)} with the fixed reset parameter.
-	 *
-	 * The parameter is fixed based on the used provider and assumes that written code is correct.
-	 *
-	 * @param card The card on what to act
-	 * @param reset The intended operation after disconnect
-	 * @throws CardException if the card operation failed
-	 */
-	public static void disconnect(Card card, boolean reset) throws CardException {
-		card.disconnect(buggy ? !reset : reset);
+		return TerminalFactory.getInstance("PC/SC", null, new jnasmartcardio.Smartcardio());
 	}
 
 	public static CardTerminal getTheReader() throws CardException {
@@ -128,12 +97,6 @@ public class TerminalManager {
 			TerminalFactory tf = getTerminalFactory();
 			CardTerminals tl = tf.terminals();
 			List<CardTerminal> list = tl.list(State.CARD_PRESENT);
-			if (list.size() == 0 && System.getProperty("os.name").equalsIgnoreCase("Mac OS X")) {
-				// No readers with cards. Maybe empty readers or OSX?
-				// FIXME: this is incorrect and requires a rewrite
-				list = tl.list(State.ALL);
-			}
-
 			if (list.size() != 1) {
 				throw new IllegalStateException("This application expects one and only one card reader (with an inserted card)");
 			} else {

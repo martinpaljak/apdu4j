@@ -41,14 +41,12 @@ import javax.smartcardio.CardException;
 import javax.smartcardio.CardTerminal;
 import javax.smartcardio.CardTerminals;
 import javax.smartcardio.CardTerminals.State;
-
-import apdu4j.remote.CmdlineRemoteTerminal;
-import apdu4j.remote.SocketTransport;
-
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 import javax.smartcardio.TerminalFactory;
 
+import apdu4j.remote.CmdlineRemoteTerminal;
+import apdu4j.remote.SocketTransport;
 import joptsimple.OptionException;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
@@ -362,7 +360,9 @@ public class SCTool {
 				throw new IllegalArgumentException("JSON target must be host:port pair!");
 			}
 			// Construct a remote terminal, by default ignoring certificate errors and using SocketTransport
-			try (SocketTransport s = SocketTransport.connect(hostport[0], Integer.valueOf(hostport[1]), null)) {
+			SocketTransport s = null;
+			try {
+				s = SocketTransport.connect(hostport[0], Integer.valueOf(hostport[1]), null);
 				if (args.has(OPT_VERBOSE)) {
 					s.beVerbose(true);
 				}
@@ -373,6 +373,9 @@ public class SCTool {
 				c.run();
 			} catch (IOException e) {
 				System.err.println("Communication error: " + e.getMessage());
+			} finally {
+				if (s != null)
+					s.close();
 			}
 		}
 	}
