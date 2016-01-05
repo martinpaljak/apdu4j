@@ -98,13 +98,28 @@ public class TerminalManager {
 
 	public static CardTerminal getTheReader() throws CardException {
 		try {
-			TerminalFactory tf = getTerminalFactory();
+			String msg = "This application expects one and only one card reader (with an inserted card)";
+			TerminalFactory tf = getTerminalFactory(true);
 			CardTerminals tl = tf.terminals();
 			List<CardTerminal> list = tl.list(State.CARD_PRESENT);
-			if (list.size() != 1) {
-				throw new IllegalStateException("This application expects one and only one card reader (with an inserted card)");
-			} else {
+			if (list.size() > 1) {
+				throw new CardException(msg);
+			} else if (list.size() == 1) {
 				return list.get(0);
+			} else {
+				List<CardTerminal> wl = tl.list(State.ALL);
+				// FIXME: JNA-s CardTerminals.waitForChange() does not work
+				if (wl.size() == 1) {
+					CardTerminal t = wl.get(0);
+					System.out.println("Waiting for a card insertion to " + t.getName());
+					if (t.waitForCardPresent(0)) {
+						return t;
+					} else {
+						throw new CardException("Could not find a reader with a card");
+					}
+				} else {
+					throw new CardException(msg);
+				}
 			}
 		} catch (NoSuchAlgorithmException e) {
 			throw new CardException(e);
