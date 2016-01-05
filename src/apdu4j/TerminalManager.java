@@ -89,7 +89,11 @@ public class TerminalManager {
 
 	public static TerminalFactory getTerminalFactory(boolean fix) throws NoSuchAlgorithmException {
 		fixPlatformPaths();
-		return TerminalFactory.getInstance("PC/SC", null, new jnasmartcardio.Smartcardio());
+		if (fix) {
+			return TerminalFactory.getInstance("PC/SC", null, new jnasmartcardio.Smartcardio());
+		} else {
+			return TerminalFactory.getDefault();
+		}
 	}
 
 	public static CardTerminal getTheReader() throws CardException {
