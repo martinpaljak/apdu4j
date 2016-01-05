@@ -31,4 +31,5 @@ import java.util.Map;
 public interface JSONMessagePipe {
 	void send(Map<String, Object> msg) throws IOException;
 	Map<String, Object> recv() throws IOException;
+	void close();
 }

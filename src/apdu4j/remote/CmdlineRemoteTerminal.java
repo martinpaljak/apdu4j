@@ -57,7 +57,8 @@ public class CmdlineRemoteTerminal implements Runnable {
 				Map<String, Object> m = pipe.recv();
 				// First try the terminal
 				if (!jsonterminal.processMessage(m)) {
-					processMessage(m);
+					if (!processMessage(m))
+						break;
 				}
 			} catch (IOException e) {
 				System.out.println("Messaging failed: " + e.getMessage());
@@ -113,7 +114,7 @@ public class CmdlineRemoteTerminal implements Runnable {
 		System.out.println("# " + (String)msg.get("text"));
 		pipe.send(JSONProtocol.ok(msg));
 	}
-	private void processMessage (Map<String, Object> msg) throws IOException {
+	private boolean processMessage (Map<String, Object> msg) throws IOException {
 		if (!msg.containsKey("cmd")) {
 			throw new IOException("No command in message: " + msg);
 		}
@@ -125,10 +126,13 @@ public class CmdlineRemoteTerminal implements Runnable {
 		} else if (cmd.equals("DIALOG")) {
 			dialog(msg);
 		} else if (cmd.equals("STOP")) {
-			System.out.println("Disconnecting, STOP received.");
+			System.out.println("# Connection closed.");
+			return false;
 		} else {
-			System.out.println("No idea how to process: " + msg.toString());
+			System.err.println("No idea how to process: " + msg.toString());
+			return false;
 		}
+		return true;
 	}
 
 	private boolean get_yes_or_no_console() {

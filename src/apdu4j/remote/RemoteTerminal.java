@@ -75,4 +75,16 @@ public class RemoteTerminal {
 		pipe.send(m);
 		return JSONProtocol.check(m, pipe.recv(), null, null);
 	}
+
+	public void stop(){
+		try {
+			Map<String, Object> m = JSONProtocol.cmd("stop");
+			pipe.send(m);
+		} catch (IOException e) {
+		}
+		close();
+	}
+	public void close() {
+		pipe.close();
+	}
 }

@@ -57,7 +57,7 @@ import org.json.simple.JSONValue;
  *
  * @author Martin Paljak
  */
-public class SocketTransport implements JSONMessagePipe, AutoCloseable {
+public class SocketTransport implements JSONMessagePipe {
 	private boolean verbose = false;
 	private final Socket socket;
 	private final ByteBuffer length = ByteBuffer.allocate(Integer.SIZE / Byte.SIZE);
@@ -154,6 +154,7 @@ public class SocketTransport implements JSONMessagePipe, AutoCloseable {
 
 
 	@Override
+	@SuppressWarnings("unchecked")
 	public synchronized void send(Map<String, Object> msg) throws IOException {
 		JSONObject obj = new JSONObject();
 		obj.putAll(msg);
@@ -166,6 +167,7 @@ public class SocketTransport implements JSONMessagePipe, AutoCloseable {
 	}
 
 	@Override
+	@SuppressWarnings("unchecked")
 	public synchronized Map<String, Object> recv() throws IOException {
 		if (socket.isClosed()) {
 			throw new IOException("Connection closed");
