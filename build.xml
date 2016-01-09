@@ -57,6 +57,7 @@
     <jar destfile="apdu4j.jar" level="9">
       <zipfileset src="ext/jnasmartcardio/jnasmartcardio.jar"/>
       <zipfileset src="optimized-apdu4j.jar" excludes="META-INF/maven/"/>
+      <zipfileset src="lib/slf4j-api-1.7.13.jar" excludes="META-INF/maven/"/>
       <zipfileset src="lib/slf4j-simple-1.7.13.jar" excludes="META-INF/maven/"/>
       <manifest><attribute name="Main-Class" value="apdu4j.SCTool"/></manifest>
       <fileset file="version.txt"/>

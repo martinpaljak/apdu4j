@@ -51,6 +51,10 @@ public class TerminalManager {
 		return getTerminalFactory(true);
 	}
 
+	/**
+	 * Locates PC/SC shared library on the system and automagically sets system properties so that SunPCSC
+	 * could find the smart card service. Call this before acquiring your TerminalFactory.
+	 */
 	public static void fixPlatformPaths() {
 		if (System.getProperty(lib_prop) == null) {
 			// Set necessary parameters for seamless PC/SC access.
@@ -87,6 +91,16 @@ public class TerminalManager {
 		}
 	}
 
+	/**
+	 * Creates a terminal factory.
+	 *
+	 * Fixes PC/SC paths for Unix systems or bypasses SunPCSC and uses JNA based approach.
+	 *
+	 * @param fix true if jnasmartcardio should be used
+	 *
+	 * @return a {@link TerminalFactory} instance
+	 * @throws NoSuchAlgorithmException if jnasmartcardio is not found
+	 */
 	public static TerminalFactory getTerminalFactory(boolean fix) throws NoSuchAlgorithmException {
 		fixPlatformPaths();
 		if (fix) {
@@ -96,6 +110,12 @@ public class TerminalManager {
 		}
 	}
 
+	/**
+	 * Returns a card reader that has a card in it. Asks for insertion, if the system only has a single reader.
+	 *
+	 * @return
+	 * @throws CardException
+	 */
 	public static CardTerminal getTheReader() throws CardException {
 		try {
 			String msg = "This application expects one and only one card reader (with an inserted card)";

@@ -83,7 +83,7 @@ public class RemoteTerminal {
 		m.put("text", message);
 		pipe.send(m);
 		Map<String, Object> r = pipe.recv();
-		if (JSONProtocol.check(m, pipe.recv(), null, null)) {
+		if (JSONProtocol.check(m, r, null, null)) {
 			return Button.valueOf(((String)r.get("button")).toUpperCase());
 		} else {
 			throw new IOException("Unknown button pressed");

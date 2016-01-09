@@ -170,7 +170,7 @@ public class SCTool {
 		}
 
 		if (args.has(OPT_VERSION)) {
-			String version = getVersion(SCTool.class);
+			String version = "apdu4j " + getVersion(SCTool.class);
 			// Append host information
 			version += "\nRunning on " + System.getProperty("os.name");
 			version += " " + System.getProperty("os.version");

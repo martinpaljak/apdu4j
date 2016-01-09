@@ -35,9 +35,13 @@ public abstract class RemoteTerminalThread implements Runnable, JSONMessagePipe 
 
 	BlockingQueue<Map<String, Object>> toThread;
 	BlockingQueue<Map<String, Object>> fromThread;
+
+	RemoteTerminal terminal;
+
 	RemoteTerminalThread(BlockingQueue<Map<String, Object>> in, BlockingQueue<Map<String, Object>> out) {
 		toThread = in;
 		fromThread = out;
+		terminal = new RemoteTerminal(this);
 	}
 
 	@Override

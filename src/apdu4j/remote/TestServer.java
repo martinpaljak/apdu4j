@@ -45,18 +45,15 @@ import apdu4j.remote.RemoteTerminal.Button;
 public class TestServer extends RemoteTerminalThread {
 	private static Logger logger = LoggerFactory.getLogger(TestServer.class);
 
-	private RemoteTerminal term;
-
-	// Used for RemoteTerminalServer
-	public TestServer(BlockingQueue<Map<String, Object>> in, BlockingQueue<Map<String, Object>> out ) {
+	// Used for HTTP server
+	public TestServer(BlockingQueue<Map<String, Object>> in, BlockingQueue<Map<String, Object>> out) {
 		super(in, out);
-		term = new RemoteTerminal(this);
 	}
 
 	// Used for SocketTransport
 	public TestServer(RemoteTerminal t) {
 		super(null, null);
-		term = t;
+		terminal = t;
 	}
 
 	// Start a socket test server.
@@ -79,21 +76,21 @@ public class TestServer extends RemoteTerminalThread {
 	public void run() {
 		logger.info("Started session");
 		try {
-			term.start();
-			term.statusMessage("Welcome!");
+			terminal.start();
+			terminal.statusMessage("Welcome!");
 			try {
 
-				CardTerminal ct = term.getCardTerminal();
+				CardTerminal ct = terminal.getCardTerminal();
 				CardChannel c = ct.connect("*").getBasicChannel();
 
-				if (term.dialog("Shall we try to select MF in " + ct.getName()).equals(Button.GREEN)) {
+				if (terminal.dialog("Shall we try to select MF in " + ct.getName()).equals(Button.GREEN)) {
 					ResponseAPDU r = c.transmit(new CommandAPDU(0x00, 0xA4, 0x04, 0x00));
-					term.statusMessage("Card returned: " + HexUtils.encodeHexString(r.getBytes()));
+					terminal.statusMessage("Card returned: " + HexUtils.encodeHexString(r.getBytes()));
 				}
 			} catch (CardException e) {
-				term.statusMessage("Failed: " + e.getMessage());
+				terminal.statusMessage("Failed: " + e.getMessage());
 			} finally {
-				term.stop();
+				terminal.stop();
 			}
 		}
 		catch (IOException e) {

@@ -115,7 +115,7 @@ public class RemoteTerminalServer {
 	}
 	private static void setStandardHeaders(HttpExchange req) {
 		Headers h = req.getResponseHeaders();
-		h.set("Server", SCTool.getVersion(SCTool.class));
+		h.set("Server", "apdu4j/"+SCTool.getVersion(SCTool.class));
 	}
 
 	private class MsgHandler implements HttpHandler {
@@ -196,15 +196,18 @@ public class RemoteTerminalServer {
 									msg.put("session", sid.toString());
 
 									// Initiate a thread with the queue
-									Constructor<? extends RemoteTerminalThread> thrd = processor.getConstructor(BlockingQueue.class, BlockingQueue.class);
+									Constructor<? extends RemoteTerminalThread> thrd = processor.asSubclass(RemoteTerminalThread.class).getConstructor(BlockingQueue.class, BlockingQueue.class);
 									RemoteTerminalThread thread = thrd.newInstance(sess.toThread, sess.fromThread);
+									logger.debug("starting thread");
 									// execute created thread with queues
 									e.execute(thread);
+									logger.debug("thread started.");
 									// Put into session map.
 									sessions.put(sid, sess);
 									// Transceive first message to thread
 									transceive(req, msg, sess);
 								} catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+									logger.error("Could not start worker thread", e);
 									throw new RuntimeException("Could not initiate a worker thread!", e);
 								}
 							} else {
