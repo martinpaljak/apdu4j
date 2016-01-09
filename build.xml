@@ -8,14 +8,20 @@
     <!-- Remember to update apdu4j.pro and .classpath as well! -->
     <get src="https://repo1.maven.org/maven2/net/sf/jopt-simple/jopt-simple/4.9/jopt-simple-4.9.jar" dest="lib" verbose="true" skipexisting="true"/>
     <get src="http://central.maven.org/maven2/com/googlecode/json-simple/json-simple/1.1.1/json-simple-1.1.1.jar" dest="lib" verbose="true" skipexisting="true"/>
-    <get src="http://central.maven.org/maven2/com/googlecode/lanterna/lanterna/3.0.0-beta1/lanterna-3.0.0-beta1.jar" dest="lib" verbose="true" skipexisting="true"/>
-    <checksum algorithm="SHA1" file="lib/jopt-simple-4.9.jar" property="ee9e9eaa0a35360dcfeac129ff4923215fd65904" verifyProperty="joptOK"/>
-    <checksum algorithm="SHA1" file="lib/json-simple-1.1.1.jar" property="c9ad4a0850ab676c5c64461a05ca524cdfff59f1" verifyProperty="jsonOK"/>
+    <get src="http://repo2.maven.org/maven2/org/slf4j/slf4j-api/1.7.13/slf4j-api-1.7.13.jar" dest="lib" verbose="true" skipexisting="true"/>
+    <get src="http://repo2.maven.org/maven2/org/slf4j/slf4j-simple/1.7.13/slf4j-simple-1.7.13.jar" dest="lib" verbose="true" skipexisting="true"/>
+    <checksum algorithm="SHA-256" file="lib/jopt-simple-4.9.jar" property="26c5856e954b5f864db76f13b86919b59c6eecf9fd930b96baa8884626baf2f5" verifyProperty="joptOK"/>
+    <checksum algorithm="SHA-256" file="lib/json-simple-1.1.1.jar" property="4e69696892b88b41c55d49ab2fdcc21eead92bf54acc588c0050596c3b75199c" verifyProperty="jsonOK"/>
+    <checksum algorithm="SHA-256" file="lib/slf4j-api-1.7.13.jar" property="20d68d0c2e4fb984ffc164852b8b68df49a2b8716076f576881bcef7649a0e35" verifyProperty="slfjapiOK"/>
+    <checksum algorithm="SHA-256" file="lib/slf4j-simple-1.7.13.jar" property="4709c0b535057c6a9a794da9522b1291de9c72b6d61f41b7ecf63156bc7bee35" verifyProperty="slfjsimpleOK"/>
+
     <fail message="Checksum failure">
       <condition>
         <or>
           <isfalse value="${joptOK}"/>
           <isfalse value="${jsonOK}"/>
+          <isfalse value="${slfjapiOK}"/>
+          <isfalse value="${slfjsimpleOK}"/>
         </or>
       </condition>
     </fail>
@@ -26,6 +32,7 @@
     <pathelement location="lib/jopt-simple-4.9.jar"/>
     <pathelement location="lib/json-simple-1.1.1.jar"/>
     <pathelement location="lib/lanterna-3.0.0-beta1.jar"/>
+    <pathelement location="lib/slf4j-api-1.7.13.jar"/>
   </path>
   <target name="deps" description="build jnasmartcardio">
     <ant dir="ext/jnasmartcardio"/>
@@ -39,6 +46,7 @@
   </target>
   <!-- Package it into a nice little JAR -->
   <target name="dist" depends="compile" description="generate the distribution">
+    <exec command="git describe --always" output="version.txt"/>
     <!-- Build adpu4j.jar -->
     <java classname="proguard.ProGuard" fork="true" failonerror="true">
       <arg line="@apdu4j.pro"/>
@@ -49,11 +57,20 @@
     <jar destfile="apdu4j.jar" level="9">
       <zipfileset src="ext/jnasmartcardio/jnasmartcardio.jar"/>
       <zipfileset src="optimized-apdu4j.jar" excludes="META-INF/maven/"/>
+      <zipfileset src="lib/slf4j-simple-1.7.13.jar" excludes="META-INF/maven/"/>
       <manifest><attribute name="Main-Class" value="apdu4j.SCTool"/></manifest>
+      <fileset file="version.txt"/>
     </jar>
     <delete file="optimized-apdu4j.jar"/>
     <!-- JAR without jnasmartcardio and command line -->
-    <jar destfile="apdu4j-vanilla.jar" level="9" basedir="build" excludes="**/apdu4j/SCTool.class"/>
+    <jar destfile="apdu4j-vanilla.jar" level="9" basedir="build" excludes="**/apdu4j/SCTool.class">
+       <fileset file="version.txt"/>
+    </jar>
+    <!-- JAR with jnasmartcardio bundled in -->
+    <jar destfile="apdu4j-pcsc.jar" level="9" basedir="build" excludes="**/apdu4j/SCTool.class">
+       <zipfileset src="ext/jnasmartcardio/jnasmartcardio.jar"/>
+       <fileset file="version.txt"/>
+    </jar>
   </target>
   <!-- Package for Unix -->
   <target name="shelldist" depends="dist" description="generate executable shell file">

@@ -50,7 +50,7 @@ class JSONCardTerminalClient {
 	}
 	public boolean processMessage(Map<String, Object> msg) throws IOException {
 		if (!msg.containsKey("cmd"))
-			throw new IOException("No command field in message!");
+			throw new IOException("No command field in message: " + msg.toString());
 		String cmd = (String) msg.get("cmd");
 		if (cmd.equals("CONNECT")) {
 			try {

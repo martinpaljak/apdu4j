@@ -51,8 +51,10 @@ public class CmdlineRemoteTerminal implements Runnable {
 
 	@Override
 	public void run() {
-		while (true) {
-			try {
+		try {
+			// Initiate communication.
+			pipe.send(JSONProtocol.cmd("start"));
+			while (true) {
 				// Read a message
 				Map<String, Object> m = pipe.recv();
 				// First try the terminal
@@ -60,10 +62,9 @@ public class CmdlineRemoteTerminal implements Runnable {
 					if (!processMessage(m))
 						break;
 				}
-			} catch (IOException e) {
-				System.out.println("Messaging failed: " + e.getMessage());
-				break;
 			}
+		} catch (IOException e) {
+			System.out.println("Messaging failed: " + e.getMessage());
 		}
 	}
 

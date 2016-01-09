@@ -4,8 +4,8 @@
 /bin/
 /ext/launch4j/
 /build/
-/apdu4j.jar
-/apdu4j-vanilla.jar
-/apdu4j.exe
+/*.jar
+/*.exe
 /apdu4j.sh
 /lib/*.jar
+/version.txt

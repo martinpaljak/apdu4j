@@ -46,6 +46,16 @@ public class RemoteTerminal {
 		return terminal;
 	}
 
+	public void start() throws IOException {
+		// Read the first START message. FIXME
+		try {
+			pipe.recv();
+		}
+		catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
 	/**
 	 * Shows a message on the screen
 	 *

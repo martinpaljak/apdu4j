@@ -23,34 +23,36 @@ package apdu4j.remote;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 class JSONProtocol {
 
+	// User by client
 	public static Map<String, Object> nok(Map<String, Object> msg, String error) {
 		HashMap<String, Object> r = new HashMap<>();
 		r.put((String) msg.get("cmd"), "NOK");
-		r.put("id", msg.get("id"));
+		r.put("session", msg.get("session"));
 		if (error != null) {
 			r.put("ERROR", error);
 		}
 		return r;
 	}
 
+	// Used by client
 	public static Map<String, Object> ok(Map<String, Object> msg) {
 		HashMap<String, Object> r = new HashMap<>();
 		r.put((String) msg.get("cmd"), "OK");
-		r.put("id", msg.get("id"));
+		r.put("session", msg.get("session"));
 		return r;
 	}
 
+	// Used by server. Server adds session ID transparently.
 	public static Map<String, Object> cmd(String c) {
 		HashMap<String, Object> r = new HashMap<>();
 		r.put("cmd", c.toUpperCase());
-		r.put("id", UUID.randomUUID().toString());
 		return r;
 	}
 
+	// User by server
 	public static boolean check(Map<String, Object> m, Map<String, Object> r , String key, Object v) {
 		if (key != null && !(r.containsKey(key) && r.get(key).equals(v))) {
 			return false;

@@ -23,6 +23,7 @@ package apdu4j.remote;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
@@ -43,10 +44,13 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
-import javax.xml.bind.DatatypeConverter;
 
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import apdu4j.HexUtils;
 
 /**
  * Based on the <a href=
@@ -58,7 +62,8 @@ import org.json.simple.JSONValue;
  * @author Martin Paljak
  */
 public class SocketTransport implements JSONMessagePipe {
-	private boolean verbose = false;
+	private static Logger logger = LoggerFactory.getLogger(SocketTransport.class);
+
 	private final Socket socket;
 	private final ByteBuffer length = ByteBuffer.allocate(Integer.SIZE / Byte.SIZE);
 
@@ -67,14 +72,6 @@ public class SocketTransport implements JSONMessagePipe {
 		length.order(ByteOrder.BIG_ENDIAN);
 	}
 
-	/**
-	 * Setting this to true makes the class log to System.out all JSON messages
-	 *
-	 * @param yes true if the class should be verbose
-	 */
-	public void beVerbose(boolean yes) {
-		verbose = yes;
-	}
 
 	/**
 	 * Connects to the mentioned host and port with SSL without checking certificate chain.
@@ -86,6 +83,47 @@ public class SocketTransport implements JSONMessagePipe {
 	 */
 	public static SocketTransport connect_insecure(String host, int port) throws IOException {
 		return connect(host, port, null);
+	}
+
+	// Returns a SSLSocketFactory that either does no checking or checks for a pinnned certificate
+	protected static SSLSocketFactory get_ssl_socket_factory(X509Certificate pinnedcert) throws IOException {
+		try {
+			// Create a trust manager that does not validate certificate chains
+			TrustManager[] trustAllCerts = new TrustManager[] {
+					new X509TrustManager() {
+						@Override
+						public X509Certificate[] getAcceptedIssuers() {
+							return new X509Certificate[0];
+						}
+						@Override
+						public void checkServerTrusted(X509Certificate[] arg0, String arg1) throws CertificateException {
+						}
+						@Override
+						public void checkClientTrusted(X509Certificate[] arg0, String arg1) throws CertificateException {
+						}
+					}
+			};
+
+			// Trust managers for SSL context
+			SSLContext sc = SSLContext.getInstance("TLS");
+
+			if (pinnedcert != null) {
+				TrustManagerFactory tmf = TrustManagerFactory.getInstance("X509");
+				KeyStore ks = null;
+				ks = KeyStore.getInstance(KeyStore.getDefaultType());
+				// Generate an empty one
+				ks.load(null, null);
+				ks.setCertificateEntry("pinned", pinnedcert);
+				tmf.init(ks);
+				sc.init(null, tmf.getTrustManagers(), new java.security.SecureRandom());
+			} else {
+				sc.init(null, trustAllCerts, new java.security.SecureRandom());
+			}
+			// Connect with created parameters
+			return sc.getSocketFactory();
+		} catch (KeyManagementException | KeyStoreException | NoSuchAlgorithmException | CertificateException e) {
+			throw new IOException("Could not connect", e);
+		}
 	}
 
 	/**
@@ -143,8 +181,14 @@ public class SocketTransport implements JSONMessagePipe {
 	// Helper class to make a SSL server
 	public static ServerSocket make_server(int port, String pkcs12Path, String pkcs12Pass)
 			throws IOException, KeyStoreException, NoSuchAlgorithmException, CertificateException, UnrecoverableKeyException, KeyManagementException {
+		return make_server(port, new FileInputStream(pkcs12Path), pkcs12Pass);
+	}
+
+	// Helper class to make a SSL server
+	protected static ServerSocket make_server(int port, InputStream pkcs12stream, String pkcs12Pass)
+			throws IOException, KeyStoreException, NoSuchAlgorithmException, CertificateException, UnrecoverableKeyException, KeyManagementException {
 		KeyStore ks = KeyStore.getInstance("PKCS12");
-		ks.load(new FileInputStream(pkcs12Path), pkcs12Pass.toCharArray());
+		ks.load(pkcs12stream, pkcs12Pass.toCharArray());
 		KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
 		kmf.init(ks, pkcs12Pass.toCharArray());
 		SSLContext sc = SSLContext.getInstance("TLS");
@@ -161,9 +205,7 @@ public class SocketTransport implements JSONMessagePipe {
 		byte[] data = obj.toJSONString().getBytes(Charset.forName("UTF-8"));
 		socket.getOutputStream().write(length.putInt(0, data.length).array());
 		socket.getOutputStream().write(data);
-		if (verbose) {
-			System.out.println("> (" + DatatypeConverter.printHexBinary(length.array()) + ") " + new String(data, "UTF-8"));
-		}
+		logger.debug("> ({}) {}", HexUtils.encodeHexString(length.array()), obj.toJSONString());
 	}
 
 	@Override
@@ -185,10 +227,8 @@ public class SocketTransport implements JSONMessagePipe {
 		byte[] data = new byte[len];
 
 		socket.getInputStream().read(data);
-		if (verbose) {
-			System.out.println("< (" + DatatypeConverter.printHexBinary(length.array()) + ") " + new String(data, "UTF-8"));
-		}
 		JSONObject obj = (JSONObject) JSONValue.parse(new String(data, "UTF-8"));
+		logger.debug("< ({}) {}",  HexUtils.encodeHexString(length.array()), obj.toJSONString());
 		return obj;
 	}
 
@@ -196,6 +236,8 @@ public class SocketTransport implements JSONMessagePipe {
 	public void close() {
 		try {
 			socket.close();
-		} catch (IOException e) {}
+		} catch (IOException e) {
+			logger.trace("Could not close socket", e);
+		}
 	}
 }

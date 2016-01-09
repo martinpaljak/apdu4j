@@ -22,18 +22,29 @@
 package apdu4j;
 
 import java.awt.Desktop;
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.Security;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 
 import javax.smartcardio.Card;
@@ -46,7 +57,11 @@ import javax.smartcardio.ResponseAPDU;
 import javax.smartcardio.TerminalFactory;
 
 import apdu4j.remote.CmdlineRemoteTerminal;
+import apdu4j.remote.HTTPTransport;
+import apdu4j.remote.JSONMessagePipe;
+import apdu4j.remote.RemoteTerminalServer;
 import apdu4j.remote.SocketTransport;
+import apdu4j.remote.TestServer;
 import joptsimple.OptionException;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
@@ -62,7 +77,7 @@ public class SCTool {
 	private static final String OPT_READER = "reader";
 	private static final String OPT_ALL = "all";
 	private static final String OPT_VERBOSE = "verbose";
-	private static final String OPT_DEBUG = "debug";
+	private static final String OPT_VERSION = "version";
 	private static final String OPT_ERROR = "error";
 	private static final String OPT_DUMP = "dump";
 	private static final String OPT_REPLAY = "replay";
@@ -73,6 +88,7 @@ public class SCTool {
 	private static final String OPT_T0 = "t0";
 	private static final String OPT_T1 = "t1";
 	private static final String OPT_CONNECT = "connect";
+	private static final String OPT_PINNED = "pinned";
 	private static final String OPT_WAIT = "wait";
 
 
@@ -80,12 +96,13 @@ public class SCTool {
 	private static final String OPT_LIB = "lib";
 	private static final String OPT_WEB = "web";
 	private static final String OPT_PROVIDERS = "P";
+	private static final String OPT_TEST_SERVER = "testserver";
+
 
 	private static final String SUN_CLASS = "sun.security.smartcardio.SunPCSC";
 	private static final String JNA_CLASS = "jnasmartcardio.Smartcardio";
 
 	private static boolean verbose = false;
-	private static boolean debug = false;
 
 	private static OptionSet parseOptions(String [] argv) throws IOException {
 		OptionSet args = null;
@@ -93,27 +110,29 @@ public class SCTool {
 		parser.acceptsAll(Arrays.asList("l", CMD_LIST), "list readers");
 		parser.acceptsAll(Arrays.asList("p", OPT_PROVIDER), "specify provider").withRequiredArg();
 		parser.acceptsAll(Arrays.asList("v", OPT_VERBOSE), "be verbose");
-		parser.acceptsAll(Arrays.asList("d", OPT_DEBUG), "enable debug");
 		parser.acceptsAll(Arrays.asList("e", OPT_ERROR), "fail if not 0x9000");
 		parser.acceptsAll(Arrays.asList("h", OPT_HELP), "show help");
 		parser.acceptsAll(Arrays.asList("r", OPT_READER), "use reader").withRequiredArg();
 		parser.acceptsAll(Arrays.asList("a", CMD_APDU), "send APDU").withRequiredArg();
 		parser.acceptsAll(Arrays.asList("w", OPT_WEB), "open ATR in web");
+		parser.accepts(OPT_VERSION, "show version information");
 		parser.accepts(OPT_DUMP, "save dump to file").withRequiredArg().ofType(File.class);
 		parser.accepts(OPT_REPLAY, "replay command from dump").withRequiredArg().ofType(File.class);
 
 		parser.accepts(OPT_SUN, "load SunPCSC");
 		parser.accepts(OPT_JNA, "load jnasmartcardio");
-		parser.accepts(OPT_CONNECT, "connect to host:port").withRequiredArg();
+		parser.accepts(OPT_CONNECT, "connect to host:port or URL").withRequiredArg();
+		parser.accepts(OPT_PINNED, "require certificate").withRequiredArg().ofType(File.class);
+
 		parser.accepts(OPT_PROVIDERS, "list providers");
 		parser.accepts(OPT_ALL, "process all readers");
 		parser.accepts(OPT_WAIT, "wait for card insertion");
 		parser.accepts(OPT_T0, "use T=0");
 		parser.accepts(OPT_T1, "use T=1");
+		parser.accepts(OPT_TEST_SERVER, "run a test server on port 10000");
 		parser.accepts(OPT_NO_GET_RESPONSE, "don't use GET RESPONSE with SunPCSC");
 		parser.accepts(OPT_LIB, "use specific PC/SC lib with SunPCSC").withRequiredArg();
 		parser.accepts(OPT_PROVIDER_TYPE, "provider type if not PC/SC").withRequiredArg();
-
 
 
 		// Parse arguments
@@ -138,11 +157,35 @@ public class SCTool {
 
 	public static void main(String[] argv) throws Exception {
 		OptionSet args = parseOptions(argv);
+
 		if (args.has(OPT_VERBOSE)) {
 			verbose = true;
+			// Set up slf4j simple in a way that pleases us
+			System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "debug");
+			System.setProperty("org.slf4j.simpleLogger.showThreadName", "true");
+			System.setProperty("org.slf4j.simpleLogger.showShortLogName", "true");
+			System.setProperty("org.slf4j.simpleLogger.levelInBrackets", "true");
+		} else {
+			System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "warn");
 		}
-		if (args.has(OPT_DEBUG)) {
-			debug = true;
+
+		if (args.has(OPT_VERSION)) {
+			String version = getVersion(SCTool.class);
+			// Append host information
+			version += "\nRunning on " + System.getProperty("os.name");
+			version += " " + System.getProperty("os.version");
+			version += " " + System.getProperty("os.arch");
+			version += ", Java " + System.getProperty("java.version");
+			version += " by " + System.getProperty("java.vendor");
+			System.out.println(version);
+		}
+		if (args.has(OPT_TEST_SERVER)) {
+			// TODO: have the possibility to run SocketServer as well?
+			RemoteTerminalServer srv = new RemoteTerminalServer(TestServer.class);
+			srv.start();
+			System.console().readLine("Press enter to stop\n");
+			srv.stop(1);
+			System.exit(0);
 		}
 
 		// List TerminalFactory providers
@@ -306,17 +349,15 @@ public class SCTool {
 			return;
 		}
 
-		if (debug) {
-			FileOutputStream o = null;
-			if (args.has(OPT_DUMP)) {
-				try {
-					o = new FileOutputStream((File) args.valueOf(OPT_DUMP));
-				} catch (FileNotFoundException e) {
-					System.err.println("Can not dump to " + args.valueOf(OPT_DUMP));
-				}
+		FileOutputStream o = null;
+		if (args.has(OPT_DUMP)) {
+			try {
+				o = new FileOutputStream((File) args.valueOf(OPT_DUMP));
+			} catch (FileNotFoundException e) {
+				System.err.println("Can not dump to " + args.valueOf(OPT_DUMP));
 			}
-			reader = LoggingCardTerminal.getInstance(reader, o);
 		}
+		reader = LoggingCardTerminal.getInstance(reader, o);
 		// This allows to override the protocol for RemoteTerminal as well.
 		final String protocol;
 		if (args.has(OPT_T0)) {
@@ -354,31 +395,39 @@ public class SCTool {
 				}
 			}
 		} else if (args.has(OPT_CONNECT)) {
-			String[] hostport = ((String) args.valueOf(OPT_CONNECT)).split(":");
-			// FIXME: move this check earlier
-			if (hostport.length != 2) {
-				throw new IllegalArgumentException("JSON target must be host:port pair!");
-			}
-			// Construct a remote terminal, by default ignoring certificate errors and using SocketTransport
-			SocketTransport s = null;
+			String remote = (String) args.valueOf(OPT_CONNECT);
+			JSONMessagePipe transport = null;
+
 			try {
-				s = SocketTransport.connect(hostport[0], Integer.valueOf(hostport[1]), null);
-				if (args.has(OPT_VERBOSE)) {
-					s.beVerbose(true);
+				if (remote.startsWith("http://") || remote.startsWith("https://")) {
+					if (args.has(OPT_PINNED)) {
+						transport = HTTPTransport.open(new URL(remote), certFromPEM(((File)args.valueOf(OPT_PINNED)).getPath()));
+					} else {
+						transport = HTTPTransport.open(new URL(remote), null);
+					}
+				} else {
+					String[] hostport = remote.split(":");
+					// FIXME: move this check earlier
+					if (hostport.length != 2) {
+						throw new IllegalArgumentException("JSON target must be host:port pair!");
+					}
+					transport = SocketTransport.connect(hostport[0], Integer.valueOf(hostport[1]), null);
 				}
-				// Connect the socket and the terminal
-				CmdlineRemoteTerminal c = new CmdlineRemoteTerminal(s, reader);
+
+				// Connect the transport and the terminal
+				CmdlineRemoteTerminal c = new CmdlineRemoteTerminal(transport, reader);
 				c.forceProtocol(protocol);
 				// Run
 				c.run();
 			} catch (IOException e) {
 				System.err.println("Communication error: " + e.getMessage());
 			} finally {
-				if (s != null)
-					s.close();
+				if (transport != null)
+					transport.close();
 			}
 		}
 	}
+
 
 	private static TerminalFactory loadFactory(String pn, String type) throws NoSuchAlgorithmException {
 		TerminalFactory tf = null;
@@ -390,14 +439,12 @@ public class SCTool {
 			throw new RuntimeException("Could not load " + pn, e);
 		} catch (NoSuchAlgorithmException e) {
 			if (e.getCause() != null) {
-				String causename = e.getCause().getClass().getCanonicalName();
-				if (causename != null) {
-					if (causename.equalsIgnoreCase("java.lang.UnsupportedOperationException")) {
-						throw new NoSuchAlgorithmException(e.getCause().getMessage());
-					}
-					if (causename.equalsIgnoreCase("java.lang.UnsatisfiedLinkError")) {
-						throw new NoSuchAlgorithmException(e.getCause().getMessage());
-					}
+				Class<?> cause = e.getCause().getClass();
+				if (cause.equals(java.lang.UnsupportedOperationException.class)) {
+					throw new NoSuchAlgorithmException(e.getCause().getMessage());
+				}
+				if (cause.equals(java.lang.UnsatisfiedLinkError.class)) {
+					throw new NoSuchAlgorithmException(e.getCause().getMessage());
 				}
 			}
 			throw e;
@@ -409,5 +456,34 @@ public class SCTool {
 		System.err.println("# apdu4j command line utility\n");
 		parser.printHelpOn(o);
 		System.exit(1);
+	}
+
+	private static X509Certificate certFromPEM(String path) throws IOException {
+		try {
+			String pem =  new String(Files.readAllBytes(Paths.get(path)));
+			String [] lines = pem.split("\n");
+			String [] b64 = Arrays.copyOfRange(lines, 1, lines.length-1);
+			byte [] bytes = Base64.getDecoder().decode(String.join("", b64));
+			CertificateFactory cf;
+			cf = CertificateFactory.getInstance("X.509");
+			X509Certificate cert = (X509Certificate)cf.generateCertificate(new ByteArrayInputStream(bytes));
+			return cert;
+		}
+		catch (CertificateException e) {
+			throw new IOException(e);
+		}
+	}
+
+	public static String getVersion(Class<?> clazz) {
+		String version = "unknown-development";
+		try (InputStream versionfile = clazz.getResourceAsStream("/version.txt")) {
+			if (versionfile != null) {
+				BufferedReader vinfo = new BufferedReader(new InputStreamReader(versionfile));
+				version = vinfo.readLine();
+			}
+		} catch (IOException e) {
+			version = "unknown-error";
+		}
+		return version;
 	}
 }
