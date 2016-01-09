@@ -1,12 +1,14 @@
 # apdu4j
 
-Command line tool and library of useful Java 1.7+ classes for working with smart cards and smart card readers via [JSR268](https://jcp.org/en/jsr/detail?id=268) (commonly known as [javax.smartcardio](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/package-summary.html)). While focus is on desktop PC/SC readers, some code can be re-used with arbitrary "APDU-command-response-ish" interfaces, either as [CommandAPDU](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/CommandAPDU.html)/[ResponseAPDU](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/ResponseAPDU.html) pairs or plain byte arrays. 
+Command line tool and library of useful Java classes for working with smart cards and smart card readers via [JSR268](https://jcp.org/en/jsr/detail?id=268) (commonly known as [javax.smartcardio](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/package-summary.html)). While focus is on desktop PC/SC readers, some code can be re-used with arbitrary "APDU-command-response-ish" interfaces, either as [CommandAPDU](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/CommandAPDU.html)/[ResponseAPDU](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/ResponseAPDU.html) pairs or plain byte arrays.
 
 ## Features
 * PinPad support (PC/SC v2 part 10 / CCID)
 * Fixes all the stupid things with Java on non-windows platforms: OSX, Debian, Ubuntu, Fedora, CentOS, FreeBSD.
 * Java tools for convenient APDU logging, PIN handling and more
-* Bundles [jnasmartcardio][jnasmartcardio] in the command line tool for easy testing with a sane javax.smartcardio implementation
+* Bundles [jnasmartcardio][jnasmartcardio] in the command line tool for easy testing with a sane `javax.smartcardio` implementation with reader locking
+* Easy to use [`RemoteTerminal`](https://martinpaljak.github.io/apdu4j/apdu4j/remote/RemoteTerminal.html) for building central services
+  * Combine with [GlobalPlatformPro](https://github.com/martinpaljak/GlobalPlatformPro) for flexible central provisioning
 
 #### Jump to ...
 * [Download](#get-it-now)
