@@ -230,7 +230,7 @@ When working with [GlobalPlatformPro](https://github.com/martinpaljak/GlobalPlat
 
 ### License
 
- * MIT
+ * [MIT](./LICENSE)
 
 ### Contact 
 
