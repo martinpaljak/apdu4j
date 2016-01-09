@@ -37,6 +37,8 @@ public class RemoteTerminal {
 	private final JSONMessagePipe pipe;
 	private final CardTerminal terminal;
 
+	public enum Button {RED, GREEN, YELLOW}
+
 	public RemoteTerminal(JSONMessagePipe pipe) {
 		this.pipe = pipe;
 		this.terminal = new JSONCardTerminal(pipe);
@@ -60,7 +62,7 @@ public class RemoteTerminal {
 	 * Shows a message on the screen
 	 *
 	 * @param text message to be shown
-	 * @throws IOException
+	 * @throws IOException when communication fails
 	 */
 	public void statusMessage(String text) throws IOException {
 		Map<String, Object> m = JSONProtocol.cmd("message");
@@ -69,13 +71,25 @@ public class RemoteTerminal {
 		JSONProtocol.check(m, pipe.recv(), null, null);
 	}
 
-	// Shows a dialog message to the user. Returns true if user presses OK, false otherwise
-	public boolean dialog(String message) throws IOException {
+	/**
+	 *  Shows a dialog message to the user. Returns true if user presses OK, false otherwise
+	 *
+	 * @param message
+	 * @return {@link Button} that was pressed by the user
+	 * @throws IOException when communication fails
+	 */
+	public Button dialog(String message) throws IOException {
 		Map<String, Object> m = JSONProtocol.cmd("dialog");
 		m.put("text", message);
 		pipe.send(m);
-		return JSONProtocol.check(m, pipe.recv(), "button", "green");
+		Map<String, Object> r = pipe.recv();
+		if (JSONProtocol.check(m, pipe.recv(), null, null)) {
+			return Button.valueOf(((String)r.get("button")).toUpperCase());
+		} else {
+			throw new IOException("Unknown button pressed");
+		}
 	}
+
 
 	// Verify a PIN (possibly with a pinpad and return the verification response.
 	public boolean verifyPIN(int p2, String text) throws IOException {

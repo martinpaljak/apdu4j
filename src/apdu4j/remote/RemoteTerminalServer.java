@@ -178,8 +178,7 @@ public class RemoteTerminalServer {
 						if (readlen == len) {
 							// Read the message from the interweb.
 							JSONObject obj = (JSONObject) JSONValue.parse(new String(data, "UTF-8"));
-							System.out.println("WEB RECV: " + obj.toJSONString());
-							System.out.println("FROM: " + req.getRemoteAddress());
+							logger.debug("RECV: {}", obj.toJSONString());
 
 							// Convert to standard map
 							HashMap<String, Object> msg = new HashMap<>(obj);
@@ -188,9 +187,9 @@ public class RemoteTerminalServer {
 							// check for session
 							if (!msg.containsKey("session")) {
 								try {
-									System.out.println("new session!");
 									// Generate session ID
 									UUID sid = UUID.randomUUID();
+									logger.debug("New session: {}", sid.toString());
 									Session sess = new Session(sid);
 
 									// Pack in session (and other things from header)
@@ -209,13 +208,13 @@ public class RemoteTerminalServer {
 									throw new RuntimeException("Could not initiate a worker thread!", e);
 								}
 							} else {
-								System.out.println("Old session: "  + (String)msg.get("session") );
 								UUID sid = UUID.fromString((String)msg.get("session"));
 								if (!sessions.containsKey(sid)) {
 									logger.warn("Session {} not found", sid.toString());
 									drop(req);
 									return;
 								} else {
+									logger.debug("Resuming session {}", sid.toString());
 									// get session
 									Session sess = sessions.get(sid);
 									sess.timestamp = System.currentTimeMillis();

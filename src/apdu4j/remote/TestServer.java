@@ -39,6 +39,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import apdu4j.HexUtils;
+import apdu4j.remote.RemoteTerminal.Button;
 
 // Sample test server for remote terminal.
 public class TestServer extends RemoteTerminalThread {
@@ -85,7 +86,7 @@ public class TestServer extends RemoteTerminalThread {
 				CardTerminal ct = term.getCardTerminal();
 				CardChannel c = ct.connect("*").getBasicChannel();
 
-				if (term.dialog("Shall we try to select MF in " + ct.getName())) {
+				if (term.dialog("Shall we try to select MF in " + ct.getName()).equals(Button.GREEN)) {
 					ResponseAPDU r = c.transmit(new CommandAPDU(0x00, 0xA4, 0x04, 0x00));
 					term.statusMessage("Card returned: " + HexUtils.encodeHexString(r.getBytes()));
 				}
