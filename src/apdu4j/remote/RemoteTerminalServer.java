@@ -24,8 +24,6 @@ package apdu4j.remote;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.net.InetSocketAddress;
 import java.util.HashMap;
 import java.util.Map;
@@ -196,17 +194,18 @@ public class RemoteTerminalServer {
 									msg.put("session", sid.toString());
 
 									// Initiate a thread with the queue
-									Constructor<? extends RemoteTerminalThread> thrd = processor.asSubclass(RemoteTerminalThread.class).getConstructor(BlockingQueue.class, BlockingQueue.class);
-									RemoteTerminalThread thread = thrd.newInstance(sess.toThread, sess.fromThread);
-									logger.debug("starting thread");
+									RemoteTerminalThread thread = processor.newInstance();
+									thread.setQueues(sess.toThread, sess.fromThread);
+
 									// execute created thread with queues
 									e.execute(thread);
-									logger.debug("thread started.");
+
 									// Put into session map.
 									sessions.put(sid, sess);
+
 									// Transceive first message to thread
 									transceive(req, msg, sess);
-								} catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+								} catch (SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException e) {
 									logger.error("Could not start worker thread", e);
 									throw new RuntimeException("Could not initiate a worker thread!", e);
 								}

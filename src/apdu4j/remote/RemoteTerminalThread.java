@@ -33,15 +33,22 @@ import org.slf4j.LoggerFactory;
 public abstract class RemoteTerminalThread implements Runnable, JSONMessagePipe {
 	private static Logger logger = LoggerFactory.getLogger(RemoteTerminalThread.class);
 
-	BlockingQueue<Map<String, Object>> toThread;
-	BlockingQueue<Map<String, Object>> fromThread;
+	private BlockingQueue<Map<String, Object>> toThread;
+	private BlockingQueue<Map<String, Object>> fromThread;
 
-	RemoteTerminal terminal;
+	final RemoteTerminal terminal;
 
-	RemoteTerminalThread(BlockingQueue<Map<String, Object>> in, BlockingQueue<Map<String, Object>> out) {
+	public RemoteTerminalThread() {
+		terminal = new RemoteTerminal(this);
+	}
+
+	public RemoteTerminalThread(RemoteTerminal t) {
+		terminal = t;
+	}
+
+	void setQueues(BlockingQueue<Map<String, Object>> in, BlockingQueue<Map<String, Object>> out) {
 		toThread = in;
 		fromThread = out;
-		terminal = new RemoteTerminal(this);
 	}
 
 	@Override

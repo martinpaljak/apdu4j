@@ -24,8 +24,6 @@ package apdu4j.remote;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.Map;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -45,15 +43,13 @@ import apdu4j.remote.RemoteTerminal.Button;
 public class TestServer extends RemoteTerminalThread {
 	private static Logger logger = LoggerFactory.getLogger(TestServer.class);
 
-	// Used for HTTP server
-	public TestServer(BlockingQueue<Map<String, Object>> in, BlockingQueue<Map<String, Object>> out) {
-		super(in, out);
+	public TestServer() {
+		super();
 	}
 
 	// Used for SocketTransport
 	public TestServer(RemoteTerminal t) {
-		super(null, null);
-		terminal = t;
+		super(t);
 	}
 
 	// Start a socket test server.
