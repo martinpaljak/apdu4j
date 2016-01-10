@@ -93,10 +93,9 @@ public class RemoteTerminalServer {
 		}
 	}
 
-	public void start() throws IOException {
+	public void start(InetSocketAddress address) throws IOException {
 
-		InetSocketAddress addr = new InetSocketAddress(10000); // FIXME: have this as argument.
-		server = HttpServer.create(addr, Integer.valueOf(System.getProperty(BACKLOG, "10")));
+		server = HttpServer.create(address, Integer.valueOf(System.getProperty(BACKLOG, "10")));
 		// threadpool!
 		server.setExecutor(Executors.newWorkStealingPool(Integer.valueOf(System.getProperty(HTTPPOOL, "10"))));
 		// Only two handlers.

@@ -24,6 +24,7 @@ package apdu4j.remote;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
@@ -76,13 +77,12 @@ public class SocketTransport implements JSONMessagePipe {
 	/**
 	 * Connects to the mentioned host and port with SSL without checking certificate chain.
 	 *
-	 * @param host host to connect to
-	 * @param port port to use
+	 * @param address host:port to connect to
 	 * @return instance of this class
 	 * @throws IOException if establishing the connection fails
 	 */
-	public static SocketTransport connect_insecure(String host, int port) throws IOException {
-		return connect(host, port, null);
+	public static SocketTransport connect_insecure(InetSocketAddress address) throws IOException {
+		return connect(address, null);
 	}
 
 	// Returns a SSLSocketFactory that either does no checking or checks for a pinnned certificate
@@ -129,13 +129,12 @@ public class SocketTransport implements JSONMessagePipe {
 	/**
 	 * Connects to the mentioned host and port with SSL and checks the certificate against the pinned version.
 	 *
-	 * @param host host to connect to
-	 * @param port port to use
+	 * @param address host:port to connect to
 	 * @param pinnedcert expected certificate of the server
 	 * @return instance of this class
 	 * @throws IOException if establishing the connection fails
 	 */
-	public static SocketTransport connect(String host, int port, X509Certificate pinnedcert) throws IOException {
+	public static SocketTransport connect(InetSocketAddress address, X509Certificate pinnedcert) throws IOException {
 		try {
 			// Create a trust manager that does not validate certificate chains
 			TrustManager[] trustAllCerts = new TrustManager[] {
@@ -171,7 +170,7 @@ public class SocketTransport implements JSONMessagePipe {
 
 			// Connect with created parameters
 			SSLSocketFactory factory = sc.getSocketFactory();
-			Socket s = factory.createSocket(host, port);
+			Socket s = factory.createSocket(address.getHostString(), address.getPort());
 			return new SocketTransport(s);
 		} catch (KeyManagementException | KeyStoreException | NoSuchAlgorithmException | CertificateException e) {
 			throw new IOException("Could not connect", e);

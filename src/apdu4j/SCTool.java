@@ -32,6 +32,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.lang.reflect.InvocationTargetException;
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
@@ -129,7 +130,7 @@ public class SCTool {
 		parser.accepts(OPT_WAIT, "wait for card insertion");
 		parser.accepts(OPT_T0, "use T=0");
 		parser.accepts(OPT_T1, "use T=1");
-		parser.accepts(OPT_TEST_SERVER, "run a test server on port 10000");
+		parser.accepts(OPT_TEST_SERVER, "run a test server on port 10000").withRequiredArg();
 		parser.accepts(OPT_NO_GET_RESPONSE, "don't use GET RESPONSE with SunPCSC");
 		parser.accepts(OPT_LIB, "use specific PC/SC lib with SunPCSC").withRequiredArg();
 		parser.accepts(OPT_PROVIDER_TYPE, "provider type if not PC/SC").withRequiredArg();
@@ -182,7 +183,7 @@ public class SCTool {
 		if (args.has(OPT_TEST_SERVER)) {
 			// TODO: have the possibility to run SocketServer as well?
 			RemoteTerminalServer srv = new RemoteTerminalServer(TestServer.class);
-			srv.start();
+			srv.start(string2socket((String) args.valueOf(OPT_TEST_SERVER)));
 			System.console().readLine("Press enter to stop\n");
 			srv.stop(1);
 			System.exit(0);
@@ -406,12 +407,7 @@ public class SCTool {
 						transport = HTTPTransport.open(new URL(remote), null);
 					}
 				} else {
-					String[] hostport = remote.split(":");
-					// FIXME: move this check earlier
-					if (hostport.length != 2) {
-						throw new IllegalArgumentException("JSON target must be host:port pair!");
-					}
-					transport = SocketTransport.connect(hostport[0], Integer.valueOf(hostport[1]), null);
+					transport = SocketTransport.connect(string2socket(remote), null);
 				}
 
 				// Connect the transport and the terminal
@@ -485,5 +481,13 @@ public class SCTool {
 			version = "unknown-error";
 		}
 		return version;
+	}
+
+	private static InetSocketAddress string2socket(String s) {
+		String[] hostport = s.split(":");
+		if (hostport.length != 2) {
+			throw new IllegalArgumentException("Can connect to host:port pairs!");
+		}
+		return new InetSocketAddress(hostport[0], Integer.valueOf(hostport[1]));
 	}
 }
