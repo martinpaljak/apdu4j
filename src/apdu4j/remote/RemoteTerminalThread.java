@@ -36,21 +36,18 @@ public abstract class RemoteTerminalThread implements Runnable, JSONMessagePipe 
 	private BlockingQueue<Map<String, Object>> toThread;
 	private BlockingQueue<Map<String, Object>> fromThread;
 
-	final RemoteTerminal terminal;
-
-	public RemoteTerminalThread() {
-		terminal = new RemoteTerminal(this);
-	}
-
-	public RemoteTerminalThread(RemoteTerminal t) {
-		terminal = t;
-	}
+	private long timeout_minutes = 3;
+	protected RemoteTerminal terminal;
 
 	void setQueues(BlockingQueue<Map<String, Object>> in, BlockingQueue<Map<String, Object>> out) {
 		toThread = in;
 		fromThread = out;
+		terminal = new RemoteTerminal(this);
 	}
 
+	void setTimeout(long minutes) {
+		timeout_minutes = minutes;
+	}
 	@Override
 	public void send(Map<String, Object> msg) throws IOException {
 		logger.trace("sending: {}", new JSONObject(msg).toJSONString());
@@ -62,7 +59,7 @@ public abstract class RemoteTerminalThread implements Runnable, JSONMessagePipe 
 		logger.trace("receiving ...");
 		try {
 			// Client times out after 3 minutes.
-			Map<String, Object> msg = toThread.poll(3, TimeUnit.MINUTES);
+			Map<String, Object> msg = toThread.poll(timeout_minutes, TimeUnit.MINUTES);
 			logger.trace("received: {}", new JSONObject(msg).toJSONString());
 			return msg;
 		} catch (InterruptedException e) {
@@ -70,6 +67,9 @@ public abstract class RemoteTerminalThread implements Runnable, JSONMessagePipe 
 			throw new IOException("Timeout", e);
 		}
 	}
+
+	@Override
+	public abstract void run();
 
 	@Override
 	public void close() {

@@ -43,15 +43,6 @@ import apdu4j.remote.RemoteTerminal.Button;
 public class TestServer extends RemoteTerminalThread {
 	private static Logger logger = LoggerFactory.getLogger(TestServer.class);
 
-	public TestServer() {
-		super();
-	}
-
-	// Used for SocketTransport
-	public TestServer(RemoteTerminal t) {
-		super(t);
-	}
-
 	// Start a socket test server.
 	static void start(ServerSocket socket) {
 		ExecutorService executor = Executors.newWorkStealingPool();
@@ -59,12 +50,17 @@ public class TestServer extends RemoteTerminalThread {
 			try {
 				Socket s = socket.accept();
 				SocketTransport transport = new SocketTransport(s);
-				TestServer client = new TestServer(new RemoteTerminal(transport));
+				TestServer client = new TestServer();
+				client.setTerminal(new RemoteTerminal(transport));
 				executor.execute(client);
 			} catch (IOException e) {
 				logger.trace("Could not accept client", e);
 			}
 		}
+	}
+
+	private void setTerminal(RemoteTerminal t) {
+		terminal = t;
 	}
 
 	// Run a sample session for a client.
