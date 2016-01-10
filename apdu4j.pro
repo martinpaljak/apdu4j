@@ -23,6 +23,8 @@
 
 # Everything about RemoteTerminal is kept
 -keep public class apdu4j.remote.RemoteTerminal {*;}
+-keep public class apdu4j.remote.RemoteTerminalThread {*;}
+
 # We use reflection here.
 -keep public class apdu4j.remote.TestServer {*;}
 -keep public class apdu4j.remote.SocketTransport {*;}
