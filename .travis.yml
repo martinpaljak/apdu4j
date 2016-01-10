@@ -8,6 +8,8 @@ notifications:
 env:
   global:
     secure: hH+ndhQYLCfGaJ8XXW0GW9jO8wv4Ek0tDz3StzyVq9F+6meXOiGFIJ6MCyLPVZouxpCYj03PC0DunWAYYn+e3lgdMeOBLIg6/1BpOs5i0eHImE6O7pdo/+/jsHtR60PG9qRNfw2JXpPTI0F730o4UBi4V2eY2hWfmCIAWj61X9U=
+
+# Scan on Coverity
 addons:
   coverity_scan:
     project:
@@ -17,8 +19,16 @@ addons:
     build_command_prepend: 
     build_command: ant compile
     branch_pattern: coverity
+
+# Deploy releases to Github.
+# Build Windows utility
+before_deploy:
+  - mkdir -p ext/launch4j
+  - curl http://kent.dl.sourceforge.net/project/launch4j/launch4j-3/3.8/launch4j-3.8-macosx-x86.tgz | tar xz -C ext
+  - ant windist
 deploy:
   file: apdu4j.jar
+  file: apdu4j.exe
   provider: releases
   api-key:
     secure: kUETLp7FylqzqjmpOdDMwVT3cPecn9gzDyipzuOV7+rL+xjL5ZxeHVNiK2QNRG1pLwih4IRhKQjPHofmUoc0pyLIfz7PjKojdpintBcHXUn7CIMhFMURd6+DmIRIX6HNVXQNd/bF8OOYV+Azfukx5FTUmB9HDbJ6L0BEHO0Dl3E=
