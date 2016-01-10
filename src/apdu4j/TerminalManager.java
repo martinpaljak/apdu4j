@@ -113,10 +113,11 @@ public class TerminalManager {
 	}
 
 	/**
-	 * Returns a card reader that has a card in it. Asks for insertion, if the system only has a single reader.
+	 * Returns a card reader that has a card in it.
+	 * Asks for card insertion, if the system only has a single reader.
 	 *
-	 * @return
-	 * @throws CardException
+	 * @return a CardTerminal containing a card
+	 * @throws CardException if no suitable reader is found.
 	 */
 	public static CardTerminal getTheReader() throws CardException {
 		try {

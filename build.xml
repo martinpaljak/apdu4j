@@ -103,7 +103,7 @@
   </target>
   <!-- Make javadocs -->
   <target name="javadoc">
-    <javadoc destdir="javadoc" Overview="doc/overview.html" Windowtitle="apdu4j - smart card utilities for Java" Doctitle="apdu4j tools and classes" access="public" linksource="true">
+    <javadoc destdir="javadoc" Overview="doc/overview.html" Windowtitle="apdu4j - smart card utilities for Java" Doctitle="apdu4j tools and classes" access="public" linksource="true" failonwarning="true">
       <link href="https://docs.oracle.com/javase/8/docs/api/" offline="true" packagelistLoc="misc/javadoc/api"/>
       <link href="https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/" offline="true" packagelistLoc="misc/javadoc/smartcardio"/>
       <packageset dir="src">

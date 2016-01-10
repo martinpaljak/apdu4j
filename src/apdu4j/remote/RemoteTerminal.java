@@ -74,9 +74,9 @@ public class RemoteTerminal {
 	}
 
 	/**
-	 *  Shows a dialog message to the user. Returns true if user presses OK, false otherwise
+	 * Shows a dialog message to the user and returnes the pressed button.
 	 *
-	 * @param message
+	 * @param message text to display to the user
 	 * @return {@link Button} that was pressed by the user
 	 * @throws IOException when communication fails
 	 */
@@ -93,7 +93,14 @@ public class RemoteTerminal {
 	}
 
 
-	// Verify a PIN (possibly with a pinpad and return the verification response.
+	/**
+	 * Issues a ISO VERIFY on the remote terminal.
+	 *
+	 * @param p2 P2 parameter in the VERIFY APDU
+	 * @param text to be displayed to the user
+	 * @return true if VERIFY returned 0x9000, false otherwise
+	 * @throws IOException when communication fails
+	 */
 	public boolean verifyPIN(int p2, String text) throws IOException {
 		Map<String, Object> m = JSONProtocol.cmd("verify");
 		m.put("p2", p2);
