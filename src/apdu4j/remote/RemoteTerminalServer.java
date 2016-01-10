@@ -76,7 +76,6 @@ public class RemoteTerminalServer {
 	private final ExecutorService e;
 	private final Class<? extends RemoteTerminalThread> processor;
 	private HttpServer server;
-	private int port;
 
 	public RemoteTerminalServer(Class<? extends RemoteTerminalThread> task) {
 		e = Executors.newFixedThreadPool(Integer.valueOf(System.getProperty(HTTPPOOL, "200")));
