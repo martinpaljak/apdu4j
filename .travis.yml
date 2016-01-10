@@ -24,7 +24,7 @@ addons:
 # Build Windows utility
 before_deploy:
   - mkdir -p ext/launch4j
-  - curl http://kent.dl.sourceforge.net/project/launch4j/launch4j-3/3.8/launch4j-3.8-macosx-x86.tgz | tar xz -C ext
+  - curl http://kent.dl.sourceforge.net/project/launch4j/launch4j-3/3.8/launch4j-3.8-linux.tgz | tar xz -C ext
   - ant windist
 deploy:
   file: apdu4j.jar
