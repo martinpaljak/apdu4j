@@ -1,4 +1,5 @@
-# apdu4j
+# apdu4j &nbsp; [![Build Status](https://travis-ci.org/martinpaljak/apdu4j.svg?branch=master)](https://travis-ci.org/martinpaljak/apdu4j) [![Coverity status](https://scan.coverity.com/projects/3664/badge.svg?flat=1)](https://scan.coverity.com/projects/3664/)
+
 
 Command line tool and library of useful Java classes for working with smart cards and smart card readers via [JSR268](https://jcp.org/en/jsr/detail?id=268) (commonly known as [javax.smartcardio](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/package-summary.html)). While focus is on desktop PC/SC readers, some code can be re-used with arbitrary "APDU-command-response-ish" interfaces, either as [CommandAPDU](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/CommandAPDU.html)/[ResponseAPDU](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/ResponseAPDU.html) pairs or plain byte arrays.
 
@@ -26,10 +27,6 @@ git clone --recursive https://github.com/martinpaljak/apdu4j
 cd apdu4j
 ant
 ```
-
-* Status
-  * Travis - [![Build Status](https://travis-ci.org/martinpaljak/apdu4j.png?branch=master)](https://travis-ci.org/martinpaljak/apdu4j)
-  * Coverity - [![Coverity status](https://scan.coverity.com/projects/3664/badge.svg?flat=1)](https://scan.coverity.com/projects/3664/)
 
 ### Usage from command line
  * Before you begin:
