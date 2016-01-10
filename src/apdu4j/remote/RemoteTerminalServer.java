@@ -179,7 +179,7 @@ public class RemoteTerminalServer {
 							logger.debug("RECV: {}", obj.toJSONString());
 
 							// Convert to standard map
-							HashMap<String, Object> msg = new HashMap<>(obj);
+							HashMap<String, Object> msg = new HashMap<>();
 							msg.putAll(obj);
 
 							// check for session
