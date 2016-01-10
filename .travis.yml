@@ -18,6 +18,7 @@ addons:
     branch_pattern: coverity
 deploy:
   file: apdu4j.jar
+  provider: releases
   api-key:
     secure: kUETLp7FylqzqjmpOdDMwVT3cPecn9gzDyipzuOV7+rL+xjL5ZxeHVNiK2QNRG1pLwih4IRhKQjPHofmUoc0pyLIfz7PjKojdpintBcHXUn7CIMhFMURd6+DmIRIX6HNVXQNd/bF8OOYV+Azfukx5FTUmB9HDbJ6L0BEHO0Dl3E=
   skip_cleanup: true
