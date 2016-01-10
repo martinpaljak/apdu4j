@@ -30,8 +30,10 @@ before_deploy:
   - curl http://kent.dl.sourceforge.net/project/launch4j/launch4j-3/3.8/launch4j-3.8-linux.tgz | tar xz -C ext
   - ant windist
 deploy:
-  file: apdu4j.jar
-  file: apdu4j.exe
+  file:
+    - apdu4j.jar
+    - apdu4j.exe
+    - apdu4j-vanilla.jar
   provider: releases
   api-key:
     secure: kUETLp7FylqzqjmpOdDMwVT3cPecn9gzDyipzuOV7+rL+xjL5ZxeHVNiK2QNRG1pLwih4IRhKQjPHofmUoc0pyLIfz7PjKojdpintBcHXUn7CIMhFMURd6+DmIRIX6HNVXQNd/bF8OOYV+Azfukx5FTUmB9HDbJ6L0BEHO0Dl3E=
