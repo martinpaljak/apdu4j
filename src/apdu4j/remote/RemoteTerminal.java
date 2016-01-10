@@ -68,7 +68,9 @@ public class RemoteTerminal {
 		Map<String, Object> m = JSONProtocol.cmd("message");
 		m.put("text", text);
 		pipe.send(m);
-		JSONProtocol.check(m, pipe.recv(), null, null);
+		if (!JSONProtocol.check(m, pipe.recv())) {
+			throw new IOException("Could not display status");
+		}
 	}
 
 	/**
@@ -83,7 +85,7 @@ public class RemoteTerminal {
 		m.put("text", message);
 		pipe.send(m);
 		Map<String, Object> r = pipe.recv();
-		if (JSONProtocol.check(m, r, null, null)) {
+		if (JSONProtocol.check(m, r)) {
 			return Button.valueOf(((String)r.get("button")).toUpperCase());
 		} else {
 			throw new IOException("Unknown button pressed");
@@ -97,7 +99,7 @@ public class RemoteTerminal {
 		m.put("p2", p2);
 		m.put("text", text);
 		pipe.send(m);
-		return JSONProtocol.check(m, pipe.recv(), null, null);
+		return JSONProtocol.check(m, pipe.recv());
 	}
 
 	public void stop(){

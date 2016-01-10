@@ -24,6 +24,8 @@ package apdu4j;
 import java.io.File;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.smartcardio.CardException;
 import javax.smartcardio.CardTerminal;
@@ -154,20 +156,22 @@ public class TerminalManager {
 			// This comes from SunPCSC most probably and already contains the PC/SC error in the cause
 			if (e.getCause() != null) {
 				if (e.getCause().getMessage() != null) {
-					if (e.getCause().getMessage().indexOf("SCARD_") != -1) {
-						return e.getCause().getMessage();
-					}
-					if (e.getCause().getMessage().indexOf("PC/SC") != -1) {
-						return e.getCause().getMessage();
+
+					Pattern p = Pattern.compile("SCARD_\\w+");
+					Matcher m = p.matcher(e.getCause().getMessage());
+					if (m.find()) {
+						return m.group();
 					}
 				}
 			}
+			if (e.getMessage() != null) {
+				Pattern p = Pattern.compile("SCARD_\\w+");
+				Matcher m = p.matcher(e.getMessage());
+				if (m.find()) {
+					return m.group();
+				}
+			}
 		}
-		// Extract "nicer" PC/SC messages
-		if (classname != null && classname.equalsIgnoreCase("jnasmartcardio.Smartcardio.EstablishContextException")) {
-			if (e.getCause().getMessage().indexOf("SCARD_E_NO_SERVICE") != -1)
-				return "SCARD_E_NO_SERVICE";
-		}
-		return null;
+		return e.getMessage();
 	}
 }

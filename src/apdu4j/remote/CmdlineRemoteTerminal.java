@@ -32,6 +32,7 @@ import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 
 import apdu4j.HexUtils;
+import apdu4j.TerminalManager;
 
 /**
  * Client side implementation of the remote EMV terminal protocol that works
@@ -65,6 +66,8 @@ public class CmdlineRemoteTerminal implements Runnable {
 			}
 		} catch (IOException e) {
 			System.out.println("Messaging failed: " + e.getMessage());
+		} catch (CardException e) {
+			System.out.println("\nReader failed: " + TerminalManager.getExceptionMessage(e));
 		}
 	}
 
@@ -78,7 +81,14 @@ public class CmdlineRemoteTerminal implements Runnable {
 		Console c = System.console();
 		int p2 = ((Long)msg.get("p2")).intValue();
 		System.out.println((String)msg.get("text"));
-		byte[] pin = new String(c.readPassword("Enter PIN: ")).getBytes(StandardCharsets.UTF_8);
+
+		char[] input = c.readPassword("Enter PIN: ");
+		if (input == null) {
+			pipe.send(JSONProtocol.nok(msg, "No pin entered"));
+			return;
+		}
+
+		byte[] pin = new String().getBytes(StandardCharsets.UTF_8);
 		CommandAPDU verify = new CommandAPDU(0x00, 0x20, 0x00, p2, pin);
 		try {
 			ResponseAPDU r = jsonterminal.card.getBasicChannel().transmit(verify);
@@ -139,7 +149,10 @@ public class CmdlineRemoteTerminal implements Runnable {
 	private boolean get_yes_or_no_console() {
 		Console c = System.console();
 		while (true) {
-			String response = c.readLine("y/n ? ").trim();
+			String response = c.readLine("y/n ? ");
+			if (response == null)
+				continue;
+			response = response.trim();
 			if (response.equalsIgnoreCase("y")) {
 				return true;
 			} else if (response.equalsIgnoreCase("n")) {

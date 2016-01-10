@@ -48,6 +48,7 @@ import javax.net.ssl.X509TrustManager;
 
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
+import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -180,11 +181,13 @@ public class SocketTransport implements JSONMessagePipe {
 	// Helper class to make a SSL server
 	public static ServerSocket make_server(int port, String pkcs12Path, String pkcs12Pass)
 			throws IOException, KeyStoreException, NoSuchAlgorithmException, CertificateException, UnrecoverableKeyException, KeyManagementException {
-		return make_server(port, new FileInputStream(pkcs12Path), pkcs12Pass);
+		try (InputStream in = new FileInputStream(pkcs12Path)) {
+			return make_server(port, in, pkcs12Pass);
+		}
 	}
 
-	// Helper class to make a SSL server
-	protected static ServerSocket make_server(int port, InputStream pkcs12stream, String pkcs12Pass)
+	// Helper class to make a SSL socket server
+	private static ServerSocket make_server(int port, InputStream pkcs12stream, String pkcs12Pass)
 			throws IOException, KeyStoreException, NoSuchAlgorithmException, CertificateException, UnrecoverableKeyException, KeyManagementException {
 		KeyStore ks = KeyStore.getInstance("PKCS12");
 		ks.load(pkcs12stream, pkcs12Pass.toCharArray());
@@ -225,8 +228,16 @@ public class SocketTransport implements JSONMessagePipe {
 		// Read data
 		byte[] data = new byte[len];
 
-		socket.getInputStream().read(data);
-		JSONObject obj = (JSONObject) JSONValue.parse(new String(data, "UTF-8"));
+		int readlen = socket.getInputStream().read(data);
+		if (readlen != len) {
+			throw new IOException("Read " + readlen + " instead of " + len);
+		}
+		JSONObject obj;
+		try {
+			obj = (JSONObject) JSONValue.parseWithException(new String(data, "UTF-8"));
+		} catch (ParseException e) {
+			throw new IOException("Could not parse JSON", e);
+		}
 		logger.debug("< ({}) {}",  HexUtils.encodeHexString(length.array()), obj.toJSONString());
 		return obj;
 	}

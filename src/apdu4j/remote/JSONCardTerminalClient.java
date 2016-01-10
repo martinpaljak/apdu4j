@@ -31,6 +31,7 @@ import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 
 import apdu4j.HexUtils;
+import apdu4j.TerminalManager;
 
 // Given a native CardTerminal and a JSONMessagePipe, connects the reader
 // to the other side of the pipe with the JSON protocol
@@ -48,7 +49,7 @@ class JSONCardTerminalClient {
 	public void forceProtocol(String protocol) {
 		this.protocol = protocol;
 	}
-	public boolean processMessage(Map<String, Object> msg) throws IOException {
+	public boolean processMessage(Map<String, Object> msg) throws IOException, CardException {
 		if (!msg.containsKey("cmd"))
 			throw new IOException("No command field in message: " + msg.toString());
 		String cmd = (String) msg.get("cmd");
@@ -98,6 +99,6 @@ class JSONCardTerminalClient {
 	}
 
 	private void fail(Map<String, Object> msg, Exception e) throws IOException {
-		pipe.send(JSONProtocol.nok(msg, e.getMessage()));
+		pipe.send(JSONProtocol.nok(msg, TerminalManager.getExceptionMessage(e)));
 	}
 }

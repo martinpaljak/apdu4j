@@ -36,6 +36,7 @@ import javax.net.ssl.SSLSocketFactory;
 
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
+import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -99,10 +100,19 @@ public class HTTPTransport implements JSONMessagePipe {
 		if (c.getResponseCode() == 200) {
 			try (InputStream in = c.getInputStream()) {
 				byte [] response = new byte[c.getContentLength()];
-				in.read(response);
-				JSONObject obj = (JSONObject) JSONValue.parse(new String(response, "UTF-8"));
-				logger.trace("RECV: {}", obj.toJSONString());
-				r.putAll(obj);
+				int len = in.read(response);
+				if (len != c.getContentLength()) {
+					logger.trace("Read {} instead of {}", len, c.getContentLength());
+					throw new IOException("Read only " + len + " bytes instead of " + c.getContentLength());
+				}
+				try {
+					JSONObject obj = (JSONObject) JSONValue.parseWithException(new String(response, "UTF-8"));
+					logger.trace("RECV: {}", obj.toJSONString());
+					r.putAll(obj);
+				} catch (ParseException e) {
+					throw new IOException("Could not parse JSON", e);
+				}
+
 			}
 		} else {
 			logger.trace("Got response code {}", c.getResponseCode());

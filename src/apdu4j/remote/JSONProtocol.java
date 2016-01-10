@@ -53,14 +53,10 @@ class JSONProtocol {
 	}
 
 	// User by server
-	public static boolean check(Map<String, Object> m, Map<String, Object> r , String key, Object v) {
-		if (key != null && !(r.containsKey(key) && r.get(key).equals(v))) {
-			return false;
-		}
+	public static boolean check(Map<String, Object> m, Map<String, Object> r) {
 		if (r.get(m.get("cmd")).equals("OK")) {
 			return true;
 		}
 		return false;
 	}
-
 }

@@ -37,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
+import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -125,6 +126,10 @@ public class RemoteTerminalServer {
 				}
 				// backend has 30 seconds to figure out the next action.
 				Map<String, Object> resp = session.fromThread.poll(30, TimeUnit.SECONDS);
+				if (resp == null) {
+					logger.warn("Timeout");
+					throw new IOException("Timeout");
+				}
 				// Log the respone from thread.
 				logger.debug("from thread: {}", new JSONObject(resp).toJSONString());
 
@@ -148,7 +153,7 @@ public class RemoteTerminalServer {
 					// HORRIBLE STUFF
 				}
 			} catch (InterruptedException e) {
-				logger.debug("Timeout from thread");
+				logger.debug("Interruptd");
 				// Reading from thread timed out. We close the session
 				throw new IOException(e);
 			}
@@ -173,9 +178,13 @@ public class RemoteTerminalServer {
 
 						if (readlen == len) {
 							// Read the message from the interweb.
-							JSONObject obj = (JSONObject) JSONValue.parse(new String(data, "UTF-8"));
+							JSONObject obj;
+							try {
+								obj = (JSONObject) JSONValue.parseWithException(new String(data, "UTF-8"));
+							} catch (ParseException e) {
+								throw new IOException("Could not parse JSON", e);
+							}
 							logger.debug("RECV: {}", obj.toJSONString());
-
 							// Convert to standard map
 							HashMap<String, Object> msg = new HashMap<>();
 							msg.putAll(obj);

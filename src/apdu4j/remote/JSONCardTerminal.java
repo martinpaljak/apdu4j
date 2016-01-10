@@ -202,7 +202,7 @@ class JSONCardTerminal extends CardTerminal {
 
 					Map<String, Object> r = client.recv();
 
-					if (!JSONProtocol.check(m, r, null, null)) {
+					if (!JSONProtocol.check(m, r)) {
 						throw new CardException((String)r.get("ERROR"));
 					}
 

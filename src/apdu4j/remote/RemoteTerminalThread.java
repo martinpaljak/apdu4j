@@ -60,11 +60,15 @@ public abstract class RemoteTerminalThread implements Runnable, JSONMessagePipe 
 		try {
 			// Client times out after 3 minutes.
 			Map<String, Object> msg = toThread.poll(timeout_minutes, TimeUnit.MINUTES);
+			if (msg == null) {
+				logger.warn("Timeout");
+				throw new IOException("Timeout");
+			}
 			logger.trace("received: {}", new JSONObject(msg).toJSONString());
 			return msg;
 		} catch (InterruptedException e) {
-			logger.warn("Timeout", e);
-			throw new IOException("Timeout", e);
+			logger.warn("Interruptd", e);
+			throw new IOException("Interruptd", e);
 		}
 	}
 
