@@ -116,7 +116,7 @@ public class SCTool {
 		parser.acceptsAll(Arrays.asList("r", OPT_READER), "use reader").withRequiredArg();
 		parser.acceptsAll(Arrays.asList("a", CMD_APDU), "send APDU").withRequiredArg();
 		parser.acceptsAll(Arrays.asList("w", OPT_WEB), "open ATR in web");
-		parser.accepts(OPT_VERSION, "show version information");
+		parser.acceptsAll(Arrays.asList("V", OPT_VERSION), "show version information");
 		parser.accepts(OPT_DUMP, "save dump to file").withRequiredArg().ofType(File.class);
 		parser.accepts(OPT_REPLAY, "replay command from dump").withRequiredArg().ofType(File.class);
 
