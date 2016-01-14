@@ -109,9 +109,10 @@ public class RemoteTerminal {
 		return JSONProtocol.check(m, pipe.recv());
 	}
 
-	public void stop(){
+	public void stop(String message){
 		try {
 			Map<String, Object> m = JSONProtocol.cmd("stop");
+			m.put("text", message);
 			pipe.send(m);
 		} catch (IOException e) {
 		}

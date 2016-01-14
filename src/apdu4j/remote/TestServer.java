@@ -82,7 +82,7 @@ public class TestServer extends RemoteTerminalThread {
 			} catch (CardException e) {
 				terminal.statusMessage("Failed: " + e.getMessage());
 			} finally {
-				terminal.stop();
+				terminal.stop("Bye!");
 			}
 		}
 		catch (IOException e) {
