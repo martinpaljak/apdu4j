@@ -88,7 +88,7 @@ public class CmdlineRemoteTerminal implements Runnable {
 			return;
 		}
 
-		byte[] pin = new String().getBytes(StandardCharsets.UTF_8);
+		byte[] pin = new String(input).getBytes(StandardCharsets.UTF_8);
 		CommandAPDU verify = new CommandAPDU(0x00, 0x20, 0x00, p2, pin);
 		try {
 			ResponseAPDU r = jsonterminal.card.getBasicChannel().transmit(verify);
