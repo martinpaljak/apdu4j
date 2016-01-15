@@ -119,7 +119,7 @@ public class RemoteTerminalServer {
 
 		private void transceive(HttpExchange r, Map<String, Object> msg, Session session) throws IOException {
 			try {
-				logger.debug("to thread: {}", new JSONObject(msg).toJSONString());
+				logger.trace("to thread: {}", new JSONObject(msg).toJSONString());
 				if (!session.toThread.offer(msg)) {
 					logger.warn("Could not add to thread queue!");
 					throw new IOException("Could not add to thread queue!");
