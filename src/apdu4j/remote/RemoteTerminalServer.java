@@ -203,7 +203,7 @@ public class RemoteTerminalServer {
 									// Initiate a thread with the queue
 									RemoteTerminalThread thread = processor.newInstance();
 									thread.setQueues(sess.toThread, sess.fromThread);
-
+									thread.setSession(sid.toString());
 									// execute created thread with queues
 									e.execute(thread);
 

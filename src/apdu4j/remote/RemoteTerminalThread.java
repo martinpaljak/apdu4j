@@ -35,6 +35,8 @@ public abstract class RemoteTerminalThread implements Runnable, JSONMessagePipe 
 
 	private BlockingQueue<Map<String, Object>> toThread;
 	private BlockingQueue<Map<String, Object>> fromThread;
+	protected String session;
+
 
 	private long timeout_minutes = 3;
 	protected RemoteTerminal terminal;
@@ -48,6 +50,11 @@ public abstract class RemoteTerminalThread implements Runnable, JSONMessagePipe 
 	void setTimeout(long minutes) {
 		timeout_minutes = minutes;
 	}
+
+	void setSession(String session) {
+		this.session = session;
+	}
+
 	@Override
 	public void send(Map<String, Object> msg) throws IOException {
 		logger.trace("sending: {}", new JSONObject(msg).toJSONString());
