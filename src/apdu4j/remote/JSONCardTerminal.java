@@ -39,6 +39,8 @@ import apdu4j.HexUtils;
 /**
  * Implements the {@link CardTerminal} portion of a {@link RemoteTerminal}
  *
+ * This class sends commands over the pipe from the server to the client.
+ *
  * @author Martin Paljak
  */
 

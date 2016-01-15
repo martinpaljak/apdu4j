@@ -26,6 +26,8 @@ import java.util.Map;
 
 import javax.smartcardio.CardTerminal;
 
+import apdu4j.HexUtils;
+
 /**
  * Implementation of the <a href=
  * "https://github.com/martinpaljak/apdu4j/wiki/JSON-Remote-EMV-Terminal">Remote
@@ -92,6 +94,28 @@ public class RemoteTerminal {
 		}
 	}
 
+	/**
+	 * Shows the response of the APDU to the user.
+	 *
+	 * Normally this requires the verification of a PIN code beforehand.
+	 *
+	 * @param message text to display to the user
+	 * @param apdu APDU to send to the terminal
+	 * @return {@link Button} that was pressed by the user
+	 * @throws IOException when communication fails
+	 */
+	public Button decrypt(String message, byte[] apdu) throws IOException {
+		Map<String, Object> m = JSONProtocol.cmd("decrypt");
+		m.put("text", message);
+		m.put("apdu", HexUtils.encodeHexString(apdu));
+		pipe.send(m);
+		Map<String, Object> r = pipe.recv();
+		if (JSONProtocol.check(m, r)) {
+			return Button.valueOf(((String)r.get("button")).toUpperCase());
+		} else {
+			throw new IOException("Unknown button pressed");
+		}
+	}
 
 	/**
 	 * Issues a ISO VERIFY on the remote terminal.

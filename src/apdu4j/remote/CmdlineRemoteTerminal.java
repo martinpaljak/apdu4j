@@ -121,6 +121,38 @@ public class CmdlineRemoteTerminal implements Runnable {
 		pipe.send(m);
 	}
 
+	private void decrypt(Map<String, Object> msg) throws IOException {
+		String cmd = (String) msg.get("apdu");
+		if (cmd == null)
+			throw new IOException("apdu is null");
+
+		CommandAPDU c = new CommandAPDU(HexUtils.decodeHexString(cmd));
+
+		try {
+			ResponseAPDU r = jsonterminal.card.getBasicChannel().transmit(c);
+			if (r.getSW() == 0x9000) {
+				System.out.println("# " + msg.get("text"));
+				System.out.println("# " + new String(r.getData(), "UTF-8"));
+				Map< String, Object> m = JSONProtocol.ok(msg);
+				boolean yes = false;
+				// lanterna requires work as it screws up Console.readPassword()
+				yes = get_yes_or_no_console();
+
+				if (!yes) {
+					m.put("button", "red");
+				} else {
+					m.put("button", "green");
+				}
+				pipe.send(m);
+			} else {
+				pipe.send(JSONProtocol.nok(msg, "Card returned " + r.getSW()));
+			}
+		} catch (CardException e) {
+			pipe.send(JSONProtocol.nok(msg, e.getMessage()));
+		}
+	}
+
+
 	private void message(Map<String, Object> msg) throws IOException {
 		System.out.println("# " + (String)msg.get("text"));
 		pipe.send(JSONProtocol.ok(msg));
@@ -139,6 +171,8 @@ public class CmdlineRemoteTerminal implements Runnable {
 		} else if (cmd.equals("STOP")) {
 			System.out.println("# Connection closed.");
 			return false;
+		} else if (cmd.equals("DECRYPT")) {
+			decrypt(msg);
 		} else {
 			System.err.println("No idea how to process: " + msg.toString());
 			return false;
