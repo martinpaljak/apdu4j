@@ -74,8 +74,8 @@ public abstract class RemoteTerminalThread implements Runnable, JSONMessagePipe 
 			logger.trace("received: {}", new JSONObject(msg).toJSONString());
 			return msg;
 		} catch (InterruptedException e) {
-			logger.warn("Interruptd", e);
-			throw new IOException("Interruptd", e);
+			logger.warn("Interrupted", e);
+			throw new IOException("Interrupted", e);
 		}
 	}
 
