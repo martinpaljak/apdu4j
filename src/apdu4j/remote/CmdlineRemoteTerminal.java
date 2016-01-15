@@ -122,9 +122,9 @@ public class CmdlineRemoteTerminal implements Runnable {
 	}
 
 	private void decrypt(Map<String, Object> msg) throws IOException {
-		String cmd = (String) msg.get("apdu");
+		String cmd = (String) msg.get("bytes");
 		if (cmd == null)
-			throw new IOException("apdu is null");
+			throw new IOException("bytes is null");
 
 		CommandAPDU c = new CommandAPDU(HexUtils.decodeHexString(cmd));
 
