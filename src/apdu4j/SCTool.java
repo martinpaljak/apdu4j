@@ -85,7 +85,6 @@ public class SCTool {
 
 	private static final String OPT_HELP = "help";
 	private static final String OPT_SUN = "sun";
-	private static final String OPT_JNA = "jna";
 	private static final String OPT_T0 = "t0";
 	private static final String OPT_T1 = "t1";
 	private static final String OPT_CONNECT = "connect";
@@ -121,7 +120,6 @@ public class SCTool {
 		parser.accepts(OPT_REPLAY, "replay command from dump").withRequiredArg().ofType(File.class);
 
 		parser.accepts(OPT_SUN, "load SunPCSC");
-		parser.accepts(OPT_JNA, "load jnasmartcardio");
 		parser.accepts(OPT_CONNECT, "connect to host:port or URL").withRequiredArg();
 		parser.accepts(OPT_PINNED, "require certificate").withRequiredArg().ofType(File.class);
 
@@ -225,12 +223,9 @@ public class SCTool {
 				tf = loadFactory(pn, pt);
 			} else if (args.has(OPT_SUN)) {
 				tf = loadFactory(SUN_CLASS, null);
-			} else if (args.has(OPT_JNA)) {
+			} else  {
 				tf = loadFactory(JNA_CLASS, null);
-			} else {
-				tf = TerminalFactory.getDefault();
 			}
-
 			if (verbose) {
 				System.out.println("# Using " + tf.getProvider().getClass().getCanonicalName() + " - " + tf.getProvider());
 				if (System.getProperty(TerminalManager.lib_prop) != null) {
@@ -350,15 +345,18 @@ public class SCTool {
 			return;
 		}
 
-		FileOutputStream o = null;
-		if (args.has(OPT_DUMP)) {
-			try {
-				o = new FileOutputStream((File) args.valueOf(OPT_DUMP));
-			} catch (FileNotFoundException e) {
-				System.err.println("Can not dump to " + args.valueOf(OPT_DUMP));
+		if (args.has(OPT_VERBOSE)) {
+			FileOutputStream o = null;
+			if (args.has(OPT_DUMP)) {
+				try {
+					o = new FileOutputStream((File) args.valueOf(OPT_DUMP));
+				} catch (FileNotFoundException e) {
+					System.err.println("Can not dump to " + args.valueOf(OPT_DUMP));
+				}
 			}
+			reader = LoggingCardTerminal.getInstance(reader, o);
 		}
-		reader = LoggingCardTerminal.getInstance(reader, o);
+
 		// This allows to override the protocol for RemoteTerminal as well.
 		final String protocol;
 		if (args.has(OPT_T0)) {
