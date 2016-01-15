@@ -89,7 +89,7 @@ public class RemoteTerminalServer {
 		setStandardHeaders(req);
 		req.sendResponseHeaders(418, 0);
 		try (OutputStream body = req.getResponseBody()) {
-			body.write(SCTool.getVersion(SCTool.class).getBytes());
+			body.write(("apdu4j/"+SCTool.getVersion(SCTool.class)).getBytes());
 		}
 	}
 
@@ -121,7 +121,7 @@ public class RemoteTerminalServer {
 			try {
 				logger.debug("to thread: {}", new JSONObject(msg).toJSONString());
 				if (!session.toThread.offer(msg)) {
-					logger.error("Could not add to thread queue!");
+					logger.warn("Could not add to thread queue!");
 					throw new IOException("Could not add to thread queue!");
 				}
 				// backend has 30 seconds to figure out the next action.
@@ -131,14 +131,14 @@ public class RemoteTerminalServer {
 					throw new IOException("Timeout");
 				}
 				// Log the respone from thread.
-				logger.debug("from thread: {}", new JSONObject(resp).toJSONString());
+				logger.trace("from thread: {}", new JSONObject(resp).toJSONString());
 
 				if (resp != null) {
 					// Add session ID to message from worker.
 					resp.put("session", session.id.toString());
 					// Convert message to JSON
 					JSONObject respjson = new JSONObject(resp);
-					logger.debug("SEND: {}", respjson.toJSONString());
+					logger.trace("SEND: {}", respjson.toJSONString());
 
 					// Send response
 					setStandardHeaders(r);
@@ -169,7 +169,7 @@ public class RemoteTerminalServer {
 					int len = Integer.parseInt(h.getFirst("Content-Length"));
 					logger.trace("Content-length: {}", len);
 					if (len > 2048 || len <= 0) {
-						logger.info("Too huge requst, dropping");
+						logger.info("Too huge request, dropping");
 						drop(req);
 					} else {
 						// Read the data
@@ -184,7 +184,7 @@ public class RemoteTerminalServer {
 							} catch (ParseException e) {
 								throw new IOException("Could not parse JSON", e);
 							}
-							logger.debug("RECV: {}", obj.toJSONString());
+							logger.trace("RECV: {}", obj.toJSONString());
 							// Convert to standard map
 							HashMap<String, Object> msg = new HashMap<>();
 							msg.putAll(obj);
@@ -223,7 +223,7 @@ public class RemoteTerminalServer {
 									drop(req);
 									return;
 								} else {
-									logger.debug("Resuming session {}", sid.toString());
+									logger.trace("Resuming session {}", sid.toString());
 									// get session
 									Session sess = sessions.get(sid);
 									sess.timestamp = System.currentTimeMillis();
@@ -232,7 +232,7 @@ public class RemoteTerminalServer {
 								}
 							}
 						} else {
-							logger.debug("Read {} instead", readlen);
+							logger.debug("Read {} instead, closing", readlen);
 							drop(req);
 							return;
 						}
@@ -243,7 +243,6 @@ public class RemoteTerminalServer {
 				drop(req);
 				return;
 			}
-			logger.trace("Message processed");
 		}
 	}
 
