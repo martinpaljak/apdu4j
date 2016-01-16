@@ -1,34 +1,33 @@
 language: java
-sudo: required
+sudo: false
 jdk:
 - oraclejdk8
-script: ant dist
+before_script:
+  - mkdir -p ext
+  - wget http://iweb.dl.sourceforge.net/project/launch4j/launch4j-3/3.8/launch4j-3.8-linux.tgz
+  - echo "e0cb0240c91b3ed6ca7bb85743fd09d6d7651cc3671a5fc17f67e57b8f7a80c6  launch4j-3.8-linux.tgz" | sha256sum -c
+  - tar -C ext -xzf launch4j-3.8-linux.tgz
+  - ant fetch
+script: ant windist
 notifications:
   email: true
 env:
   global:
     secure: hH+ndhQYLCfGaJ8XXW0GW9jO8wv4Ek0tDz3StzyVq9F+6meXOiGFIJ6MCyLPVZouxpCYj03PC0DunWAYYn+e3lgdMeOBLIg6/1BpOs5i0eHImE6O7pdo/+/jsHtR60PG9qRNfw2JXpPTI0F730o4UBi4V2eY2hWfmCIAWj61X9U=
 
-# Scan on Coverity
 addons:
+  apt:
+    packages:
+      - libc6:i386
   coverity_scan:
     project:
       name: martinpaljak/apdu4j
       description: apdu4j
     notification_email: martin@martinpaljak.net
-    build_command_prepend: 
+    build_command_prepend: ant fetch
     build_command: ant compile
     branch_pattern: coverity
 
-# Deploy releases to Github.
-# Build Windows utility
-# See https://github.com/travis-ci/travis-ci/issues/3701
-before_deploy:
-  - sudo apt-get update
-  - sudo apt-get install libc6:i386
-  - mkdir -p ext/launch4j
-  - curl http://kent.dl.sourceforge.net/project/launch4j/launch4j-3/3.8/launch4j-3.8-linux.tgz | tar xz -C ext
-  - ant windist
 deploy:
   file:
     - apdu4j.jar
