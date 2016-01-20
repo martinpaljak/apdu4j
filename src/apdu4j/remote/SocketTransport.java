@@ -39,6 +39,7 @@ import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Map;
 
+import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
@@ -119,6 +120,7 @@ public class SocketTransport implements JSONMessagePipe {
 			// Trust managers for SSL context
 			SSLContext sc = SSLContext.getInstance("TLS");
 
+			KeyManager[] kmfs = (kmf == null ? null : kmf.getKeyManagers());
 			if (pinnedcert != null) {
 				TrustManagerFactory tmf = TrustManagerFactory.getInstance("X509");
 				KeyStore ks = null;
@@ -127,9 +129,9 @@ public class SocketTransport implements JSONMessagePipe {
 				ks.load(null, null);
 				ks.setCertificateEntry("pinned", pinnedcert);
 				tmf.init(ks);
-				sc.init(kmf.getKeyManagers(), tmf.getTrustManagers(), new java.security.SecureRandom());
+				sc.init(kmfs, tmf.getTrustManagers(), new java.security.SecureRandom());
 			} else {
-				sc.init(kmf.getKeyManagers(), trustAllCerts, new java.security.SecureRandom());
+				sc.init(kmfs, trustAllCerts, new java.security.SecureRandom());
 			}
 			// Connect with created parameters
 			return sc.getSocketFactory();
