@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLSocketFactory;
 
 import org.json.simple.JSONObject;
@@ -52,15 +53,12 @@ public class HTTPTransport implements JSONMessagePipe {
 		this.u = url;
 	}
 
-
-
-	// Open a connection to a URL, with a pinned cert (or no checking)
-	public static HTTPTransport open(URL u, X509Certificate pinned) throws IOException {
+	// Open a connection to a URL, with a pinned cert (or no checking) and a keystore (or not clientside auth)
+	public static HTTPTransport open(URL u, X509Certificate pinned, KeyManagerFactory kmf) throws IOException {
 		HTTPTransport t = new HTTPTransport(u);
-		t.f = SocketTransport.get_ssl_socket_factory(pinned);
+		t.f = SocketTransport.get_ssl_socket_factory(kmf, pinned);
 		return t;
 	}
-
 
 	private HttpURLConnection connect() throws IOException {
 		c = (HttpURLConnection)u.openConnection();

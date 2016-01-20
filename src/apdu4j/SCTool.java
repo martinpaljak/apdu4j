@@ -48,6 +48,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 
+import javax.net.ssl.KeyManagerFactory;
 import javax.smartcardio.Card;
 import javax.smartcardio.CardException;
 import javax.smartcardio.CardTerminal;
@@ -89,6 +90,7 @@ public class SCTool {
 	private static final String OPT_T1 = "t1";
 	private static final String OPT_CONNECT = "connect";
 	private static final String OPT_PINNED = "pinned";
+	private static final String OPT_P12 = "p12";
 	private static final String OPT_WAIT = "wait";
 
 
@@ -120,7 +122,8 @@ public class SCTool {
 		parser.accepts(OPT_REPLAY, "replay command from dump").withRequiredArg().ofType(File.class);
 
 		parser.accepts(OPT_SUN, "load SunPCSC");
-		parser.accepts(OPT_CONNECT, "connect to host:port or URL").withRequiredArg();
+		parser.accepts(OPT_CONNECT, "connect to URL or host:port").withRequiredArg();
+		parser.accepts(OPT_P12, "path:pass of client PKCS#12").withRequiredArg();
 		parser.accepts(OPT_PINNED, "require certificate").withRequiredArg().ofType(File.class);
 
 		parser.accepts(OPT_PROVIDERS, "list providers");
@@ -396,14 +399,26 @@ public class SCTool {
 		} else if (args.has(OPT_CONNECT)) {
 			String remote = (String) args.valueOf(OPT_CONNECT);
 			JSONMessagePipe transport = null;
+			KeyManagerFactory kmf = null;
+			X509Certificate pinnedcert = null;
+
 
 			try {
-				if (remote.startsWith("http://") || remote.startsWith("https://")) {
-					if (args.has(OPT_PINNED)) {
-						transport = HTTPTransport.open(new URL(remote), certFromPEM(((File)args.valueOf(OPT_PINNED)).getPath()));
-					} else {
-						transport = HTTPTransport.open(new URL(remote), null);
+				// Connection parameters
+				if (args.has(OPT_P12)) {
+					String[] pathpass = args.valueOf(OPT_P12).toString().split(":");
+					if (pathpass.length != 2) {
+						throw new IllegalArgumentException("Must be path:password!");
 					}
+					kmf = SocketTransport.get_key_manager_factory(pathpass[0], pathpass[1]);
+				}
+				if (args.has(OPT_PINNED)) {
+					pinnedcert = certFromPEM(((File)args.valueOf(OPT_PINNED)).getPath());
+				}
+
+				// Select transport
+				if (remote.startsWith("http://") || remote.startsWith("https://")) {
+					transport = HTTPTransport.open(new URL(remote), pinnedcert, kmf);
 				} else {
 					transport = SocketTransport.connect(string2socket(remote), null);
 				}

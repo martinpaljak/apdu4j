@@ -86,8 +86,19 @@ public class SocketTransport implements JSONMessagePipe {
 		return connect(address, null);
 	}
 
-	// Returns a SSLSocketFactory that either does no checking or checks for a pinnned certificate
-	protected static SSLSocketFactory get_ssl_socket_factory(X509Certificate pinnedcert) throws IOException {
+
+	public static KeyManagerFactory get_key_manager_factory(String pkcs12path, String pkcs12pass) throws IOException {
+		try {
+			KeyStore ks = KeyStore.getInstance("PKCS12");
+			ks.load(new FileInputStream(pkcs12path), pkcs12pass.toCharArray());
+			KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+			kmf.init(ks, pkcs12pass.toCharArray());
+			return kmf;
+		} catch (UnrecoverableKeyException | KeyStoreException | NoSuchAlgorithmException | CertificateException | IOException e) {
+			throw new IOException("Could not load client key!", e);
+		}
+	}
+	protected static SSLSocketFactory get_ssl_socket_factory(KeyManagerFactory kmf, X509Certificate pinnedcert) throws IOException {
 		try {
 			// Create a trust manager that does not validate certificate chains
 			TrustManager[] trustAllCerts = new TrustManager[] {
@@ -116,15 +127,20 @@ public class SocketTransport implements JSONMessagePipe {
 				ks.load(null, null);
 				ks.setCertificateEntry("pinned", pinnedcert);
 				tmf.init(ks);
-				sc.init(null, tmf.getTrustManagers(), new java.security.SecureRandom());
+				sc.init(kmf.getKeyManagers(), tmf.getTrustManagers(), new java.security.SecureRandom());
 			} else {
-				sc.init(null, trustAllCerts, new java.security.SecureRandom());
+				sc.init(kmf.getKeyManagers(), trustAllCerts, new java.security.SecureRandom());
 			}
 			// Connect with created parameters
 			return sc.getSocketFactory();
 		} catch (KeyManagementException | KeyStoreException | NoSuchAlgorithmException | CertificateException e) {
 			throw new IOException("Could not connect", e);
 		}
+
+	}
+	// Returns a SSLSocketFactory that either does no checking or checks for a pinnned certificate
+	protected static SSLSocketFactory get_ssl_socket_factory(X509Certificate pinnedcert) throws IOException {
+		return get_ssl_socket_factory(null, pinnedcert);
 	}
 
 	/**
@@ -136,46 +152,9 @@ public class SocketTransport implements JSONMessagePipe {
 	 * @throws IOException if establishing the connection fails
 	 */
 	public static SocketTransport connect(InetSocketAddress address, X509Certificate pinnedcert) throws IOException {
-		try {
-			// Create a trust manager that does not validate certificate chains
-			TrustManager[] trustAllCerts = new TrustManager[] {
-					new X509TrustManager() {
-						@Override
-						public X509Certificate[] getAcceptedIssuers() {
-							return new X509Certificate[0];
-						}
-						@Override
-						public void checkServerTrusted(X509Certificate[] arg0, String arg1) throws CertificateException {
-						}
-						@Override
-						public void checkClientTrusted(X509Certificate[] arg0, String arg1) throws CertificateException {
-						}
-					}
-			};
-
-			// Trust managers for SSL context
-			SSLContext sc = SSLContext.getInstance("TLS");
-
-			if (pinnedcert != null) {
-				TrustManagerFactory tmf = TrustManagerFactory.getInstance("X509");
-				KeyStore ks = null;
-				ks = KeyStore.getInstance(KeyStore.getDefaultType());
-				// Generate an empty one
-				ks.load(null, null);
-				ks.setCertificateEntry("pinned", pinnedcert);
-				tmf.init(ks);
-				sc.init(null, tmf.getTrustManagers(), new java.security.SecureRandom());
-			} else {
-				sc.init(null, trustAllCerts, new java.security.SecureRandom());
-			}
-
-			// Connect with created parameters
-			SSLSocketFactory factory = sc.getSocketFactory();
-			Socket s = factory.createSocket(address.getHostString(), address.getPort());
-			return new SocketTransport(s);
-		} catch (KeyManagementException | KeyStoreException | NoSuchAlgorithmException | CertificateException e) {
-			throw new IOException("Could not connect", e);
-		}
+		SSLSocketFactory factory = get_ssl_socket_factory(pinnedcert);
+		Socket s = factory.createSocket(address.getHostString(), address.getPort());
+		return new SocketTransport(s);
 	}
 
 	// Helper class to make a SSL server
