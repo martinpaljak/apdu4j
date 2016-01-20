@@ -38,6 +38,7 @@ import apdu4j.HexUtils;
 public class RemoteTerminal {
 	private final JSONMessagePipe pipe;
 	private final CardTerminal terminal;
+	public String lang = "en"; // XXX: Getter?
 
 	public enum Button {RED, GREEN, YELLOW}
 
@@ -51,14 +52,17 @@ public class RemoteTerminal {
 	}
 
 	public void start() throws IOException {
-		// Read the first START message. FIXME
-		try {
-			pipe.recv();
+		// Read the first START message.
+		Map<String, Object> m = pipe.recv();
+		if (m.containsKey("cmd") && m.get("cmd").equals("START")) {
+			if (m.containsKey("lang") && m.get("lang").toString().matches("\\p{Lower}{2}")) {
+				lang = (String) m.get("lang");
+			}
+			return;
+		} else {
+			throw new IOException("Invalid START message");
 		}
-		catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+
 	}
 	/**
 	 * Shows a message on the screen
