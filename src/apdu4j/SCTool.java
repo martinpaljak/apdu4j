@@ -185,9 +185,11 @@ public class SCTool {
 			// TODO: have the possibility to run SocketServer as well?
 			RemoteTerminalServer srv = new RemoteTerminalServer(TestServer.class);
 			srv.start(string2socket((String) args.valueOf(OPT_TEST_SERVER)));
-			System.console().readLine("Press enter to stop\n");
-			srv.stop(1);
-			System.exit(0);
+			System.out.println("Hit ctrl-c to quit");
+			while (true) {
+				Thread.sleep(5000);
+				srv.gc(System.currentTimeMillis() - 5 * 60 * 1000); // 5 minutes
+			}
 		}
 
 		// List TerminalFactory providers

@@ -110,6 +110,15 @@ public class RemoteTerminalServer {
 	public void stop(int timeout) {
 		server.stop(timeout);
 	}
+
+	public void gc(long oldest) {
+		for (Session s: sessions.values()) {
+			if (s.timestamp < oldest) {
+				logger.debug("Pruning session: {}", s.id);
+				sessions.remove(s.id);
+			}
+		}
+	}
 	private static void setStandardHeaders(HttpExchange req) {
 		Headers h = req.getResponseHeaders();
 		h.set("Server", "apdu4j/"+SCTool.getVersion(SCTool.class));
@@ -119,6 +128,7 @@ public class RemoteTerminalServer {
 
 		private void transceive(HttpExchange r, Map<String, Object> msg, Session session) throws IOException {
 			try {
+				session.timestamp = System.currentTimeMillis();
 				logger.trace("to thread: {}", new JSONObject(msg).toJSONString());
 				if (!session.toThread.offer(msg)) {
 					logger.warn("Could not add to thread queue!");
@@ -226,7 +236,6 @@ public class RemoteTerminalServer {
 									logger.trace("Resuming session {}", sid.toString());
 									// get session
 									Session sess = sessions.get(sid);
-									sess.timestamp = System.currentTimeMillis();
 									// trancieve message
 									transceive(req, msg, sess);
 								}
@@ -252,7 +261,7 @@ public class RemoteTerminalServer {
 			setStandardHeaders(req);
 			req.sendResponseHeaders(200, 0);
 			try (OutputStream body = req.getResponseBody()) {
-				String s = "OK: " + sessions.size();
+				String s = "apdu4j/"+SCTool.getVersion(SCTool.class) + " OK: " + sessions.size();
 				body.write(s.getBytes());
 			}
 		}
