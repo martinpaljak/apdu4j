@@ -24,6 +24,7 @@ package apdu4j.remote;
 import java.io.Console;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Map;
 
 import javax.smartcardio.CardException;
@@ -145,7 +146,9 @@ public class CmdlineRemoteTerminal implements Runnable {
 				}
 				pipe.send(m);
 			} else {
-				pipe.send(JSONProtocol.nok(msg, "Card returned " + r.getSW()));
+				Map<String, Object> rm = JSONProtocol.nok(msg, "Card returned " + r.getSW());
+				rm.put("bytes", Arrays.copyOfRange(r.getBytes(), r.getBytes().length - 2, r.getBytes().length));
+				pipe.send(rm);
 			}
 		} catch (CardException e) {
 			pipe.send(JSONProtocol.nok(msg, e.getMessage()));
@@ -157,6 +160,17 @@ public class CmdlineRemoteTerminal implements Runnable {
 		System.out.println("# " + (String)msg.get("text"));
 		pipe.send(JSONProtocol.ok(msg));
 	}
+
+	private void stop(Map<String, Object> msg) {
+		String text = "# Connection closed";
+		if (msg.containsKey("text")) {
+			text = text + ": " + msg.get("text");
+		} else {
+			text = text + ".";
+		}
+		System.out.println(text);
+	}
+
 	private boolean processMessage (Map<String, Object> msg) throws IOException {
 		if (!msg.containsKey("cmd")) {
 			throw new IOException("No command in message: " + msg);
@@ -169,7 +183,7 @@ public class CmdlineRemoteTerminal implements Runnable {
 		} else if (cmd.equals("DIALOG")) {
 			dialog(msg);
 		} else if (cmd.equals("STOP")) {
-			System.out.println("# Connection closed.");
+			stop(msg);
 			return false;
 		} else if (cmd.equals("DECRYPT")) {
 			decrypt(msg);
