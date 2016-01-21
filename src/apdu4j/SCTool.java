@@ -88,6 +88,7 @@ public class SCTool {
 	private static final String OPT_SUN = "sun";
 	private static final String OPT_T0 = "t0";
 	private static final String OPT_T1 = "t1";
+	private static final String OPT_EXCLUSIVE = "exclusive";
 	private static final String OPT_CONNECT = "connect";
 	private static final String OPT_PINNED = "pinned";
 	private static final String OPT_P12 = "p12";
@@ -131,6 +132,7 @@ public class SCTool {
 		parser.accepts(OPT_WAIT, "wait for card insertion");
 		parser.accepts(OPT_T0, "use T=0");
 		parser.accepts(OPT_T1, "use T=1");
+		parser.accepts(OPT_EXCLUSIVE, "use EXCLUSIVE mode (JNA only)");
 		parser.accepts(OPT_TEST_SERVER, "run a test server on port 10000").withRequiredArg();
 		parser.accepts(OPT_NO_GET_RESPONSE, "don't use GET RESPONSE with SunPCSC");
 		parser.accepts(OPT_LIB, "use specific PC/SC lib with SunPCSC").withRequiredArg();
@@ -368,6 +370,8 @@ public class SCTool {
 			protocol = "T=0";
 		} else if (args.has(OPT_T1)) {
 			protocol = "T=1";
+		} else if (args.has(OPT_EXCLUSIVE)) {
+			protocol ="EXCLUSIVE"; // JNA-proprietary.
 		} else {
 			protocol = "*";
 		}
