@@ -429,8 +429,17 @@ public class SCTool {
 					transport = SocketTransport.connect(string2socket(remote), null);
 				}
 
+				// Windows 8+ have the "5 seconds of transaction" limit. Because we want reliability
+				// and don't have access to arbitrary SCard* calls via javax.smartcardio, we rely on
+				// JNA interface and its EXCLUSIVE access instead and do NOT use the SCardBeginTransaction
+				// capability of the JNA interface.
+				// https://msdn.microsoft.com/en-us/library/windows/desktop/aa379469%28v=vs.85%29.aspx
+				boolean transact = true;
+				if (System.getProperty("os.name").toLowerCase().contains("windows") && args.has(OPT_EXCLUSIVE)) {
+					transact = false;
+				}
 				// Connect the transport and the terminal
-				CmdlineRemoteTerminal c = new CmdlineRemoteTerminal(transport, reader);
+				CmdlineRemoteTerminal c = new CmdlineRemoteTerminal(transport, reader, transact);
 				c.forceProtocol(protocol);
 				// Run
 				c.run();

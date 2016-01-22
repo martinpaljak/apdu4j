@@ -40,10 +40,12 @@ class JSONCardTerminalClient {
 	private final JSONMessagePipe pipe;
 	protected Card card = null; // There can be several connects-disconnects
 	private String protocol = null; // Local protocol to use, overriding the other side
+	private boolean transact = true;
 
-	public JSONCardTerminalClient(CardTerminal terminal, JSONMessagePipe pipe) {
+	public JSONCardTerminalClient(CardTerminal terminal, JSONMessagePipe pipe, boolean transact) {
 		this.terminal = terminal;
 		this.pipe = pipe;
+		this.transact = transact;
 	}
 
 	public void forceProtocol(String protocol) {
@@ -59,7 +61,8 @@ class JSONCardTerminalClient {
 					protocol = (String) msg.get("protocol");
 				}
 				card = terminal.connect(protocol);
-				card.beginExclusive();
+				if (transact)
+					card.beginExclusive();
 				Map<String, Object> m = JSONProtocol.ok(msg);
 				m.put("atr", HexUtils.encodeHexString(card.getATR().getBytes()));
 				m.put("reader", terminal.getName());

@@ -46,9 +46,9 @@ public class CmdlineRemoteTerminal implements Runnable {
 	// The terminal that is tunneled
 	private JSONCardTerminalClient jsonterminal;
 
-	public CmdlineRemoteTerminal(JSONMessagePipe pipe, CardTerminal terminal) {
+	public CmdlineRemoteTerminal(JSONMessagePipe pipe, CardTerminal terminal, boolean transact) {
 		this.pipe = pipe;
-		this.jsonterminal = new JSONCardTerminalClient(terminal, pipe);
+		this.jsonterminal = new JSONCardTerminalClient(terminal, pipe, transact);
 	}
 
 	@Override
