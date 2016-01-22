@@ -10,7 +10,9 @@ before_script:
   - ant fetch
 script: ant windist
 notifications:
-  email: true
+  email:
+    on_success: change
+    on_failure: always
   irc:
     on_success: change
     on_failure: always
