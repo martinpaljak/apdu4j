@@ -365,18 +365,29 @@ public class SCTool {
 		}
 
 		// This allows to override the protocol for RemoteTerminal as well.
-		final String protocol;
+		String protocol;
+		boolean transact = true;
 		if (args.has(OPT_T0)) {
 			protocol = "T=0";
 		} else if (args.has(OPT_T1)) {
 			protocol = "T=1";
-		} else if (args.has(OPT_EXCLUSIVE)) {
-			protocol ="EXCLUSIVE"; // JNA-proprietary.
 		} else {
 			protocol = "*";
 		}
-		if (args.has(CMD_APDU))  {
+		// JNA-proprietary
+		if (args.has(OPT_EXCLUSIVE)) {
+			protocol = "EXCLUSIVE;" + protocol;
+		} else if (System.getProperty("os.name").toLowerCase().contains("windows") && args.has(OPT_CONNECT)) {
+			// Windows 8+ have the "5 seconds of transaction" limit. Because we want reliability
+			// and don't have access to arbitrary SCard* calls via javax.smartcardio, we rely on
+			// JNA interface and its EXCLUSIVE access instead and do NOT use the SCardBeginTransaction
+			// capability of the JNA interface.
+			// https://msdn.microsoft.com/en-us/library/windows/desktop/aa379469%28v=vs.85%29.aspx
+			transact = false;
+			protocol = "EXCLUSIVE;" + protocol;
+		}
 
+		if (args.has(CMD_APDU))  {
 			Card c = null;
 			try {
 				c = reader.connect(protocol);
@@ -429,18 +440,10 @@ public class SCTool {
 					transport = SocketTransport.connect(string2socket(remote), null);
 				}
 
-				// Windows 8+ have the "5 seconds of transaction" limit. Because we want reliability
-				// and don't have access to arbitrary SCard* calls via javax.smartcardio, we rely on
-				// JNA interface and its EXCLUSIVE access instead and do NOT use the SCardBeginTransaction
-				// capability of the JNA interface.
-				// https://msdn.microsoft.com/en-us/library/windows/desktop/aa379469%28v=vs.85%29.aspx
-				boolean transact = true;
-				if (System.getProperty("os.name").toLowerCase().contains("windows") && args.has(OPT_EXCLUSIVE)) {
-					transact = false;
-				}
 				// Connect the transport and the terminal
-				CmdlineRemoteTerminal c = new CmdlineRemoteTerminal(transport, reader, transact);
+				CmdlineRemoteTerminal c = new CmdlineRemoteTerminal(transport, reader);
 				c.forceProtocol(protocol);
+				c.transact(transact);
 				// Run
 				c.run();
 			} catch (IOException e) {

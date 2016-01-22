@@ -39,18 +39,14 @@ class JSONCardTerminalClient {
 	private final CardTerminal terminal;
 	private final JSONMessagePipe pipe;
 	protected Card card = null; // There can be several connects-disconnects
-	private String protocol = null; // Local protocol to use, overriding the other side
-	private boolean transact = true;
+	String protocol = null; // Local protocol to use, overriding the other side
+	boolean transact = true;
 
-	public JSONCardTerminalClient(CardTerminal terminal, JSONMessagePipe pipe, boolean transact) {
+	public JSONCardTerminalClient(CardTerminal terminal, JSONMessagePipe pipe) {
 		this.terminal = terminal;
 		this.pipe = pipe;
-		this.transact = transact;
 	}
 
-	public void forceProtocol(String protocol) {
-		this.protocol = protocol;
-	}
 	public boolean processMessage(Map<String, Object> msg) throws IOException, CardException {
 		if (!msg.containsKey("cmd"))
 			throw new IOException("No command field in message: " + msg.toString());
@@ -70,6 +66,7 @@ class JSONCardTerminalClient {
 				pipe.send(m);
 			} catch (CardException e) {
 				fail(msg, e);
+				throw e;
 			}
 		} else if (cmd.equals("APDU")) {
 			try {

@@ -44,11 +44,11 @@ import apdu4j.TerminalManager;
 public class CmdlineRemoteTerminal implements Runnable {
 	private JSONMessagePipe pipe;
 	// The terminal that is tunneled
-	private JSONCardTerminalClient jsonterminal;
+	JSONCardTerminalClient jsonterminal;
 
-	public CmdlineRemoteTerminal(JSONMessagePipe pipe, CardTerminal terminal, boolean transact) {
+	public CmdlineRemoteTerminal(JSONMessagePipe pipe, CardTerminal terminal) {
 		this.pipe = pipe;
-		this.jsonterminal = new JSONCardTerminalClient(terminal, pipe, transact);
+		this.jsonterminal = new JSONCardTerminalClient(terminal, pipe);
 	}
 
 	@Override
@@ -73,7 +73,10 @@ public class CmdlineRemoteTerminal implements Runnable {
 	}
 
 	public void forceProtocol(String protocol) {
-		jsonterminal.forceProtocol(protocol);
+		jsonterminal.protocol = protocol;
+	}
+	public void transact(boolean yes) {
+		jsonterminal.transact = yes;
 	}
 	private void verify(Map<String, Object> msg) throws IOException {
 		if (!jsonterminal.isConnected()) {
