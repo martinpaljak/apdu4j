@@ -55,7 +55,9 @@ public class RemoteTerminalServer {
 	private final static String BACKLOG = "apdu4j.remote.http.backlog";
 	private final static String HTTPPOOL = "apdu4j.remote.http.threadpool";
 	private final static String SESSIONS = "apdu4j.remote.http.maxsessions";
+	private final static String THREADTIMEOUT = "apdu4j.remote.thread.timeout";
 	private final static String BACKENDPOOL = "apdu4j.remote.backend.threadpool";
+
 
 	class Session {
 		// TODO: STATE
@@ -134,10 +136,15 @@ public class RemoteTerminalServer {
 					logger.warn("Could not add to thread queue!");
 					throw new IOException("Could not add to thread queue!");
 				}
-				// backend has 30 seconds to figure out the next action.
-				Map<String, Object> resp = session.fromThread.poll(30, TimeUnit.SECONDS);
+				// backend has 60 seconds to figure out the next action.
+				Map<String, Object> resp = session.fromThread.poll(Long.valueOf(System.getProperty(THREADTIMEOUT, "60")), TimeUnit.SECONDS);
 				if (resp == null) {
 					logger.warn("Timeout");
+					Map<String, Object> stop = new HashMap<>();
+					stop.put("cmd", "STOP");
+					stop.put("message", "Timeout waiting for reply from thread");
+					// If the thread does wake up, signal the closed session.
+					session.toThread.offer(stop);
 					throw new IOException("Timeout");
 				}
 				// Log the respone from thread.
@@ -159,12 +166,9 @@ public class RemoteTerminalServer {
 					try (OutputStream body = r.getResponseBody()) {
 						body.write(payload);
 					}
-				} else {
-					// HORRIBLE STUFF
 				}
 			} catch (InterruptedException e) {
-				logger.debug("Interruptd");
-				// Reading from thread timed out. We close the session
+				logger.debug("Interrupted");
 				throw new IOException(e);
 			}
 		}
@@ -217,11 +221,12 @@ public class RemoteTerminalServer {
 									// execute created thread with queues
 									e.execute(thread);
 
-									// Put into session map.
-									sessions.put(sid, sess);
-
 									// Transceive first message to thread
 									transceive(req, msg, sess);
+
+									// Put into session map if it did not throw.
+									sessions.put(sid, sess);
+
 								} catch (SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException e) {
 									logger.error("Could not start worker thread", e);
 									throw new RuntimeException("Could not initiate a worker thread!", e);
@@ -236,8 +241,14 @@ public class RemoteTerminalServer {
 									logger.trace("Resuming session {}", sid.toString());
 									// get session
 									Session sess = sessions.get(sid);
-									// trancieve message
-									transceive(req, msg, sess);
+									// trancieve message catching errors.
+									try {
+										transceive(req, msg, sess);
+									} catch (IOException e) {
+										logger.debug("Thread communication failed, removing session", e);
+										sessions.remove(sid);
+										throw e;
+									}
 								}
 							}
 						} else {
