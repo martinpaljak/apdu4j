@@ -91,7 +91,7 @@ public class RemoteTerminal {
 		m.put("text", message);
 		pipe.send(m);
 		Map<String, Object> r = pipe.recv();
-		if (JSONProtocol.check(m, r) || !r.containsKey("button")) {
+		if (!JSONProtocol.check(m, r) || !r.containsKey("button")) {
 			throw new IOException("Unknown button pressed");
 		}
 		return Button.valueOf(((String)r.get("button")).toUpperCase());
