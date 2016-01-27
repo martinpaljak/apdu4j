@@ -111,7 +111,7 @@ public class RemoteTerminal {
 	public Button decrypt(String message, byte[] apdu) throws IOException {
 		Map<String, Object> m = JSONProtocol.cmd("decrypt");
 		m.put("text", message);
-		m.put("bytes", HexUtils.encodeHexString(apdu));
+		m.put("bytes", HexUtils.bin2hex(apdu));
 		pipe.send(m);
 		Map<String, Object> r = pipe.recv();
 		if (JSONProtocol.check(m, r)) {

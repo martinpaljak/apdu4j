@@ -152,7 +152,6 @@ public class TerminalManager {
 	// Given an instance of some Exception from a PC/SC system,
 	// return a meaningful PC/SC error name.
 	public static String getExceptionMessage(Exception e) {
-		String classname = e.getClass().getCanonicalName();
 		if (e instanceof CardException || e instanceof NoSuchAlgorithmException) {
 			// This comes from SunPCSC most probably and already contains the PC/SC error in the cause
 			if (e.getCause() != null) {

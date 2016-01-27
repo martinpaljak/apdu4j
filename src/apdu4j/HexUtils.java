@@ -24,7 +24,11 @@ package apdu4j;
 public class HexUtils {
 	// This code has been taken from Apache commons-codec 1.7 (License: Apache 2.0)
 	private static final char[] LOWER_HEX = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+	@Deprecated
 	public static String encodeHexString(final byte[] data) {
+		return encodeHexString_imp(data);
+	}
+	public static String encodeHexString_imp(final byte[] data) {
 
 		final int l = data.length;
 		final char[] out = new char[l << 1];
@@ -36,7 +40,11 @@ public class HexUtils {
 		return new String(out);
 	}
 
+	@Deprecated
 	public static byte[] decodeHexString(String str) {
+		return decodeHexString_imp(str);
+	}
+	public static byte[] decodeHexString_imp(String str) {
 		char data[] = str.toCharArray();
 		final int len = data.length;
 		if ((len & 0x01) != 0) {
@@ -54,11 +62,18 @@ public class HexUtils {
 		return out;
 	}
 	// End of copied code from commons-codec
+	public static byte[] hex2bin(final String hex) {
+		return decodeHexString_imp(hex);
+	}
+
+	public static String bin2hex(final byte []bin) {
+		return encodeHexString_imp(bin);
+	}
 
 	public static byte[] stringToBin(String s) {
 		s = s.toLowerCase().replaceAll(" ", "").replaceAll(":", "");
 		s = s.replaceAll("0x", "").replaceAll("\n", "").replaceAll("\t", "");
 		s = s.replaceAll(";", "");
-		return decodeHexString(s);
+		return decodeHexString_imp(s);
 	}
 }

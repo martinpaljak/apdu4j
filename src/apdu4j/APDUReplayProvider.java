@@ -73,7 +73,7 @@ public class APDUReplayProvider extends Provider {
 			byte [] expected_cmd = commands.remove(0);
 			if (strict) {
 				if (!Arrays.equals(cmd, expected_cmd)) {
-					throw new CardException("Expected " + HexUtils.encodeHexString(expected_cmd) + " but got " + HexUtils.encodeHexString(cmd));
+					throw new CardException("Expected " + HexUtils.bin2hex(expected_cmd) + " but got " + HexUtils.bin2hex(cmd));
 				}
 			}
 			return responses.remove(0);
@@ -98,13 +98,13 @@ public class APDUReplayProvider extends Provider {
 					// Skip comments
 					if (l.startsWith("#")) {
 						if (l.startsWith(ATR)) {
-							atr = new ATR(HexUtils.decodeHexString(l.substring(ATR.length())));
+							atr = new ATR(HexUtils.hex2bin(l.substring(ATR.length())));
 						} else if (l.startsWith(PROTOCOL)) {
 							protocol = l.substring(PROTOCOL.length());
 						}
 						continue;
 					}
-					byte[] r = HexUtils.decodeHexString(l);
+					byte[] r = HexUtils.hex2bin(l);
 					if (is_cmd) {
 						commands.add(r);
 					} else {

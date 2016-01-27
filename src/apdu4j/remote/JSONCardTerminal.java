@@ -195,7 +195,7 @@ class JSONCardTerminal extends CardTerminal {
 			@Override
 			public ResponseAPDU transmit(CommandAPDU apdu) throws CardException {
 				try {
-					String apdustring = HexUtils.encodeHexString(apdu.getBytes());
+					String apdustring = HexUtils.bin2hex(apdu.getBytes());
 
 
 					Map<String, Object> m = JSONProtocol.cmd("APDU");
@@ -207,8 +207,7 @@ class JSONCardTerminal extends CardTerminal {
 					if (!JSONProtocol.check(m, r)) {
 						throw new CardException((String)r.get("ERROR"));
 					}
-
-					return new ResponseAPDU(HexUtils.stringToBin((String)r.get("bytes")));
+					return new ResponseAPDU(HexUtils.hex2bin((String)r.get("bytes")));
 				} catch (IOException e) {
 					throw new CardException(e);
 				}

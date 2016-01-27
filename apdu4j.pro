@@ -29,6 +29,7 @@
 -keep public class apdu4j.remote.TestServer {*;}
 -keep public class apdu4j.remote.SocketTransport {*;}
 -keep public class apdu4j.LoggingCardTerminal {*;}
+-keep public class apdu4j.HexUtils {*;}
 -keep public class apdu4j.TerminalManager {
     public <methods>;
 }

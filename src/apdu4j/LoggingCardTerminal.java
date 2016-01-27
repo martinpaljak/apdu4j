@@ -99,7 +99,7 @@ public class LoggingCardTerminal extends CardTerminal {
 			log.print("SCardConnect(\"" + terminal.getName() + "\", " + (protocol.equals("*") ? "T=*" : protocol) + ")");
 			log.flush();
 			card = terminal.connect(protocol);
-			String atr = HexUtils.encodeHexString(card.getATR().getBytes());
+			String atr = HexUtils.bin2hex(card.getATR().getBytes());
 			log.println(" -> " + card.getProtocol() + ", " + atr);
 			if (dump != null) {
 				String ts = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss Z").format(Calendar.getInstance().getTime());
@@ -184,7 +184,7 @@ public class LoggingCardTerminal extends CardTerminal {
 				byte [] cb = apdu.getBytes();
 				int len_end = apdu.getData().length > 255 ? 7 : 5;
 				log.print("A>> " + card.getProtocol() + " (4+" + String.format("%04d", apdu.getData().length) + ")");
-				log.print(" " + HexUtils.encodeHexString(Arrays.copyOfRange(cb, 0, 4)));
+				log.print(" " + HexUtils.bin2hex(Arrays.copyOfRange(cb, 0, 4)));
 
 				// Only if Case 2, 3 or 4 APDU
 				if (cb.length > 4) {
@@ -192,10 +192,10 @@ public class LoggingCardTerminal extends CardTerminal {
 					if (cmdlen == 0 && apdu.getData().length > 6) {
 						cmdlen = ((cb[ISO7816.OFFSET_LC +1] & 0xff << 8) | cb[ISO7816.OFFSET_LC+2] & 0xff);
 					}
-					log.print(" " + HexUtils.encodeHexString(Arrays.copyOfRange(cb, 4, len_end)));
-					log.print(" " + HexUtils.encodeHexString(Arrays.copyOfRange(cb, len_end, len_end + cmdlen)));
+					log.print(" " + HexUtils.bin2hex(Arrays.copyOfRange(cb, 4, len_end)));
+					log.print(" " + HexUtils.bin2hex(Arrays.copyOfRange(cb, len_end, len_end + cmdlen)));
 					if (len_end + cmdlen < cb.length) {
-						log.println(" " + HexUtils.encodeHexString(Arrays.copyOfRange(cb, len_end + cmdlen, cb.length)));
+						log.println(" " + HexUtils.bin2hex(Arrays.copyOfRange(cb, len_end + cmdlen, cb.length)));
 					} else {
 						log.println();
 					}
@@ -214,12 +214,12 @@ public class LoggingCardTerminal extends CardTerminal {
 				byte [] rb = response.getBytes();
 				System.out.print("A<< (" + String.format("%04d", response.getData().length) + "+2) (" + time + ")");
 				if (rb.length > 2) {
-					log.print(" " + HexUtils.encodeHexString(Arrays.copyOfRange(rb, 0, rb.length-2)));
+					log.print(" " + HexUtils.bin2hex(Arrays.copyOfRange(rb, 0, rb.length-2)));
 				}
-				log.println(" " + HexUtils.encodeHexString(Arrays.copyOfRange(rb, rb.length-2, rb.length)));
+				log.println(" " + HexUtils.bin2hex(Arrays.copyOfRange(rb, rb.length-2, rb.length)));
 				if (dump != null) {
-					dump.println("# Sent\n" + HexUtils.encodeHexString(cb));
-					dump.println("# Received in " + time + "\n" + HexUtils.encodeHexString(rb));
+					dump.println("# Sent\n" + HexUtils.bin2hex(cb));
+					dump.println("# Received in " + time + "\n" + HexUtils.bin2hex(rb));
 				}
 				return response;
 			}
@@ -230,15 +230,15 @@ public class LoggingCardTerminal extends CardTerminal {
 				cmd.get(commandBytes);
 				cmd.position(0);
 
-				log.println("B>> " + card.getProtocol() + " (" + commandBytes.length + ") " + HexUtils.encodeHexString(commandBytes));
+				log.println("B>> " + card.getProtocol() + " (" + commandBytes.length + ") " + HexUtils.bin2hex(commandBytes));
 				int response = channel.transmit(cmd, rsp);
 				byte[] responseBytes = new byte[response];
 				rsp.get(responseBytes);
 				rsp.position(0);
-				log.println("B<< (" + responseBytes.length + ") " + HexUtils.encodeHexString(responseBytes));
+				log.println("B<< (" + responseBytes.length + ") " + HexUtils.bin2hex(responseBytes));
 				if (dump != null) {
-					dump.println("# Sent\n" + HexUtils.encodeHexString(commandBytes));
-					dump.println("# Received\n" + HexUtils.encodeHexString(responseBytes));
+					dump.println("# Sent\n" + HexUtils.bin2hex(commandBytes));
+					dump.println("# Received\n" + HexUtils.bin2hex(responseBytes));
 				}
 				return response;
 			}

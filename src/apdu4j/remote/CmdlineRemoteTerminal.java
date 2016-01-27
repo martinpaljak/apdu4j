@@ -101,7 +101,7 @@ public class CmdlineRemoteTerminal implements Runnable {
 				m = JSONProtocol.ok(msg);
 			} else {
 				m = JSONProtocol.nok(msg, "Verification failed");
-				m.put("bytes", HexUtils.encodeHexString(r.getBytes()));
+				m.put("bytes", HexUtils.bin2hex(r.getBytes()));
 			}
 			pipe.send(m);
 		} catch (CardException e) {
@@ -130,7 +130,7 @@ public class CmdlineRemoteTerminal implements Runnable {
 		if (cmd == null)
 			throw new IOException("bytes is null");
 
-		CommandAPDU c = new CommandAPDU(HexUtils.decodeHexString(cmd));
+		CommandAPDU c = new CommandAPDU(HexUtils.hex2bin(cmd));
 
 		try {
 			ResponseAPDU r = jsonterminal.card.getBasicChannel().transmit(c);

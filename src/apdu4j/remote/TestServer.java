@@ -77,7 +77,7 @@ public class TestServer extends RemoteTerminalThread {
 
 				if (terminal.dialog("Shall we try to select MF in " + ct.getName()).equals(Button.GREEN)) {
 					ResponseAPDU r = c.transmit(new CommandAPDU(0x00, 0xA4, 0x04, 0x00));
-					terminal.statusMessage("Card returned: " + HexUtils.encodeHexString(r.getBytes()));
+					terminal.statusMessage("Card returned: " + HexUtils.bin2hex(r.getBytes()));
 				}
 			} catch (CardException e) {
 				terminal.statusMessage("Failed: " + e.getMessage());

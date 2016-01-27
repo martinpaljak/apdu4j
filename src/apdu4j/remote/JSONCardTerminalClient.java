@@ -60,7 +60,7 @@ class JSONCardTerminalClient {
 				if (transact)
 					card.beginExclusive();
 				Map<String, Object> m = JSONProtocol.ok(msg);
-				m.put("atr", HexUtils.encodeHexString(card.getATR().getBytes()));
+				m.put("atr", HexUtils.bin2hex(card.getATR().getBytes()));
 				m.put("reader", terminal.getName());
 				m.put("protocol", card.getProtocol());
 				pipe.send(m);
@@ -73,7 +73,7 @@ class JSONCardTerminalClient {
 				CommandAPDU command = new CommandAPDU(HexUtils.stringToBin((String) msg.get("bytes")));
 				ResponseAPDU r = card.getBasicChannel().transmit(command);
 				Map<String, Object> m = JSONProtocol.ok(msg);
-				m.put("bytes", HexUtils.encodeHexString(r.getBytes()));
+				m.put("bytes", HexUtils.bin2hex(r.getBytes()));
 				pipe.send(m);
 			}
 			catch (CardException e) {

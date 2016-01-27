@@ -188,7 +188,7 @@ public class SocketTransport implements JSONMessagePipe {
 		byte[] data = obj.toJSONString().getBytes(Charset.forName("UTF-8"));
 		socket.getOutputStream().write(length.putInt(0, data.length).array());
 		socket.getOutputStream().write(data);
-		logger.debug("> ({}) {}", HexUtils.encodeHexString(length.array()), obj.toJSONString());
+		logger.debug("> ({}) {}", HexUtils.bin2hex(length.array()), obj.toJSONString());
 	}
 
 	@Override
@@ -219,7 +219,7 @@ public class SocketTransport implements JSONMessagePipe {
 		} catch (ParseException e) {
 			throw new IOException("Could not parse JSON", e);
 		}
-		logger.debug("< ({}) {}",  HexUtils.encodeHexString(length.array()), obj.toJSONString());
+		logger.debug("< ({}) {}",  HexUtils.bin2hex(length.array()), obj.toJSONString());
 		return obj;
 	}
 

@@ -288,7 +288,7 @@ public class SCTool {
 
 					if (args.has(OPT_VERBOSE) && t.isCardPresent()) {
 						Card c = t.connect("DIRECT");
-						String atr = HexUtils.encodeHexString(c.getATR().getBytes()).toUpperCase();
+						String atr = HexUtils.bin2hex(c.getATR().getBytes()).toUpperCase();
 						c.disconnect(false);
 						System.out.println("          " + atr);
 						if (args.has(OPT_WEB)) {

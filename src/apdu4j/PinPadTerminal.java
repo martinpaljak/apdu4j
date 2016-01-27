@@ -126,7 +126,7 @@ public class PinPadTerminal implements AutoCloseable {
 			int l = tlv[i+1] & 0xFF;
 			byte [] v =  Arrays.copyOfRange(tlv, i + 2, i + 2 + l);
 			i += v.length + 2;
-			System.out.println(Integer.toHexString(t) + "=" + HexUtils.encodeHexString(v));
+			System.out.println(Integer.toHexString(t) + "=" + HexUtils.bin2hex(v));
 		}
 	}
 	public static int CARD_CTL_CODE(int c) {
