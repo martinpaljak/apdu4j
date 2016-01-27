@@ -58,7 +58,9 @@ public abstract class RemoteTerminalThread implements Runnable, JSONMessagePipe 
 	@Override
 	public void send(Map<String, Object> msg) throws IOException {
 		logger.trace("sending: {}", new JSONObject(msg).toJSONString());
-		fromThread.add(msg);
+		if (!fromThread.offer(msg)) {
+			throw new IOException("Output queue is full");
+		}
 	}
 
 	@Override
