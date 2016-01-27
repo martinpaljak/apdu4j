@@ -80,7 +80,7 @@ public class RemoteTerminal {
 	}
 
 	/**
-	 * Shows a dialog message to the user and returnes the pressed button.
+	 * Shows a dialog message to the user and returns the pressed button.
 	 *
 	 * @param message text to display to the user
 	 * @return {@link Button} that was pressed by the user
@@ -91,11 +91,28 @@ public class RemoteTerminal {
 		m.put("text", message);
 		pipe.send(m);
 		Map<String, Object> r = pipe.recv();
-		if (JSONProtocol.check(m, r)) {
-			return Button.valueOf(((String)r.get("button")).toUpperCase());
-		} else {
+		if (JSONProtocol.check(m, r) || !r.containsKey("button")) {
 			throw new IOException("Unknown button pressed");
 		}
+		return Button.valueOf(((String)r.get("button")).toUpperCase());
+	}
+
+	/**
+	 * Asks for input from the user.
+	 *
+	 * @param message text to display to the user
+	 * @return null or input
+	 * @throws IOException when communication fails
+	 */
+	public String input(String message) throws IOException {
+		Map<String, Object> m = JSONProtocol.cmd("input");
+		m.put("text", message);
+		pipe.send(m);
+		Map<String, Object> r = pipe.recv();
+		if (!JSONProtocol.check(m, r) || !r.containsKey("value")) {
+			throw new IOException("No value");
+		}
+		return (String) r.get("value");
 	}
 
 	/**

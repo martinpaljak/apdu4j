@@ -112,10 +112,7 @@ public class CmdlineRemoteTerminal implements Runnable {
 	private void dialog(Map<String, Object> msg) throws IOException {
 		System.out.println("# " + msg.get("text"));
 		Map< String, Object> m = JSONProtocol.ok(msg);
-		boolean yes = false;
-
-		// lanterna requires work as it screws up Console.readPassword()
-		yes = get_yes_or_no_console();
+		boolean yes = get_yes_or_no_console("Decision");
 
 		if (!yes) {
 			m.put("button", "red");
@@ -124,6 +121,26 @@ public class CmdlineRemoteTerminal implements Runnable {
 		}
 		pipe.send(m);
 	}
+
+	private void input(Map<String, Object> msg) throws IOException {
+		System.out.println("# " + msg.get("text"));
+		Map< String, Object> m = JSONProtocol.ok(msg);
+
+		Console c = System.console();
+		String input = c.readLine(msg + "> ");
+		if (input == null)
+			input = "";
+		input = input.trim();
+		System.out.println("> \""+ input + " \"");
+		boolean yes = get_yes_or_no_console("Confirm");
+		if (!yes) {
+			m.put("button", "red");
+		} else {
+			m.put("button", "green");
+		}
+		pipe.send(m);
+	}
+
 
 	private void decrypt(Map<String, Object> msg) throws IOException {
 		String cmd = (String) msg.get("bytes");
@@ -138,9 +155,7 @@ public class CmdlineRemoteTerminal implements Runnable {
 				System.out.println("# " + msg.get("text"));
 				System.out.println("# " + new String(r.getData(), "UTF-8"));
 				Map< String, Object> m = JSONProtocol.ok(msg);
-				boolean yes = false;
-				// lanterna requires work as it screws up Console.readPassword()
-				yes = get_yes_or_no_console();
+				boolean yes = get_yes_or_no_console("Confirm");
 
 				if (!yes) {
 					m.put("button", "red");
@@ -185,6 +200,8 @@ public class CmdlineRemoteTerminal implements Runnable {
 			verify(msg);
 		} else if (cmd.equals("DIALOG")) {
 			dialog(msg);
+		} else if (cmd.equals("INPUT")) {
+			input(msg);
 		} else if (cmd.equals("STOP")) {
 			stop(msg);
 			return false;
@@ -197,10 +214,10 @@ public class CmdlineRemoteTerminal implements Runnable {
 		return true;
 	}
 
-	private boolean get_yes_or_no_console() {
+	private boolean get_yes_or_no_console(String msg) {
 		Console c = System.console();
 		while (true) {
-			String response = c.readLine("y/n ? ");
+			String response = c.readLine(msg + " y/n ? ");
 			if (response == null)
 				continue;
 			response = response.trim();
