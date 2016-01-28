@@ -127,15 +127,16 @@ public class CmdlineRemoteTerminal implements Runnable {
 		Map< String, Object> m = JSONProtocol.ok(msg);
 
 		Console c = System.console();
-		String input = c.readLine(msg + "> ");
+		String input = c.readLine(msg.get("text") + " > ");
 		if (input == null)
 			input = "";
 		input = input.trim();
-		System.out.println("> \""+ input + " \"");
+		System.out.println("> \""+ input + "\"");
 		boolean yes = get_yes_or_no_console("Confirm");
 		if (!yes) {
 			m.put("button", "red");
 		} else {
+			m.put("value", input);
 			m.put("button", "green");
 		}
 		pipe.send(m);
