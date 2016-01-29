@@ -314,7 +314,7 @@ public class SCTool {
 				do_readers = Arrays.asList(t);
 			} else {
 				do_readers = terminals.list(State.CARD_PRESENT);
-				if (do_readers.size() > 1 && !args.hasArgument(OPT_ALL)) {
+				if (do_readers.size() > 1 && !args.hasArgument(OPT_ALL) && !args.has(CMD_LIST)) {
 					System.err.println("More than one reader with a card found.");
 					System.err.println("Run with --"+OPT_ALL+" to work with all found cards");
 					System.exit(1);
