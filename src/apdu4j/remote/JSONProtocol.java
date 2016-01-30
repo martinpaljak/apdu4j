@@ -24,6 +24,8 @@ package apdu4j.remote;
 import java.util.HashMap;
 import java.util.Map;
 
+import apdu4j.remote.RemoteTerminal.UserCancelExcption;
+
 class JSONProtocol {
 
 	// User by client
@@ -52,6 +54,10 @@ class JSONProtocol {
 		return r;
 	}
 
+	public static void check_cancel(Map<String, Object> r) throws UserCancelExcption {
+		if (r.containsKey("button") && r.get("button").equals("red"))
+			throw new UserCancelExcption("User pressed the red button");
+	}
 	// User by server
 	public static boolean check(Map<String, Object> m, Map<String, Object> r) {
 		if (r.get(m.get("cmd")).equals("OK")) {

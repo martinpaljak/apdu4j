@@ -24,6 +24,8 @@ package apdu4j.remote;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -38,6 +40,7 @@ import org.slf4j.LoggerFactory;
 
 import apdu4j.HexUtils;
 import apdu4j.remote.RemoteTerminal.Button;
+import apdu4j.remote.RemoteTerminal.UserCancelExcption;
 
 // Sample test server for remote terminal.
 public class TestServer extends RemoteTerminalThread {
@@ -70,6 +73,16 @@ public class TestServer extends RemoteTerminalThread {
 		try {
 			terminal.start();
 			terminal.statusMessage("Welcome!");
+			String name = terminal.input("Please enter your name");
+			terminal.statusMessage("Hello, " + name);
+			Map<Integer, String> chs = new HashMap<>();
+			chs.put(1, "Apple");
+			chs.put(2, "Orange");
+			chs.put(3, "Banana");
+			chs.put(4, "Hammer");
+			int ch = terminal.select("What do you like?", chs);
+			terminal.statusMessage("So you like " + ch);
+
 			try {
 
 				CardTerminal ct = terminal.getCardTerminal();
@@ -79,14 +92,17 @@ public class TestServer extends RemoteTerminalThread {
 					ResponseAPDU r = c.transmit(new CommandAPDU(0x00, 0xA4, 0x04, 0x00));
 					terminal.statusMessage("Card returned: " + HexUtils.bin2hex(r.getBytes()));
 				}
+
+				terminal.input("Please enter your nam");
 			} catch (CardException e) {
 				terminal.statusMessage("Failed: " + e.getMessage());
 			} finally {
 				terminal.stop("Bye!");
 			}
-		}
-		catch (IOException e) {
+		} catch (IOException e) {
 			logger.error("Communication error", e);
+		} catch (UserCancelExcption e) {
+			logger.warn("User cancelled the operation with red button");
 		}
 	}
 }

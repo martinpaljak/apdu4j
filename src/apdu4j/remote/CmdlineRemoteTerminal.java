@@ -127,9 +127,12 @@ public class CmdlineRemoteTerminal implements Runnable {
 		Map< String, Object> m = JSONProtocol.ok(msg);
 
 		Console c = System.console();
-		String input = c.readLine(msg.get("text") + " > ");
-		if (input == null)
-			input = "";
+		String input = c.readLine("> ");
+		if (input == null) {
+			Map< String, Object> nack = JSONProtocol.nok(msg, "Input was null");
+			pipe.send(nack);
+			return;
+		}
 		input = input.trim();
 		System.out.println("> \""+ input + "\"");
 		boolean yes = get_yes_or_no_console("Confirm");
@@ -140,6 +143,52 @@ public class CmdlineRemoteTerminal implements Runnable {
 			m.put("button", "green");
 		}
 		pipe.send(m);
+	}
+
+	private void select(Map<String, Object> msg) throws IOException {
+		System.out.println("# " + msg.get("text"));
+		while (true) {
+			// Show options.
+			for (int i = 1; i<=5; i++ ) {
+				if (msg.containsKey(Integer.toString(i))) {
+					System.out.println("> " + i + "=" + msg.get(Integer.toString(i)));
+				} else {
+					break;
+				}
+			}
+			// Read choice
+			Console c = System.console();
+			String input = c.readLine(msg.get("text") + " > ");
+			if (input == null) {
+				Map< String, Object> nack = JSONProtocol.nok(msg, "Input was null");
+				pipe.send(nack);
+				return;
+			}
+			// Validate choice
+			input = input.trim();
+			int choice;
+			try {
+				choice = Integer.valueOf(input);
+			} catch (NumberFormatException e) {
+				System.err.println("\""+input+"\" is not a number");
+				continue;
+			}
+			if (!msg.containsKey(input)) {
+				System.err.println("\""+input+"\" is not an available option");
+				continue;
+			}
+			System.out.println("> \""+ msg.get(Integer.toString(choice)) + "\"");
+			boolean yes = get_yes_or_no_console("Confirm");
+			Map< String, Object> m = JSONProtocol.ok(msg);
+			if (!yes) {
+				m.put("button", "red");
+			} else {
+				m.put("value", input);
+				m.put("button", "green");
+			}
+			pipe.send(m);
+			break;
+		}
 	}
 
 
@@ -203,6 +252,8 @@ public class CmdlineRemoteTerminal implements Runnable {
 			dialog(msg);
 		} else if (cmd.equals("INPUT")) {
 			input(msg);
+		} else if (cmd.equals("SELECT")) {
+			select(msg);
 		} else if (cmd.equals("STOP")) {
 			stop(msg);
 			return false;

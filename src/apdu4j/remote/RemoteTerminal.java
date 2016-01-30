@@ -36,6 +36,13 @@ import apdu4j.HexUtils;
  * @author Martin Paljak
  */
 public class RemoteTerminal {
+
+	@SuppressWarnings("serial")
+	public static class UserCancelExcption extends Exception {
+		public UserCancelExcption(String message) {
+			super(message);
+		}
+	}
 	private final JSONMessagePipe pipe;
 	private final CardTerminal terminal;
 	public String lang = "en"; // XXX: Getter?
@@ -86,7 +93,7 @@ public class RemoteTerminal {
 	 * @return {@link Button} that was pressed by the user
 	 * @throws IOException when communication fails
 	 */
-	public Button dialog(String message) throws IOException {
+	public Button dialog(String message) throws IOException, UserCancelExcption {
 		Map<String, Object> m = JSONProtocol.cmd("dialog");
 		m.put("text", message);
 		pipe.send(m);
@@ -104,7 +111,7 @@ public class RemoteTerminal {
 	 * @return null or input
 	 * @throws IOException when communication fails
 	 */
-	public String input(String message) throws IOException {
+	public String input(String message) throws IOException, UserCancelExcption {
 		Map<String, Object> m = JSONProtocol.cmd("input");
 		m.put("text", message);
 		pipe.send(m);
@@ -113,6 +120,25 @@ public class RemoteTerminal {
 			throw new IOException("No value");
 		}
 		return (String) r.get("value");
+	}
+
+
+	public int select(String message, Map<Integer, String> choices) throws IOException, UserCancelExcption {
+		Map<String, Object> m = JSONProtocol.cmd("select");
+		for (Map.Entry<Integer, String> e: choices.entrySet()) {
+			m.put(e.getKey().toString(), e.getValue());
+		}
+		m.put("text", message);
+		pipe.send(m);
+		Map<String, Object> r = pipe.recv();
+		if (!JSONProtocol.check(m, r) || !r.containsKey("value")) {
+			throw new IOException("No value");
+		}
+		try {
+			return Integer.valueOf((String)r.get("value"));
+		} catch (NumberFormatException e) {
+			throw new IOException("Choice was not numeric", e);
+		}
 	}
 
 	/**
@@ -125,7 +151,7 @@ public class RemoteTerminal {
 	 * @return {@link Button} that was pressed by the user
 	 * @throws IOException when communication fails
 	 */
-	public Button decrypt(String message, byte[] apdu) throws IOException {
+	public Button decrypt(String message, byte[] apdu) throws IOException, UserCancelExcption{
 		Map<String, Object> m = JSONProtocol.cmd("decrypt");
 		m.put("text", message);
 		m.put("bytes", HexUtils.bin2hex(apdu));
@@ -146,7 +172,7 @@ public class RemoteTerminal {
 	 * @return true if VERIFY returned 0x9000, false otherwise
 	 * @throws IOException when communication fails
 	 */
-	public boolean verifyPIN(int p2, String text) throws IOException {
+	public boolean verifyPIN(int p2, String text) throws IOException, UserCancelExcption{
 		Map<String, Object> m = JSONProtocol.cmd("verify");
 		m.put("p2", p2);
 		m.put("text", text);
