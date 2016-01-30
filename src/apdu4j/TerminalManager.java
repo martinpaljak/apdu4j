@@ -149,28 +149,27 @@ public class TerminalManager {
 		}
 	}
 
+	private static String getscard(String s) {
+		Pattern p = Pattern.compile("SCARD_\\w+");
+		Matcher m = p.matcher(s);
+		if (m.find()) {
+			return m.group();
+		}
+		return null;
+	}
+
 	// Given an instance of some Exception from a PC/SC system,
 	// return a meaningful PC/SC error name.
 	public static String getExceptionMessage(Exception e) {
-		if (e instanceof CardException || e instanceof NoSuchAlgorithmException) {
-			// This comes from SunPCSC most probably and already contains the PC/SC error in the cause
-			if (e.getCause() != null) {
-				if (e.getCause().getMessage() != null) {
-
-					Pattern p = Pattern.compile("SCARD_\\w+");
-					Matcher m = p.matcher(e.getCause().getMessage());
-					if (m.find()) {
-						return m.group();
-					}
-				}
-			}
-			if (e.getMessage() != null) {
-				Pattern p = Pattern.compile("SCARD_\\w+");
-				Matcher m = p.matcher(e.getMessage());
-				if (m.find()) {
-					return m.group();
-				}
-			}
+		if (e.getCause() != null && e.getCause().getMessage() != null) {
+			String s = getscard(e.getCause().getMessage());
+			if (s != null)
+				return s;
+		}
+		if (e.getMessage() != null) {
+			String s = getscard(e.getMessage());
+			if (s != null)
+				return s;
 		}
 		return e.getMessage();
 	}
