@@ -165,7 +165,7 @@ public class SCTool {
 		if (args.has(OPT_VERBOSE)) {
 			verbose = true;
 			// Set up slf4j simple in a way that pleases us
-			System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "debug");
+			System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "trace");
 			System.setProperty("org.slf4j.simpleLogger.showThreadName", "true");
 			System.setProperty("org.slf4j.simpleLogger.showShortLogName", "true");
 			System.setProperty("org.slf4j.simpleLogger.levelInBrackets", "true");
@@ -245,8 +245,6 @@ public class SCTool {
 			// XXX: we catch generic Exception here to avoid importing JNA.
 			// Try to get a meaningful message
 			String msg = TerminalManager.getExceptionMessage(e);
-			if (msg == null)
-				msg = e.getMessage();
 			System.out.println("No readers: " + msg);
 			System.exit(1);
 		}
@@ -265,39 +263,42 @@ public class SCTool {
 					System.err.println("No readers found");
 					System.exit(1);
 				}
+				// List trminals
 				for (CardTerminal t: terms) {
 					String vmd = " ";
-					try (PinPadTerminal pp = new PinPadTerminal(t)) {
-						pp.probe();
-						// Verify, Modify, Display
-						if (verbose) {
+					if (verbose) {
+						try (PinPadTerminal pp = PinPadTerminal.getInstance(t)) {
+							pp.probe();
+							// Verify, Modify, Display
 							vmd += "[";
 							vmd += pp.canVerify() ? "V":" ";
 							vmd += pp.canModify() ? "M":" ";
 							vmd += pp.hasDisplay() ? "D":" ";
 							vmd += "] ";
-						}
-					} catch (CardException e) {
-						if (verbose) {
-							System.err.println("Could not probe PinPad: " + e.getMessage());
+						} catch (CardException e) {
+							vmd = " [EEE] ";
 						}
 					}
-
-
-					System.out.println((t.isCardPresent() ? "[*]" : "[ ]") + vmd + t.getName());
+					String present = t.isCardPresent() ? "[*]" : "[ ]";
+					System.out.println(present + vmd + t.getName());
 
 					if (args.has(OPT_VERBOSE) && t.isCardPresent()) {
-						Card c = t.connect("DIRECT");
-						String atr = HexUtils.bin2hex(c.getATR().getBytes()).toUpperCase();
-						c.disconnect(false);
-						System.out.println("          " + atr);
-						if (args.has(OPT_WEB)) {
-							String url = "http://smartcard-atr.appspot.com/parse?ATR=" + atr;
-							if (Desktop.isDesktopSupported()) {
-								Desktop.getDesktop().browse(new URI(url + "&from=apdu4j"));
-							} else {
-								System.out.println("          " + url);
+						try {
+							Card c = t.connect("DIRECT");
+							String atr = HexUtils.bin2hex(c.getATR().getBytes()).toUpperCase();
+							c.disconnect(false);
+							System.out.println("          " + atr);
+							if (args.has(OPT_WEB)) {
+								String url = "http://smartcard-atr.appspot.com/parse?ATR=" + atr;
+								if (Desktop.isDesktopSupported()) {
+									Desktop.getDesktop().browse(new URI(url + "&from=apdu4j"));
+								} else {
+									System.out.println("          " + url);
+								}
 							}
+						} catch (CardException e) {
+							// Probably thrown because reader is in exclusive mode
+							System.out.println("          " + TerminalManager.getExceptionMessage(e));
 						}
 					}
 				}

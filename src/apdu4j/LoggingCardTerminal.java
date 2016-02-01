@@ -98,16 +98,21 @@ public class LoggingCardTerminal extends CardTerminal {
 		private LoggingCard(CardTerminal term, String protocol) throws CardException {
 			log.print("SCardConnect(\"" + terminal.getName() + "\", " + (protocol.equals("*") ? "T=*" : protocol) + ")");
 			log.flush();
-			card = terminal.connect(protocol);
-			String atr = HexUtils.bin2hex(card.getATR().getBytes());
-			log.println(" -> " + card.getProtocol() + ", " + atr);
-			if (dump != null) {
-				String ts = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss Z").format(Calendar.getInstance().getTime());
-				dump.println("# Generated on " + ts + " by apdu4j");
-				dump.println("# Using " + terminal.getName());
-				dump.println("# ATR: " + atr);
-				dump.println("# PROTOCOL: " + card.getProtocol());
-				dump.println("#");
+			try {
+				card = terminal.connect(protocol);
+				String atr = HexUtils.bin2hex(card.getATR().getBytes());
+				log.println(" -> " + card.getProtocol() + ", " + atr);
+				if (dump != null) {
+					String ts = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss Z").format(Calendar.getInstance().getTime());
+					dump.println("# Generated on " + ts + " by apdu4j");
+					dump.println("# Using " + terminal.getName());
+					dump.println("# ATR: " + atr);
+					dump.println("# PROTOCOL: " + card.getProtocol());
+					dump.println("#");
+				}
+			} catch (CardException e) {
+				log.println(" -> " + TerminalManager.getExceptionMessage(e));
+				throw e;
 			}
 		}
 

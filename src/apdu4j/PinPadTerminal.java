@@ -143,40 +143,43 @@ public class PinPadTerminal implements AutoCloseable {
 		if (t != null && c == null) {
 			c = t.connect("DIRECT");
 		}
-		try {
-			// Probe for features.
-			byte [] resp = c.transmitControlCommand(CM_IOCTL_GET_FEATURE_REQUEST, new byte[]{});
 
-			// Parse features
-			Map<FEATURE, Integer> props = tokenize(resp);
-			features.putAll(props);
+		// Probe for features.
+		byte [] resp = c.transmitControlCommand(CM_IOCTL_GET_FEATURE_REQUEST, new byte[]{});
 
-			// Get PIN properties, if possible
-			if (props.containsKey(FEATURE.IFD_PIN_PROPERTIES)) {
-				resp = c.transmitControlCommand(props.get(FEATURE.IFD_PIN_PROPERTIES), new byte[]{});
-				if (resp != null && resp.length > 0) {
-					parse_pin_properties(resp);
-				}
+		// Parse features
+		Map<FEATURE, Integer> props = tokenize(resp);
+		features.putAll(props);
+
+		// Get PIN properties, if possible
+		if (props.containsKey(FEATURE.IFD_PIN_PROPERTIES)) {
+			resp = c.transmitControlCommand(props.get(FEATURE.IFD_PIN_PROPERTIES), new byte[]{});
+			if (resp != null && resp.length > 0) {
+				parse_pin_properties(resp);
 			}
+		}
 
-			// Get other properties
-			if (props.containsKey(FEATURE.GET_TLV_PROPERTIES)) {
-				resp = c.transmitControlCommand(props.get(FEATURE.GET_TLV_PROPERTIES), new byte[]{});
-				if (resp != null && resp.length > 0) {
-					//parse_tlv_properties(resp);
-				}
+		// Get other properties
+		if (props.containsKey(FEATURE.GET_TLV_PROPERTIES)) {
+			resp = c.transmitControlCommand(props.get(FEATURE.GET_TLV_PROPERTIES), new byte[]{});
+			if (resp != null && resp.length > 0) {
+				//parse_tlv_properties(resp);
 			}
-		} finally {
-			c.disconnect(false);
 		}
 	}
 
-	public PinPadTerminal(CardTerminal terminal) {
-		t = terminal;
+	private PinPadTerminal(CardTerminal terminal, Card card) {
+		this.t = terminal;
+		this.c = card;
+	}
+	public static PinPadTerminal getInstance(CardTerminal terminal) {
+		PinPadTerminal p = new PinPadTerminal(terminal, null);
+		return p;
 	}
 
-	public PinPadTerminal(Card card) {
-		c = card;
+	public static PinPadTerminal getInstance(Card card) {
+		PinPadTerminal p = new PinPadTerminal(null, card);
+		return p;
 	}
 
 	public boolean canVerify() {
@@ -198,7 +201,7 @@ public class PinPadTerminal implements AutoCloseable {
 	@Override
 	public void close() throws IOException, CardException {
 		if (t != null && c != null) {
-			c.disconnect(false); // FIXME: might be true
+			c.disconnect(false);
 		}
 	}
 }
