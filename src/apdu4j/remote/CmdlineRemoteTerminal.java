@@ -214,8 +214,8 @@ public class CmdlineRemoteTerminal implements Runnable {
 				}
 				pipe.send(m);
 			} else {
-				Map<String, Object> rm = JSONProtocol.nok(msg, "Card returned " + r.getSW());
-				rm.put("bytes", Arrays.copyOfRange(r.getBytes(), r.getBytes().length - 2, r.getBytes().length));
+				Map<String, Object> rm = JSONProtocol.nok(msg, "Card returned 0x" + Integer.toHexString(r.getSW()));
+				rm.put("bytes", HexUtils.bin2hex(Arrays.copyOfRange(r.getBytes(), r.getBytes().length - 2, r.getBytes().length)));
 				pipe.send(rm);
 			}
 		} catch (CardException e) {
