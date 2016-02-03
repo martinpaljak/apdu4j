@@ -79,6 +79,7 @@ public class SCTool {
 	private static final String OPT_READER = "reader";
 	private static final String OPT_ALL = "all";
 	private static final String OPT_VERBOSE = "verbose";
+	private static final String OPT_DEBUG = "debug";
 	private static final String OPT_VERSION = "version";
 	private static final String OPT_ERROR = "error";
 	private static final String OPT_DUMP = "dump";
@@ -113,6 +114,7 @@ public class SCTool {
 		parser.acceptsAll(Arrays.asList("l", CMD_LIST), "list readers");
 		parser.acceptsAll(Arrays.asList("p", OPT_PROVIDER), "specify provider").withRequiredArg();
 		parser.acceptsAll(Arrays.asList("v", OPT_VERBOSE), "be verbose");
+		parser.acceptsAll(Arrays.asList("d", OPT_DEBUG), "show debug");
 		parser.acceptsAll(Arrays.asList("e", OPT_ERROR), "fail if not 0x9000");
 		parser.acceptsAll(Arrays.asList("h", OPT_HELP), "show help");
 		parser.acceptsAll(Arrays.asList("r", OPT_READER), "use reader").withRequiredArg();
@@ -165,7 +167,9 @@ public class SCTool {
 		if (args.has(OPT_VERBOSE)) {
 			verbose = true;
 			// Set up slf4j simple in a way that pleases us
-			System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "trace");
+			System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "debug");
+			if (args.has(OPT_DEBUG))
+				System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "trace");
 			System.setProperty("org.slf4j.simpleLogger.showThreadName", "true");
 			System.setProperty("org.slf4j.simpleLogger.showShortLogName", "true");
 			System.setProperty("org.slf4j.simpleLogger.levelInBrackets", "true");
