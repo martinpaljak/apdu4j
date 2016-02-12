@@ -87,6 +87,7 @@ public class SCTool {
 
 	private static final String OPT_HELP = "help";
 	private static final String OPT_SUN = "sun";
+	private static final String OPT_JNA = "jna";
 	private static final String OPT_T0 = "t0";
 	private static final String OPT_T1 = "t1";
 	private static final String OPT_EXCLUSIVE = "exclusive";
@@ -249,6 +250,8 @@ public class SCTool {
 			// XXX: we catch generic Exception here to avoid importing JNA.
 			// Try to get a meaningful message
 			String msg = TerminalManager.getExceptionMessage(e);
+			if (msg == null)
+				msg = e.getMessage();
 			System.out.println("No readers: " + msg);
 			System.exit(1);
 		}
