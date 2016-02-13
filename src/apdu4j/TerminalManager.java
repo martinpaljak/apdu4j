@@ -27,7 +27,11 @@ import javax.smartcardio.CardTerminals;
 import javax.smartcardio.CardTerminals.State;
 import javax.smartcardio.TerminalFactory;
 import java.io.File;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.security.NoSuchAlgorithmException;
+import java.security.Provider;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -114,12 +118,31 @@ public class TerminalManager {
 	public static TerminalFactory getSimonaTerminalFactory(String ipAddressRange) throws NoSuchAlgorithmException {
 		fixPlatformPaths();
 
-		if (ipAddressRange == null){
-			ipAddressRange = "192.168.42.0/27";
+		URLClassLoader classLoader = null;
+		try {
+			classLoader = new URLClassLoader(new URL[]{new File("./").toURI().toURL()});
+			Class<?> loadedClass = classLoader.loadClass("smarthsmfast.simona.Simonaio");
+			Object simonaioObject = loadedClass.newInstance();
+			if (ipAddressRange == null){
+				ipAddressRange = "192.168.42.0/27";
+			}
+			TerminalFactory tf = TerminalFactory.getInstance("PC/SC", ipAddressRange, (Provider) simonaioObject);
+
+			return tf;
+		} catch (MalformedURLException e) {
+			e.printStackTrace();
+			return null;
+		} catch (ClassNotFoundException e) {
+			e.printStackTrace();
+			return null;
+		} catch (InstantiationException e) {
+			e.printStackTrace();
+			return null;
+		} catch (IllegalAccessException e) {
+			e.printStackTrace();
+			return null;
 		}
-		TerminalFactory tf = TerminalFactory.getInstance("PC/SC", ipAddressRange, new smarthsmfast.simona.Simonaio());
-		
-		return tf;
+
 	}
 	
 	/**
