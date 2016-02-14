@@ -213,9 +213,19 @@ public class SCTool {
 		try {
 			// Get a terminal factory
 			if (args.has(OPT_PROVIDER)) {
-				String pn = (String)args.valueOf(OPT_PROVIDER);
-				String pt = (String)args.valueOf(OPT_PROVIDER_TYPE);
+				String pn = (String) args.valueOf(OPT_PROVIDER);
+				String pt = (String) args.valueOf(OPT_PROVIDER_TYPE);
 				tf = loadFactory(pn, pt);
+			} else if (args.has(OPT_REMOTEFACTORY) && (args.has(OPT_FACTORYCLASS))) {
+				String[] splitFactory = ((String) args.valueOf(OPT_FACTORYCLASS)).split(":");
+				if (splitFactory.length == 2) {
+					tf = TerminalManager.getRemoteTerminalFactory(splitFactory[0], splitFactory[1],
+							(String) args.valueOf(OPT_REMOTEFACTORY));
+					System.out.println("Remote/socket PC/SC used");
+				} else {
+					System.out.println("The format for -factory is <jar file path>:<class>");
+					return;
+				}
 			} else if (args.has(OPT_SUN)) {
 				tf = loadFactory(SUN_CLASS, null);
 			} else  {
