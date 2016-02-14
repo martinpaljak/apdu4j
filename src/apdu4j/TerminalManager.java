@@ -115,18 +115,18 @@ public class TerminalManager {
 		}
 	}
 
-	public static TerminalFactory getSimonaTerminalFactory(String ipAddressRange) throws NoSuchAlgorithmException {
+	public static TerminalFactory getRemoteTerminalFactory(String factoryName, String ipAddressRange) throws NoSuchAlgorithmException {
 		fixPlatformPaths();
 
 		URLClassLoader classLoader = null;
 		try {
 			classLoader = new URLClassLoader(new URL[]{new File("./").toURI().toURL()});
-			Class<?> loadedClass = classLoader.loadClass("smarthsmfast.simona.Simonaio");
-			Object simonaioObject = loadedClass.newInstance();
+			Class<?> loadedClass = classLoader.loadClass(factoryName);
+			Object remoteioObject = loadedClass.newInstance();
 			if (ipAddressRange == null){
 				ipAddressRange = "192.168.42.0/27";
 			}
-			TerminalFactory tf = TerminalFactory.getInstance("PC/SC", ipAddressRange, (Provider) simonaioObject);
+			TerminalFactory tf = TerminalFactory.getInstance("PC/SC", ipAddressRange, (Provider) remoteioObject);
 
 			return tf;
 		} catch (MalformedURLException e) {
