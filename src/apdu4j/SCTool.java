@@ -67,7 +67,8 @@ public class SCTool {
 
 	private static final String OPT_HELP = "help";
 	private static final String OPT_SUN = "sun";
-	private static final String OPT_REMOTE = "remote";
+	private static final String OPT_REMOTEFACTORY = "remote";
+	private final static String OPT_FACTORYCLASS = "factory";
 	private static final String OPT_T0 = "t0";
 	private static final String OPT_T1 = "t1";
 	private static final String OPT_EXCLUSIVE = "exclusive";
@@ -106,7 +107,8 @@ public class SCTool {
 		parser.accepts(OPT_REPLAY, "replay command from dump").withRequiredArg().ofType(File.class);
 
 		parser.accepts(OPT_SUN, "load SunPCSC");
-		parser.accepts(OPT_REMOTE, "load remote provider").withRequiredArg().ofType(String.class);
+		parser.accepts(OPT_REMOTEFACTORY, "Use remote PC/SC - an optional argument specifies IP address range and protocol, e.g., tcp://192.168.1.0/24; it should be used with the \"-factory\" option").withRequiredArg().ofType(String.class);
+		parser.accepts(OPT_FACTORYCLASS, "Use a terminal factory from provided jar file, the format is <file path>:<full class name>").withRequiredArg().ofType(String.class);
 		parser.accepts(OPT_CONNECT, "connect to URL or host:port").withRequiredArg();
 		parser.accepts(OPT_P12, "path:pass of client PKCS#12").withRequiredArg();
 		parser.accepts(OPT_PINNED, "require certificate").withRequiredArg().ofType(File.class);

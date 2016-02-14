@@ -27,6 +27,7 @@ import javax.smartcardio.CardTerminals;
 import javax.smartcardio.CardTerminals.State;
 import javax.smartcardio.TerminalFactory;
 import java.io.File;
+import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -115,12 +116,26 @@ public class TerminalManager {
 		}
 	}
 
-	public static TerminalFactory getRemoteTerminalFactory(String factoryName, String ipAddressRange) throws NoSuchAlgorithmException {
+	/**
+	 * Creates a custom terminal factory for remote access to smartcards. The factory needs to be provide with a path
+	 * to the jar file with the factory class implementation and the IP address and protocol.
+	 *
+	 * @param factoryFilePath - path to the jar file with the factory implementation
+	 * @param factoryName - it has to be a full java class name, e.g., provider.remote.Smartcardio
+	 * @param ipAddressRange - ipaddress range and protocol, e.g., tcp://192.168.42.1/32
+	 *
+	 * @return a {@link TerminalFactory} instance
+	 * @throws NoSuchAlgorithmException if jnasmartcardio is not found
+	 */
+	public static TerminalFactory getRemoteTerminalFactory(String factoryFilePath, String factoryName, String ipAddressRange) throws NoSuchAlgorithmException {
 		fixPlatformPaths();
 
 		URLClassLoader classLoader = null;
+		String canPath = "";
 		try {
-			classLoader = new URLClassLoader(new URL[]{new File("./").toURI().toURL()});
+			canPath = (new File(factoryFilePath)).getCanonicalPath();
+
+			classLoader = new URLClassLoader(new URL[]{new File(factoryFilePath).toURI().toURL()});
 			Class<?> loadedClass = classLoader.loadClass(factoryName);
 			Object remoteIoObject = loadedClass.newInstance();
 			if (ipAddressRange == null) {
@@ -130,19 +145,26 @@ public class TerminalManager {
 
 			return tf;
 		} catch (MalformedURLException e) {
+			System.out.println("Working directory is " + canPath);
 			e.printStackTrace();
 			return null;
+		} catch (IOException ex){
+			System.out.println("Working directory is " + canPath);
+			ex.printStackTrace();
+			return null;
 		} catch (ClassNotFoundException e) {
+			System.out.println("Working directory is " + canPath);
 			e.printStackTrace();
 			return null;
 		} catch (InstantiationException e) {
+			System.out.println("Working directory is " + canPath);
 			e.printStackTrace();
 			return null;
 		} catch (IllegalAccessException e) {
+			System.out.println("Working directory is " + canPath);
 			e.printStackTrace();
 			return null;
 		}
-
 	}
 
 
