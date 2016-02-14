@@ -128,12 +128,11 @@ public class TerminalManager {
 	 * @throws NoSuchAlgorithmException if jnasmartcardio is not found
 	 */
 	public static TerminalFactory getRemoteTerminalFactory(String factoryFilePath, String factoryName, String ipAddressRange) throws NoSuchAlgorithmException {
-		fixPlatformPaths();
-
-		URLClassLoader classLoader = null;
-		String canPath = "";
+		URLClassLoader classLoader;
+		String canonPath = "";
 		try {
-			canPath = (new File(factoryFilePath)).getCanonicalPath();
+			canonPath = (new File(factoryFilePath)).getCanonicalPath();
+			System.out.println("Opening " +factoryName+ " from location " + canonPath);
 
 			classLoader = new URLClassLoader(new URL[]{new File(factoryFilePath).toURI().toURL()});
 			Class<?> loadedClass = classLoader.loadClass(factoryName);
@@ -145,23 +144,23 @@ public class TerminalManager {
 
 			return tf;
 		} catch (MalformedURLException e) {
-			System.out.println("Working directory is " + canPath);
+			System.out.println("Working directory is " + canonPath);
 			e.printStackTrace();
 			return null;
 		} catch (IOException ex){
-			System.out.println("Working directory is " + canPath);
+			System.out.println("Working directory is " + canonPath);
 			ex.printStackTrace();
 			return null;
 		} catch (ClassNotFoundException e) {
-			System.out.println("Working directory is " + canPath);
+			System.out.println("Working directory is " + canonPath);
 			e.printStackTrace();
 			return null;
 		} catch (InstantiationException e) {
-			System.out.println("Working directory is " + canPath);
+			System.out.println("Working directory is " + canonPath);
 			e.printStackTrace();
 			return null;
 		} catch (IllegalAccessException e) {
-			System.out.println("Working directory is " + canPath);
+			System.out.println("Working directory is " + canonPath);
 			e.printStackTrace();
 			return null;
 		}
