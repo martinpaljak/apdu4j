@@ -27,8 +27,6 @@ import javax.smartcardio.CardTerminals;
 import javax.smartcardio.CardTerminals.State;
 import javax.smartcardio.TerminalFactory;
 import java.io.File;
-import java.io.IOException;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.security.NoSuchAlgorithmException;
@@ -143,24 +141,7 @@ public class TerminalManager {
 			TerminalFactory tf = TerminalFactory.getInstance("PC/SC", ipAddressRange, (Provider) remoteIoObject);
 
 			return tf;
-		} catch (MalformedURLException e) {
-			System.out.println("Working directory is " + canonPath);
-			e.printStackTrace();
-			return null;
-		} catch (IOException ex){
-			System.out.println("Working directory is " + canonPath);
-			ex.printStackTrace();
-			return null;
-		} catch (ClassNotFoundException e) {
-			System.out.println("Working directory is " + canonPath);
-			e.printStackTrace();
-			return null;
-		} catch (InstantiationException e) {
-			System.out.println("Working directory is " + canonPath);
-			e.printStackTrace();
-			return null;
-		} catch (IllegalAccessException e) {
-			System.out.println("Working directory is " + canonPath);
+		} catch (Exception e) {
 			e.printStackTrace();
 			return null;
 		}
