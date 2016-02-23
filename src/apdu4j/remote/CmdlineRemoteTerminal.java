@@ -25,6 +25,7 @@ import java.io.Console;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 
 import javax.smartcardio.CardException;
@@ -55,7 +56,9 @@ public class CmdlineRemoteTerminal implements Runnable {
 	public void run() {
 		try {
 			// Initiate communication.
-			pipe.send(JSONProtocol.cmd("start"));
+			Map<String, Object> st = JSONProtocol.cmd("start");
+			st.put("lang", Locale.getDefault().getLanguage());
+			pipe.send(st);
 			while (true) {
 				// Read a message
 				Map<String, Object> m = pipe.recv();
