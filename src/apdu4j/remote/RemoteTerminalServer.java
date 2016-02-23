@@ -203,6 +203,13 @@ public class RemoteTerminalServer {
 							HashMap<String, Object> msg = new HashMap<>();
 							msg.putAll(obj);
 
+							// Add client IP
+							if (req.getRequestHeaders().containsKey("X-Forwarded-For")) {
+								msg.put("clientip", req.getRequestHeaders().getFirst("X-Forwarded-For"));
+							} else {
+								msg.put("clientip", req.getRemoteAddress().getHostString());
+							}
+
 							// check for session
 							if (!msg.containsKey("session")) {
 								try {
