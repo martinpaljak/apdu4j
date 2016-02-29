@@ -58,14 +58,14 @@ public class RemoteTerminal {
 		return terminal;
 	}
 
-	public void start() throws IOException {
+	public Map<String, Object> start() throws IOException {
 		// Read the first START message.
 		Map<String, Object> m = pipe.recv();
 		if (m.containsKey("cmd") && m.get("cmd").equals("START")) {
 			if (m.containsKey("lang") && m.get("lang").toString().matches("\\p{Lower}{2}")) {
 				lang = (String) m.get("lang");
 			}
-			return;
+			return m;
 		} else {
 			throw new IOException("Invalid START message");
 		}
