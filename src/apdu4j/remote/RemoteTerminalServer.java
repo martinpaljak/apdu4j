@@ -218,8 +218,11 @@ public class RemoteTerminalServer {
 									logger.debug("New session: {}", sid.toString());
 									Session sess = new Session(sid);
 
-									// Pack in session (and other things from header)
+									// Pack in session
 									msg.put("session", sid.toString());
+									if (req.getRequestHeaders().containsKey("User-Agent")) {
+										msg.put("useragent", req.getRequestHeaders().getFirst("User-Agent"));
+									}
 
 									// Initiate a thread with the queue
 									RemoteTerminalThread thread = processor.newInstance();
