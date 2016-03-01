@@ -91,7 +91,7 @@ public class RemoteTerminalServer {
 		setStandardHeaders(req);
 		req.sendResponseHeaders(418, 0);
 		try (OutputStream body = req.getResponseBody()) {
-			body.write(("apdu4j/"+SCTool.getVersion(SCTool.class)).getBytes());
+			body.write(("apdu4j/"+SCTool.getVersion()).getBytes());
 		}
 	}
 
@@ -123,7 +123,7 @@ public class RemoteTerminalServer {
 	}
 	private static void setStandardHeaders(HttpExchange req) {
 		Headers h = req.getResponseHeaders();
-		h.set("Server", "apdu4j/"+SCTool.getVersion(SCTool.class));
+		h.set("Server", "apdu4j/"+SCTool.getVersion());
 	}
 
 	private class MsgHandler implements HttpHandler {
@@ -282,7 +282,7 @@ public class RemoteTerminalServer {
 			setStandardHeaders(req);
 			req.sendResponseHeaders(200, 0);
 			try (OutputStream body = req.getResponseBody()) {
-				String s = "apdu4j/"+SCTool.getVersion(SCTool.class) + " OK: " + sessions.size();
+				String s = "apdu4j/"+SCTool.getVersion() + " OK: " + sessions.size();
 				body.write(s.getBytes());
 			}
 		}

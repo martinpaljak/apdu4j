@@ -178,7 +178,7 @@ public class SCTool {
 		}
 
 		if (args.has(OPT_VERSION)) {
-			String version = "apdu4j " + getVersion(SCTool.class);
+			String version = "apdu4j " + getVersion();
 			// Append host information
 			version += "\nRunning on " + System.getProperty("os.name");
 			version += " " + System.getProperty("os.version");
@@ -506,9 +506,9 @@ public class SCTool {
 		}
 	}
 
-	public static String getVersion(Class<?> clazz) {
+	public static String getVersion() {
 		String version = "unknown-development";
-		try (InputStream versionfile = clazz.getResourceAsStream("/version.txt")) {
+		try (InputStream versionfile = SCTool.class.getResourceAsStream("version.txt")) {
 			if (versionfile != null) {
 				BufferedReader vinfo = new BufferedReader(new InputStreamReader(versionfile));
 				version = vinfo.readLine();
