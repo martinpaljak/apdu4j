@@ -21,16 +21,16 @@
  */
 package apdu4j;
 
-import java.awt.Desktop;
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.PrintStream;
+import apdu4j.remote.*;
+import joptsimple.OptionException;
+import joptsimple.OptionParser;
+import joptsimple.OptionSet;
+
+import javax.net.ssl.KeyManagerFactory;
+import javax.smartcardio.*;
+import javax.smartcardio.CardTerminals.State;
+import java.awt.*;
+import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -47,26 +47,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
-
-import javax.net.ssl.KeyManagerFactory;
-import javax.smartcardio.Card;
-import javax.smartcardio.CardException;
-import javax.smartcardio.CardTerminal;
-import javax.smartcardio.CardTerminals;
-import javax.smartcardio.CardTerminals.State;
-import javax.smartcardio.CommandAPDU;
-import javax.smartcardio.ResponseAPDU;
-import javax.smartcardio.TerminalFactory;
-
-import apdu4j.remote.CmdlineRemoteTerminal;
-import apdu4j.remote.HTTPTransport;
-import apdu4j.remote.JSONMessagePipe;
-import apdu4j.remote.RemoteTerminalServer;
-import apdu4j.remote.SocketTransport;
-import apdu4j.remote.TestServer;
-import joptsimple.OptionException;
-import joptsimple.OptionParser;
-import joptsimple.OptionSet;
 
 
 public class SCTool {
@@ -87,6 +67,8 @@ public class SCTool {
 
 	private static final String OPT_HELP = "help";
 	private static final String OPT_SUN = "sun";
+	private static final String OPT_REMOTEFACTORY = "remote";
+	private final static String OPT_FACTORYCLASS = "factory";
 	private static final String OPT_T0 = "t0";
 	private static final String OPT_T1 = "t1";
 	private static final String OPT_EXCLUSIVE = "exclusive";
@@ -125,6 +107,8 @@ public class SCTool {
 		parser.accepts(OPT_REPLAY, "replay command from dump").withRequiredArg().ofType(File.class);
 
 		parser.accepts(OPT_SUN, "load SunPCSC");
+		parser.accepts(OPT_REMOTEFACTORY, "Use remote PC/SC - an optional argument specifies IP address range and protocol, e.g., tcp://192.168.1.0/24; it should be used with the \"-factory\" option").withRequiredArg().ofType(String.class);
+		parser.accepts(OPT_FACTORYCLASS, "Use a terminal factory from provided jar file, the format is <file path>:<full class name>").withRequiredArg().ofType(String.class);
 		parser.accepts(OPT_CONNECT, "connect to URL or host:port").withRequiredArg();
 		parser.accepts(OPT_P12, "path:pass of client PKCS#12").withRequiredArg();
 		parser.accepts(OPT_PINNED, "require certificate").withRequiredArg().ofType(File.class);
@@ -229,9 +213,19 @@ public class SCTool {
 		try {
 			// Get a terminal factory
 			if (args.has(OPT_PROVIDER)) {
-				String pn = (String)args.valueOf(OPT_PROVIDER);
-				String pt = (String)args.valueOf(OPT_PROVIDER_TYPE);
+				String pn = (String) args.valueOf(OPT_PROVIDER);
+				String pt = (String) args.valueOf(OPT_PROVIDER_TYPE);
 				tf = loadFactory(pn, pt);
+			} else if (args.has(OPT_REMOTEFACTORY) && (args.has(OPT_FACTORYCLASS))) {
+				String[] splitFactory = ((String) args.valueOf(OPT_FACTORYCLASS)).split(":");
+				if (splitFactory.length == 2) {
+					tf = TerminalManager.getRemoteTerminalFactory(splitFactory[0], splitFactory[1],
+							(String) args.valueOf(OPT_REMOTEFACTORY));
+					System.out.println("Remote/socket PC/SC used");
+				} else {
+					System.out.println("The format for -factory is <jar file path>:<class>");
+					return;
+				}
 			} else if (args.has(OPT_SUN)) {
 				tf = loadFactory(SUN_CLASS, null);
 			} else  {
@@ -249,6 +243,9 @@ public class SCTool {
 			// XXX: we catch generic Exception here to avoid importing JNA.
 			// Try to get a meaningful message
 			String msg = TerminalManager.getExceptionMessage(e);
+			if (msg == null) {
+				msg = e.getMessage();
+			}
 			System.out.println("No readers: " + msg);
 			System.exit(1);
 		}

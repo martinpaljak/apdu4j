@@ -21,17 +21,19 @@
  */
 package apdu4j;
 
-import java.io.File;
-import java.security.NoSuchAlgorithmException;
-import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 import javax.smartcardio.CardException;
 import javax.smartcardio.CardTerminal;
 import javax.smartcardio.CardTerminals;
 import javax.smartcardio.CardTerminals.State;
 import javax.smartcardio.TerminalFactory;
+import java.io.File;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.security.NoSuchAlgorithmException;
+import java.security.Provider;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Facilitates working with javax.smartcardio
@@ -113,6 +115,40 @@ public class TerminalManager {
 	}
 
 	/**
+	 * Creates a custom terminal factory for remote access to smartcards. The factory needs to be provide with a path
+	 * to the jar file with the factory class implementation and the IP address and protocol.
+	 *
+	 * @param factoryFilePath - path to the jar file with the factory implementation
+	 * @param factoryName - it has to be a full java class name, e.g., provider.remote.Smartcardio
+	 * @param ipAddressRange - ipaddress range and protocol, e.g., tcp://192.168.42.1/32
+	 *
+	 * @return a {@link TerminalFactory} instance
+	 * @throws NoSuchAlgorithmException if jnasmartcardio is not found
+	 */
+	public static TerminalFactory getRemoteTerminalFactory(String factoryFilePath, String factoryName, String ipAddressRange) throws NoSuchAlgorithmException {
+		URLClassLoader classLoader;
+		String canonPath = "";
+		try {
+			canonPath = (new File(factoryFilePath)).getCanonicalPath();
+			System.out.println("Opening " +factoryName+ " from location " + canonPath);
+
+			classLoader = new URLClassLoader(new URL[]{new File(factoryFilePath).toURI().toURL()});
+			Class<?> loadedClass = classLoader.loadClass(factoryName);
+			Object remoteIoObject = loadedClass.newInstance();
+			if (ipAddressRange == null) {
+				ipAddressRange = "tcp://192.168.42.0/27";
+			}
+			TerminalFactory tf = TerminalFactory.getInstance("PC/SC", ipAddressRange, (Provider) remoteIoObject);
+
+			return tf;
+		} catch (Exception e) {
+			e.printStackTrace();
+			return null;
+		}
+	}
+
+
+	/**
 	 * Returns a card reader that has a card in it.
 	 * Asks for card insertion, if the system only has a single reader.
 	 *
@@ -126,7 +162,7 @@ public class TerminalManager {
 			CardTerminals tl = tf.terminals();
 			List<CardTerminal> list = tl.list(State.CARD_PRESENT);
 			if (list.size() > 1) {
-				throw new CardException(msg);
+				return list.get(0);
 			} else if (list.size() == 1) {
 				return list.get(0);
 			} else {
