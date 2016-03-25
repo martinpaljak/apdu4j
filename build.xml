@@ -33,7 +33,6 @@
     <pathelement location="ext/jnasmartcardio/jnasmartcardio.jar"/>
     <pathelement location="lib/jopt-simple-4.9.jar"/>
     <pathelement location="lib/json-simple-1.1.1.jar"/>
-    <pathelement location="lib/lanterna-3.0.0-beta1.jar"/>
     <pathelement location="lib/slf4j-api-1.7.13.jar"/>
   </path>
   <target name="deps" description="build jnasmartcardio">
