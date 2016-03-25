@@ -63,11 +63,12 @@
       <manifest><attribute name="Main-Class" value="apdu4j.SCTool"/></manifest>
     </jar>
     <delete file="optimized-apdu4j.jar"/>
-    <!-- JAR without jnasmartcardio and command line -->
+    <!-- JAR without jnasmartcardio, command line and logging -->
     <jar destfile="apdu4j-vanilla.jar" level="9" basedir="build" excludes="**/apdu4j/SCTool.class"/>
-    <!-- JAR with jnasmartcardio bundled in -->
+    <!-- JAR with jnasmartcardio and slf4j bundled in -->
     <jar destfile="apdu4j-pcsc.jar" level="9" basedir="build" excludes="**/apdu4j/SCTool.class">
        <zipfileset src="ext/jnasmartcardio/jnasmartcardio.jar"/>
+       <zipfileset src="lib/slf4j-api-1.7.13.jar" excludes="META-INF/maven/"/>
     </jar>
   </target>
   <!-- Package for Unix -->
@@ -95,6 +96,7 @@
     <delete file="apdu4j.jar"/>
     <delete file="apdu4j.exe"/>
     <delete file="apdu4j-vanilla.jar"/>
+    <delete file="apdu4j-pcsc.jar"/>
   </target>
   <!-- Make javadocs -->
   <target name="javadoc">

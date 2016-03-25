@@ -40,6 +40,7 @@ deploy:
     - apdu4j.jar
     - apdu4j.exe
     - apdu4j-vanilla.jar
+    - apdu4j-pcsc.jar
   provider: releases
   api-key:
     secure: kUETLp7FylqzqjmpOdDMwVT3cPecn9gzDyipzuOV7+rL+xjL5ZxeHVNiK2QNRG1pLwih4IRhKQjPHofmUoc0pyLIfz7PjKojdpintBcHXUn7CIMhFMURd6+DmIRIX6HNVXQNd/bF8OOYV+Azfukx5FTUmB9HDbJ6L0BEHO0Dl3E=
