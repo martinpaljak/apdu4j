@@ -31,13 +31,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
-import java.lang.reflect.InvocationTargetException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.Security;
 import java.security.cert.CertificateException;
@@ -74,7 +72,6 @@ public class SCTool {
 	private static final String CMD_APDU = "apdu";
 
 	private static final String OPT_PROVIDER = "provider";
-	private static final String OPT_PROVIDER_TYPE = "type";
 
 	private static final String OPT_READER = "reader";
 	private static final String OPT_ALL = "all";
@@ -102,9 +99,6 @@ public class SCTool {
 	private static final String OPT_PROVIDERS = "P";
 	private static final String OPT_TEST_SERVER = "testserver";
 
-
-	private static final String SUN_CLASS = "sun.security.smartcardio.SunPCSC";
-	private static final String JNA_CLASS = "jnasmartcardio.Smartcardio";
 
 	private static boolean verbose = false;
 
@@ -138,8 +132,6 @@ public class SCTool {
 		parser.accepts(OPT_TEST_SERVER, "run a test server on port 10000").withRequiredArg();
 		parser.accepts(OPT_NO_GET_RESPONSE, "don't use GET RESPONSE with SunPCSC");
 		parser.accepts(OPT_LIB, "use specific PC/SC lib with SunPCSC").withRequiredArg();
-		parser.accepts(OPT_PROVIDER_TYPE, "provider type if not PC/SC").withRequiredArg();
-
 
 		// Parse arguments
 		try {
@@ -168,8 +160,9 @@ public class SCTool {
 			verbose = true;
 			// Set up slf4j simple in a way that pleases us
 			System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "debug");
-			if (args.has(OPT_DEBUG))
+			if (args.has(OPT_DEBUG)) {
 				System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "trace");
+			}
 			System.setProperty("org.slf4j.simpleLogger.showThreadName", "true");
 			System.setProperty("org.slf4j.simpleLogger.showShortLogName", "true");
 			System.setProperty("org.slf4j.simpleLogger.levelInBrackets", "true");
@@ -188,7 +181,7 @@ public class SCTool {
 			System.out.println(version);
 		}
 		if (args.has(OPT_TEST_SERVER)) {
-			// TODO: have the possibility to run SocketServer as well?
+			// TODO: have the possibility to run SocketServer as well, based on argument (tcp: vs http:)
 			RemoteTerminalServer srv = new RemoteTerminalServer(TestServer.class);
 			srv.start(string2socket((String) args.valueOf(OPT_TEST_SERVER)));
 			System.out.println("Hit ctrl-c to quit");
@@ -198,18 +191,21 @@ public class SCTool {
 			}
 		}
 
+		// We always bundle JNA with the tool, so add it to the providers.
+		Security.addProvider(new jnasmartcardio.Smartcardio());
+
 		// List TerminalFactory providers
 		if (args.has(OPT_PROVIDERS)) {
 			Provider providers[] = Security.getProviders("TerminalFactory.PC/SC");
 			if (providers != null) {
 				System.out.println("Existing TerminalFactory providers:");
 				for (Provider p: providers) {
-					System.out.println(p.getName());
+					System.out.println(p.getName() + " v" + p.getVersion() + " (" + p.getInfo() + ")");
 				}
 			}
 		}
 
-		// Fix properties on non-windows platforms
+		// Fix (SunPCSC) properties on non-windows platforms
 		TerminalManager.fixPlatformPaths();
 
 		// Only applies to SunPCSC
@@ -218,29 +214,28 @@ public class SCTool {
 			System.setProperty("sun.security.smartcardio.t1GetResponse", "false");
 		}
 
-		// Override PC/SC library path
+		// Override PC/SC library path (Only applies to SunPCSC)
 		if (args.has(OPT_LIB)) {
 			System.setProperty("sun.security.smartcardio.library", (String) args.valueOf(OPT_LIB));
 		}
 
-		TerminalFactory tf = null;
+		final TerminalFactory tf;
 		CardTerminals terminals = null;
 
 		try {
 			// Get a terminal factory
 			if (args.has(OPT_PROVIDER)) {
-				String pn = (String)args.valueOf(OPT_PROVIDER);
-				String pt = (String)args.valueOf(OPT_PROVIDER_TYPE);
-				tf = loadFactory(pn, pt);
+				tf = TerminalManager.getTerminalFactory((String)args.valueOf(OPT_PROVIDER));
 			} else if (args.has(OPT_SUN)) {
-				tf = loadFactory(SUN_CLASS, null);
-			} else  {
-				tf = loadFactory(JNA_CLASS, null);
+				tf = TerminalManager.getTerminalFactory(TerminalManager.SUN_CLASS);
+			} else {
+				tf = TerminalManager.getTerminalFactory(TerminalManager.JNA_CLASS);
 			}
+
 			if (verbose) {
 				System.out.println("# Using " + tf.getProvider().getClass().getCanonicalName() + " - " + tf.getProvider());
-				if (System.getProperty(TerminalManager.lib_prop) != null) {
-					System.out.println("# " + TerminalManager.lib_prop + "=" + System.getProperty(TerminalManager.lib_prop));
+				if (System.getProperty(TerminalManager.LIB_PROP) != null) {
+					System.out.println("# " + TerminalManager.LIB_PROP + "=" + System.getProperty(TerminalManager.LIB_PROP));
 				}
 			}
 			// Get all terminals
@@ -250,6 +245,7 @@ public class SCTool {
 			// Try to get a meaningful message
 			String msg = TerminalManager.getExceptionMessage(e);
 			System.out.println("No readers: " + msg);
+			e.printStackTrace();
 			System.exit(1);
 		}
 
@@ -458,30 +454,6 @@ public class SCTool {
 					transport.close();
 			}
 		}
-	}
-
-
-	private static TerminalFactory loadFactory(String pn, String type) throws NoSuchAlgorithmException {
-		TerminalFactory tf = null;
-		try {
-			Class<?> cls = Class.forName(pn);
-			Provider p = (Provider) cls.getConstructor().newInstance();
-			tf = TerminalFactory.getInstance(type == null ? "PC/SC" : type, null, p);
-		} catch (ClassNotFoundException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException | NoSuchMethodException | SecurityException e) {
-			throw new RuntimeException("Could not load " + pn, e);
-		} catch (NoSuchAlgorithmException e) {
-			if (e.getCause() != null) {
-				Class<?> cause = e.getCause().getClass();
-				if (cause.equals(java.lang.UnsupportedOperationException.class)) {
-					throw new NoSuchAlgorithmException(e.getCause().getMessage());
-				}
-				if (cause.equals(java.lang.UnsatisfiedLinkError.class)) {
-					throw new NoSuchAlgorithmException(e.getCause().getMessage());
-				}
-			}
-			throw e;
-		}
-		return tf;
 	}
 
 	private static void help_and_exit(OptionParser parser, PrintStream o) throws IOException {
