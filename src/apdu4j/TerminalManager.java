@@ -173,10 +173,11 @@ public class TerminalManager {
 	 * @throws NoSuchAlgorithmException if the provider can not be loaded for some reason
 	 */
 	public static TerminalFactory getTerminalFactory(String spec) throws NoSuchAlgorithmException {
+		// Default to bundled JNA by default.
 		if (spec == null) {
-			throw new IllegalArgumentException("spec can not be null");
+			spec = JNA_CLASS;
 		}
-
+		// Always set the right path to pcsc
 		fixPlatformPaths();
 
 		// Split by colon marks
