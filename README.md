@@ -76,9 +76,8 @@ ant
 
         sc -l -v -w
 
- * Use a virtual smart card reader provider (NB! See [Pro Tips](#pro-tips)):
-
-        sc -p com.example.VirtualTerminalProvider -lv
+ * Use a virtual smart card reader provider (format for `-p` is `jar:class:args`, where `args` part can be URL-encoded):
+        sc -p some.jar:com.example.VirtualTerminalProvider:tcp%3A%2F%2F192.168.1.1%3A7000 -lv
 
  * Send the APDU ```00A40C0000``` to the card:
 
@@ -107,14 +106,6 @@ ant
  * Be verbose:
    
    add ```-verbose``` or ```-v``` to your command
-
-
-#### Pro Tips
- * Running with extended classpath
-
-    For some stupid reason Java does not allow to use both ```-jar``` and ```-cp``` in the same command, so you need to manually specify the full classpath and main class, together with any parameters you want to pass to the utility. The main class of the ```sc``` tool is ```apdu4j.SCTool```, so something along the lines:
-
-        java -cp someother.jar:apdu4j.jar apdu4j.SCTool -p org.someother.APDUClass -l
 
 ### Usage from Java
 More information can be found from [Javadocs](https://martinpaljak.github.io/apdu4j), which are always improving.
