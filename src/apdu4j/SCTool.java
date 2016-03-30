@@ -336,12 +336,18 @@ public class SCTool {
 					}
 				}
 			}
-
 		} catch (CardException e) {
-			System.out.println("Could not list readers: " + TerminalManager.getExceptionMessage(e));
-			e.printStackTrace();
+			// Address Windows with SunPCSC
+			String em = TerminalManager.getExceptionMessage(e);
+			if (em.equals("SCARD_E_NO_READERS_AVAILABLE")) {
+				System.err.println("No reader with a card found!");
+				System.exit(1);
+			} else {
+				System.out.println("Could not list readers: " + em);
+			}
 		}
 
+		// Do the meaningful work.
 		for (CardTerminal t: do_readers) {
 			work(t, args);
 		}
