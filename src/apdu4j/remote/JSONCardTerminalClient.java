@@ -53,8 +53,10 @@ class JSONCardTerminalClient {
 		String cmd = (String) msg.get("cmd");
 		if (cmd.equals("CONNECT")) {
 			try {
-				if (protocol == null && msg.containsKey("protocol")) {
-					protocol = (String) msg.get("protocol");
+				if (msg.containsKey("protocol")) {
+					if (protocol == null) {
+						protocol = (String) msg.get("protocol");
+					}
 				}
 				card = terminal.connect(protocol);
 				if (transact)
