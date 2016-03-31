@@ -73,7 +73,7 @@ class JSONCardTerminal extends CardTerminal {
 				if (r.containsKey("atr") && r.containsKey("protocol") && r.containsKey("reader")) {
 					terminalName = (String) r.get("reader");
 					atr = new ATR(HexUtils.stringToBin((String) r.get("atr")));
-					protocol = ((String) r.get("protocol"));
+					this.protocol = ((String) r.get("protocol"));
 					return new JSONCard(this);
 				}
 			}
