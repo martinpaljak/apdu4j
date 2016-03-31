@@ -89,9 +89,9 @@ public class SocketTransport implements JSONMessagePipe {
 
 
 	public static KeyManagerFactory get_key_manager_factory(String pkcs12path, String pkcs12pass) throws IOException {
-		try {
+		try (FileInputStream fin = new FileInputStream(pkcs12path)) {
 			KeyStore ks = KeyStore.getInstance("PKCS12");
-			ks.load(new FileInputStream(pkcs12path), pkcs12pass.toCharArray());
+			ks.load(fin, pkcs12pass.toCharArray());
 			KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
 			kmf.init(ks, pkcs12pass.toCharArray());
 			return kmf;
