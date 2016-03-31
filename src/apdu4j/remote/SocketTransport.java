@@ -198,7 +198,9 @@ public class SocketTransport implements JSONMessagePipe {
 			throw new IOException("Connection closed");
 		}
 		length.putInt(0, 0);
-		socket.getInputStream().read(length.array());
+		if (socket.getInputStream().read(length.array()) != length.capacity()) {
+			throw new IOException("Failed to read data length");
+		}
 		int len = length.getInt(0);
 		if (len == 0) {
 			throw new IOException("Failed to read data (length)");
