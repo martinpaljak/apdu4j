@@ -23,7 +23,7 @@ package apdu4j;
 
 public class HexUtils {
 	// This code has been taken from Apache commons-codec 1.7 (License: Apache 2.0)
-	private static final char[] LOWER_HEX = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+	private static final char[] UPPER_HEX = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
 	@Deprecated
 	public static String encodeHexString(final byte[] data) {
 		return encodeHexString_imp(data);
@@ -34,8 +34,8 @@ public class HexUtils {
 		final char[] out = new char[l << 1];
 		// two characters form the hex value.
 		for (int i = 0, j = 0; i < l; i++) {
-			out[j++] = LOWER_HEX[(0xF0 & data[i]) >>> 4];
-			out[j++] = LOWER_HEX[0x0F & data[i]];
+			out[j++] = UPPER_HEX[(0xF0 & data[i]) >>> 4];
+			out[j++] = UPPER_HEX[0x0F & data[i]];
 		}
 		return new String(out);
 	}
@@ -54,8 +54,14 @@ public class HexUtils {
 		// two characters form the hex value.
 		for (int i = 0, j = 0; j < len; i++) {
 			int f = Character.digit(data[j], 16) << 4;
+			if (f < 0) {
+				throw new IllegalArgumentException("Illegal hex: " + data[j]);
+			}
 			j++;
 			f = f | Character.digit(data[j], 16);
+			if (f < 0) {
+				throw new IllegalArgumentException("Illegal hex: " + data[j]);
+			}
 			j++;
 			out[i] = (byte) (f & 0xFF);
 		}
@@ -71,7 +77,7 @@ public class HexUtils {
 	}
 
 	public static byte[] stringToBin(String s) {
-		s = s.toLowerCase().replaceAll(" ", "").replaceAll(":", "");
+		s = s.toUpperCase().replaceAll(" ", "").replaceAll(":", "");
 		s = s.replaceAll("0x", "").replaceAll("\n", "").replaceAll("\t", "");
 		s = s.replaceAll(";", "");
 		return decodeHexString_imp(s);
