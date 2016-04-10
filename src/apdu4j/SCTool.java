@@ -70,7 +70,7 @@ import joptsimple.OptionSet;
 public class SCTool {
 	private static final String CMD_LIST = "list";
 	private static final String CMD_APDU = "apdu";
-
+	private static final String OPT_SHELL = "shell";
 	private static final String OPT_PROVIDER = "provider";
 
 	private static final String OPT_READER = "reader";
@@ -115,6 +115,8 @@ public class SCTool {
 		parser.acceptsAll(Arrays.asList("a", CMD_APDU), "send APDU").withRequiredArg();
 		parser.acceptsAll(Arrays.asList("w", OPT_WEB), "open ATR in web");
 		parser.acceptsAll(Arrays.asList("V", OPT_VERSION), "show version information");
+		parser.acceptsAll(Arrays.asList("s", OPT_SHELL), "start shell");
+
 		parser.accepts(OPT_DUMP, "save dump to file").withRequiredArg().ofType(File.class);
 		parser.accepts(OPT_REPLAY, "replay command from dump").withRequiredArg().ofType(File.class);
 
@@ -315,11 +317,7 @@ public class SCTool {
 				do_readers = Arrays.asList(t);
 			} else {
 				do_readers = terminals.list(State.CARD_PRESENT);
-				if (do_readers.size() > 1 && !args.hasArgument(OPT_ALL) && !args.has(CMD_LIST)) {
-					System.err.println("More than one reader with a card found.");
-					System.err.println("Run with --"+OPT_ALL+" to work with all found cards");
-					System.exit(1);
-				} else if (do_readers.size() == 0 && !args.has(CMD_LIST)) {
+				if (do_readers.size() == 0 && !args.has(CMD_LIST)) {
 					// But if there is a single reader, wait for a card insertion
 					List<CardTerminal> empty = terminals.list(State.CARD_ABSENT);
 					if (empty.size() == 1 && args.has(OPT_WAIT)) {
@@ -346,10 +344,19 @@ public class SCTool {
 				System.out.println("Could not list readers: " + em);
 			}
 		}
-
 		// Do the meaningful work.
 		for (CardTerminal t: do_readers) {
-			work(t, args);
+			if (do_readers.size() > 1 || args.has(OPT_VERBOSE)) {
+				System.out.println("# " + t.getName());
+			}
+			try {
+				work(t, args);
+			} catch (CardException e) {
+				if (TerminalManager.getExceptionMessage(e) == "SCARD_E_SHARING_VIOLATION") {
+					continue;
+				}
+				throw e;
+			}
 		}
 	}
 
@@ -394,7 +401,7 @@ public class SCTool {
 			protocol = "EXCLUSIVE;" + protocol;
 		}
 
-		if (args.has(CMD_APDU))  {
+		if (args.has(CMD_APDU) || args.has(OPT_SHELL))  {
 			Card c = null;
 			try {
 				c = reader.connect(protocol);
@@ -408,10 +415,15 @@ public class SCTool {
 							return;
 						}
 					}
+				} else {
+					Shell s = new Shell(c);
+					s.run();
+					return;
 				}
 			} catch (CardException e) {
 				if (TerminalManager.getExceptionMessage(e) != null) {
 					System.out.println("PC/SC failure: " + TerminalManager.getExceptionMessage(e));
+					return;
 				} else {
 					throw e;
 				}
