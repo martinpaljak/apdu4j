@@ -62,6 +62,7 @@ import apdu4j.remote.JSONMessagePipe;
 import apdu4j.remote.RemoteTerminalServer;
 import apdu4j.remote.SocketTransport;
 import apdu4j.remote.TestServer;
+import jnasmartcardio.Smartcardio.EstablishContextException;
 import joptsimple.OptionException;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
@@ -242,12 +243,9 @@ public class SCTool {
 			}
 			// Get all terminals
 			terminals = tf.terminals();
-		} catch (Exception e) {
-			// XXX: we catch generic Exception here to avoid importing JNA.
-			// Try to get a meaningful message
+		} catch (EstablishContextException e) {
 			String msg = TerminalManager.getExceptionMessage(e);
-			System.out.println("No readers: " + msg);
-			e.printStackTrace();
+			System.err.println("No readers: " + msg);
 			System.exit(1);
 		}
 
