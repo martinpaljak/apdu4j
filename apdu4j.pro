@@ -18,9 +18,12 @@
 -outjars optimized-apdu4j.jar
 -dontobfuscate
 -dontoptimize
-# APDUReplayProvider is supposed to be used by others
--keep public class apdu4j.APDUReplayProvider {*;}
--keep public class apdu4j.APDUReplayProvider$* {*;}
+
+-keepattributes Exceptions,InnerClasses,Signature
+
+# Keep all providers
+-keep public class * extends java.security.Provider {*;}
+-keep public class * extends javax.smartcardio.** {*;}
 
 # Everything about RemoteTerminal is kept
 -keep public class apdu4j.remote.RemoteTerminal {*;}
