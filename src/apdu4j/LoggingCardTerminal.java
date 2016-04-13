@@ -194,11 +194,20 @@ public class LoggingCardTerminal extends CardTerminal {
 				// Only if Case 2, 3 or 4 APDU
 				if (cb.length > 4) {
 					int cmdlen = cb[ISO7816.OFFSET_LC] & 0xFF;
-					if (cmdlen == 0 && apdu.getData().length > 6) {
+
+					// If extended length
+					if (cmdlen == 0 && apdu.getData().length > 255) {
 						cmdlen = ((cb[ISO7816.OFFSET_LC +1] & 0xff << 8) | cb[ISO7816.OFFSET_LC+2] & 0xff);
 					}
+					// P3 is Le
+					if (apdu.getData().length < cmdlen) {
+						cmdlen = 0;
+					}
+					// print length bytes
 					log.print(" " + HexUtils.bin2hex(Arrays.copyOfRange(cb, 4, len_end)));
+					// print payload
 					log.print(" " + HexUtils.bin2hex(Arrays.copyOfRange(cb, len_end, len_end + cmdlen)));
+					// Print Le
 					if (len_end + cmdlen < cb.length) {
 						log.println(" " + HexUtils.bin2hex(Arrays.copyOfRange(cb, len_end + cmdlen, cb.length)));
 					} else {
