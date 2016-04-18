@@ -78,7 +78,7 @@ public class HexUtils {
 
 	public static byte[] stringToBin(String s) {
 		s = s.toUpperCase().replaceAll(" ", "").replaceAll(":", "");
-		s = s.replaceAll("0x", "").replaceAll("\n", "").replaceAll("\t", "");
+		s = s.replaceAll("0X", "").replaceAll("\n", "").replaceAll("\t", "");
 		s = s.replaceAll(";", "");
 		return decodeHexString_imp(s);
 	}
