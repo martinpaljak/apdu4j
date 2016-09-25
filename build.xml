@@ -10,14 +10,14 @@
     <get src="http://central.maven.org/maven2/com/googlecode/json-simple/json-simple/1.1.1/json-simple-1.1.1.jar" dest="lib" verbose="true" skipexisting="true"/>
     <get src="http://repo2.maven.org/maven2/org/slf4j/slf4j-api/1.7.13/slf4j-api-1.7.13.jar" dest="lib" verbose="true" skipexisting="true"/>
     <get src="http://repo2.maven.org/maven2/org/slf4j/slf4j-simple/1.7.13/slf4j-simple-1.7.13.jar" dest="lib" verbose="true" skipexisting="true"/>
-    <get src="http://central.maven.org/maven2/net/sf/proguard/proguard-base/5.2.1/proguard-base-5.2.1.jar" dest="lib" verbose="true" skipexisting="true"/>
-    <get src="http://downloads.bouncycastle.org/java/bcprov-jdk15on-154.jar" dest="lib" verbose="true" skipexisting="true"/>
+    <get src="http://central.maven.org/maven2/net/sf/proguard/proguard-base/5.3/proguard-base-5.3.jar" dest="lib" verbose="true" skipexisting="true"/>
+    <get src="https://downloads.bouncycastle.org/java/bcprov-jdk15on-155.jar" dest="lib" verbose="true" skipexisting="true"/>
     <checksum algorithm="SHA-256" file="lib/jopt-simple-4.9.jar" property="26c5856e954b5f864db76f13b86919b59c6eecf9fd930b96baa8884626baf2f5" verifyProperty="joptOK"/>
     <checksum algorithm="SHA-256" file="lib/json-simple-1.1.1.jar" property="4e69696892b88b41c55d49ab2fdcc21eead92bf54acc588c0050596c3b75199c" verifyProperty="jsonOK"/>
     <checksum algorithm="SHA-256" file="lib/slf4j-api-1.7.13.jar" property="20d68d0c2e4fb984ffc164852b8b68df49a2b8716076f576881bcef7649a0e35" verifyProperty="slfjapiOK"/>
     <checksum algorithm="SHA-256" file="lib/slf4j-simple-1.7.13.jar" property="4709c0b535057c6a9a794da9522b1291de9c72b6d61f41b7ecf63156bc7bee35" verifyProperty="slfjsimpleOK"/>
-    <checksum algorithm="SHA-256" file="lib/proguard-base-5.2.1.jar" property="f163bdd73c58cbc9b789ab14f5d602b4994dbd82eacb5d54b3bd2a95de63f3bf" verifyProperty="proguardOK"/>
-    <checksum algorithm="SHA-256" file="lib/bcprov-jdk15on-154.jar" property="d0ae14598f9c528d2ab7bb8ed00e785a5440f692712cd362d69328aba25efb57" verifyProperty="bouncyOK"/>
+    <checksum algorithm="SHA-256" file="lib/proguard-base-5.3.jar" property="6ddbbcbd3ef979a588ee2732920b00c335649dcb72f464eaaf0ce9685a539572" verifyProperty="proguardOK"/>
+    <checksum algorithm="SHA-256" file="lib/bcprov-jdk15on-155.jar" property="c08450a176b55c7ef4847111550eb247e5912ad450c8c225fa2f7cab74ce608b" verifyProperty="bouncyOK"/>
     <fail message="Checksum failure">
       <condition>
         <or>
@@ -37,7 +37,7 @@
     <pathelement location="lib/jopt-simple-4.9.jar"/>
     <pathelement location="lib/json-simple-1.1.1.jar"/>
     <pathelement location="lib/slf4j-api-1.7.13.jar"/>
-    <pathelement location="lib/bcprov-jdk15on-154.jar"/>
+    <pathelement location="lib/bcprov-jdk15on-155.jar"/>
   </path>
   <target name="deps" description="build jnasmartcardio">
     <ant dir="ext/jnasmartcardio"/>
@@ -56,7 +56,7 @@
     <java classname="proguard.ProGuard" fork="true" failonerror="true">
       <arg line="@apdu4j.pro"/>
       <classpath>
-        <pathelement location="lib/proguard-base-5.2.1.jar"/>
+        <pathelement location="lib/proguard-base-5.3.jar"/>
       </classpath>
     </java>
     <jar destfile="apdu4j.jar" level="9">
@@ -73,6 +73,7 @@
     <jar destfile="apdu4j-pcsc.jar" level="9" basedir="build" excludes="**/apdu4j/SCTool.class">
        <zipfileset src="ext/jnasmartcardio/jnasmartcardio.jar"/>
        <zipfileset src="lib/slf4j-api-1.7.13.jar" excludes="META-INF/maven/"/>
+       <zipfileset src="lib/json-simple-1.1.1.jar" excludes="META-INF/maven/"/>
     </jar>
   </target>
   <!-- Package for Unix -->

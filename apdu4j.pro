@@ -4,7 +4,7 @@
 # libraries.
 -injars lib/jopt-simple-4.9.jar(!META-INF/**)
 -injars lib/json-simple-1.1.1.jar(!META-INF/**)
--injars lib/bcprov-jdk15on-154.jar(!META-INF/**)
+-injars lib/bcprov-jdk15on-155.jar(!META-INF/**)
 
 # slf4j.
 -injars lib/slf4j-api-1.7.13.jar
