@@ -2,7 +2,7 @@
 <classpath>
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="lib" path="ext/jnasmartcardio/jnasmartcardio.jar"/>
-	<classpathentry kind="lib" path="lib/jopt-simple-4.9.jar"/>
+	<classpathentry kind="lib" path="lib/jopt-simple-5.0.3.jar"/>
 	<classpathentry kind="lib" path="lib/json-simple-1.1.1.jar"/>
 	<classpathentry kind="lib" path="lib/slf4j-api-1.7.13.jar"/>
 	<classpathentry kind="lib" path="lib/bcprov-jdk15on-155.jar"/>

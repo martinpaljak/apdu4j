@@ -2,7 +2,7 @@
 -injars build
 
 # libraries.
--injars lib/jopt-simple-4.9.jar(!META-INF/**)
+-injars lib/jopt-simple-5.0.3.jar(!META-INF/**)
 -injars lib/json-simple-1.1.1.jar(!META-INF/**)
 -injars lib/bcprov-jdk15on-155.jar(!META-INF/**)
 
@@ -15,6 +15,7 @@
 -libraryjars ext/jnasmartcardio/jnasmartcardio.jar
 -libraryjars  <java.home>/lib/rt.jar
 -libraryjars  <java.home>/lib/jce.jar
+
 -outjars optimized-apdu4j.jar
 -dontobfuscate
 -dontoptimize
