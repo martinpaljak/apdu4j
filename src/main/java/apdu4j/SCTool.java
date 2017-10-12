@@ -496,7 +496,7 @@ public class SCTool {
 
 	public static String getVersion() {
 		String version = "unknown-development";
-		try (InputStream versionfile = SCTool.class.getResourceAsStream("version.txt")) {
+		try (InputStream versionfile = SCTool.class.getResourceAsStream("pro_version.txt")) {
 			if (versionfile != null) {
 				BufferedReader vinfo = new BufferedReader(new InputStreamReader(versionfile));
 				version = vinfo.readLine();

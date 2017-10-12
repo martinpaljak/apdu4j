@@ -4,11 +4,12 @@ jdk:
 - oraclejdk8
 before_script:
   - mkdir -p ext
-  - wget http://heanet.dl.sourceforge.net/project/launch4j/launch4j-3/3.9/launch4j-3.9-linux.tgz
-  - echo "e6e9a83927585d16efcb82f41d4ae480f14eccc19ced611a59f31fffb5ca549b  launch4j-3.9-linux.tgz" | sha256sum -c
-  - tar -C ext -xzf launch4j-3.9-linux.tgz
-  - ant fetch
-script: ant windist
+  - wget http://kent.dl.sourceforge.net/project/launch4j/launch4j-3/3.11/launch4j-3.11-linux.tgz
+  - echo "fd1b654e5024d3f58419e05da2170d44dc5e924f1f369ebee8d2fb2e9cbd2b68  launch4j-3.11-linux.tgz" | sha256sum -c
+  - tar -C ext -xzf launch4j-3.11-linux.tgz
+script:
+  - mvn package
+  - ant windist
 notifications:
   email:
     on_success: change
@@ -31,16 +32,14 @@ addons:
       name: martinpaljak/apdu4j
       description: apdu4j
     notification_email: martin@martinpaljak.net
-    build_command_prepend: ant fetch
-    build_command: ant compile
+    build_command: mvn compile
     branch_pattern: coverity
 
 deploy:
   file:
     - apdu4j.jar
     - apdu4j.exe
-    - apdu4j-vanilla.jar
-    - apdu4j-pcsc.jar
+    - target/apdu4j-1.0-SNAPSHOT.jar
   provider: releases
   api-key:
     secure: kUETLp7FylqzqjmpOdDMwVT3cPecn9gzDyipzuOV7+rL+xjL5ZxeHVNiK2QNRG1pLwih4IRhKQjPHofmUoc0pyLIfz7PjKojdpintBcHXUn7CIMhFMURd6+DmIRIX6HNVXQNd/bF8OOYV+Azfukx5FTUmB9HDbJ6L0BEHO0Dl3E=
