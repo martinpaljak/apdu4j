@@ -3,56 +3,22 @@
   <description>apdu4j - smart card utilities for Java</description>
   <!-- Fetch and integrity check dependencies -->
   <target name="fetch" description="fetch dependencies">
-    <ant dir="ext/jnasmartcardio" target="init"/>
     <mkdir dir="lib"/>
     <!-- Remember to update apdu4j.pro and .classpath as well! -->
-    <get src="https://repo1.maven.org/maven2/net/sf/jopt-simple/jopt-simple/5.0.3/jopt-simple-5.0.3.jar" dest="lib" verbose="true" skipexisting="true"/>
-    <get src="http://central.maven.org/maven2/com/googlecode/json-simple/json-simple/1.1.1/json-simple-1.1.1.jar" dest="lib" verbose="true" skipexisting="true"/>
-    <get src="http://repo2.maven.org/maven2/org/slf4j/slf4j-api/1.7.13/slf4j-api-1.7.13.jar" dest="lib" verbose="true" skipexisting="true"/>
-    <get src="http://repo2.maven.org/maven2/org/slf4j/slf4j-simple/1.7.13/slf4j-simple-1.7.13.jar" dest="lib" verbose="true" skipexisting="true"/>
     <get src="http://central.maven.org/maven2/net/sf/proguard/proguard-base/5.3/proguard-base-5.3.jar" dest="lib" verbose="true" skipexisting="true"/>
-    <get src="https://downloads.bouncycastle.org/java/bcprov-jdk15on-155.jar" dest="lib" verbose="true" skipexisting="true"/> 
   </target>
   <target name="check" depends="fetch" unless="insecure">
-    <checksum algorithm="SHA-256" file="lib/jopt-simple-5.0.3.jar" property="6f45c00908265947c39221035250024f2caec9a15c1c8cf553ebeecee289f342" verifyProperty="joptOK"/>
-    <checksum algorithm="SHA-256" file="lib/json-simple-1.1.1.jar" property="4e69696892b88b41c55d49ab2fdcc21eead92bf54acc588c0050596c3b75199c" verifyProperty="jsonOK"/>
-    <checksum algorithm="SHA-256" file="lib/slf4j-api-1.7.13.jar" property="20d68d0c2e4fb984ffc164852b8b68df49a2b8716076f576881bcef7649a0e35" verifyProperty="slfjapiOK"/>
-    <checksum algorithm="SHA-256" file="lib/slf4j-simple-1.7.13.jar" property="4709c0b535057c6a9a794da9522b1291de9c72b6d61f41b7ecf63156bc7bee35" verifyProperty="slfjsimpleOK"/>
     <checksum algorithm="SHA-256" file="lib/proguard-base-5.3.jar" property="6ddbbcbd3ef979a588ee2732920b00c335649dcb72f464eaaf0ce9685a539572" verifyProperty="proguardOK"/>
-    <checksum algorithm="SHA-256" file="lib/bcprov-jdk15on-155.jar" property="c08450a176b55c7ef4847111550eb247e5912ad450c8c225fa2f7cab74ce608b" verifyProperty="bouncyOK"/>
     <fail message="Checksum failure">
       <condition>
         <or>
-          <isfalse value="${joptOK}"/>
-          <isfalse value="${jsonOK}"/>
-          <isfalse value="${slfjapiOK}"/>
-          <isfalse value="${slfjsimpleOK}"/>
           <isfalse value="${proguardOK}"/>
-          <isfalse value="${bouncyOK}"/>
         </or>
       </condition>
     </fail>
   </target>
-  <!-- Build the software -->
-  <path id="build.classpath">
-    <pathelement location="ext/jnasmartcardio/jnasmartcardio.jar"/>
-    <pathelement location="lib/jopt-simple-5.0.3.jar"/>
-    <pathelement location="lib/json-simple-1.1.1.jar"/>
-    <pathelement location="lib/slf4j-api-1.7.13.jar"/>
-    <pathelement location="lib/bcprov-jdk15on-155.jar"/>
-  </path>
-  <target name="deps" description="build jnasmartcardio">
-    <ant dir="ext/jnasmartcardio"/>
-  </target>
-  <target name="compile" description="compile the source" depends="check,deps">
-    <mkdir dir="build"/>
-    <javac target="1.8" source="1.8" srcdir="src" destdir="build" includeantruntime="false" excludes="**/tests/**" debug="true" debuglevel="lines,vars,source">
-      <compilerarg value="-Xlint"/>
-      <classpath refid="build.classpath"/>
-    </javac>
-  </target>
   <!-- Package it into a nice little JAR -->
-  <target name="dist" description="generate the distribution">
+  <target name="dist" depends="fetch" description="generate the distribution">
     <!-- Build adpu4j.jar -->
     <java classname="proguard.ProGuard" fork="true" failonerror="true">
       <arg line="@apdu4j.pro"/>
@@ -80,13 +46,10 @@
   </target>
   <!-- Clean the source tree -->
   <target name="clean" description="clean up">
-    <ant dir="ext/jnasmartcardio" target="clean"/>
     <delete dir="build"/>
     <delete dir="javadoc"/>
     <delete file="apdu4j.jar"/>
     <delete file="apdu4j.exe"/>
-    <delete file="apdu4j-vanilla.jar"/>
-    <delete file="apdu4j-pcsc.jar"/>
   </target>
   <!-- Make javadocs -->
   <target name="javadoc">
