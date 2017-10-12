@@ -53,7 +53,7 @@ ant
         sc -l
    
    Will produce something like
-   ```
+```
 [ ] Gemalto Ezio Shield 01 00
 [*] ACS ACR 38U-CCID 02 00
 ```
@@ -62,7 +62,8 @@ ant
 
         sc -l -v
    Will produce:
-   ```
+
+```
 # Using sun.security.smartcardio.SunPCSC - SunPCSC version 1.7
 # Found 3 terminals
 [ ] [VMD] Gemalto Ezio Shield 01 00
