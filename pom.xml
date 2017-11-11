@@ -254,7 +254,7 @@
     <licenses>
         <license>
             <name>MIT</name>
-            <url>https://opensource.org/licenses/mit-license</url>
+            <url>https://github.com/martinpaljak/apdu4j/blob/master/LICENSE</url>
             <distribution>repo</distribution>
         </license>
     </licenses>
