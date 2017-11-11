@@ -10,15 +10,7 @@ before_script:
 script:
   - mvn package
   - ant windist
-notifications:
-  email:
-    on_success: change
-    on_failure: always
-  irc:
-    on_success: change
-    on_failure: always
-    channels:
-      - "irc.freenode.org#javacard"
+
 env:
   global:
     secure: hH+ndhQYLCfGaJ8XXW0GW9jO8wv4Ek0tDz3StzyVq9F+6meXOiGFIJ6MCyLPVZouxpCYj03PC0DunWAYYn+e3lgdMeOBLIg6/1BpOs5i0eHImE6O7pdo/+/jsHtR60PG9qRNfw2JXpPTI0F730o4UBi4V2eY2hWfmCIAWj61X9U=
@@ -39,10 +31,13 @@ deploy:
   file:
     - apdu4j.jar
     - apdu4j.exe
-    - target/apdu4j-1.0-SNAPSHOT.jar
   provider: releases
   api-key:
     secure: kUETLp7FylqzqjmpOdDMwVT3cPecn9gzDyipzuOV7+rL+xjL5ZxeHVNiK2QNRG1pLwih4IRhKQjPHofmUoc0pyLIfz7PjKojdpintBcHXUn7CIMhFMURd6+DmIRIX6HNVXQNd/bF8OOYV+Azfukx5FTUmB9HDbJ6L0BEHO0Dl3E=
   skip_cleanup: true
   on:
     tags: true
+
+cache:
+  directories:
+    - ~/.m2
