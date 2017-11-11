@@ -1,4 +1,4 @@
-# apdu4j · [![Build Status](https://travis-ci.org/martinpaljak/apdu4j.svg?branch=master)](https://travis-ci.org/martinpaljak/apdu4j) [![Coverity status](https://scan.coverity.com/projects/3664/badge.svg?flat=1)](https://scan.coverity.com/projects/3664/) [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.github.martinpaljak/apdu4j/badge.svg)](https://mvnrepository.com/artifact/com.github.martinpaljak/apdu4j) [![Javadocs](https://www.javadoc.io/badge/com.github.martinpaljak/apdu4j.svg)](https://www.javadoc.io/doc/com.github.martinpaljak/apdu4j) [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/martinpaljak/apdu4j/blob/master/LICENSE)
+# apdu4j · [![Build Status](https://travis-ci.org/martinpaljak/apdu4j.svg?branch=master)](https://travis-ci.org/martinpaljak/apdu4j) [![Coverity status](https://scan.coverity.com/projects/3664/badge.svg?flat=1)](https://scan.coverity.com/projects/3664/) [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.github.martinpaljak/apdu4j/badge.svg)](https://mvnrepository.com/artifact/com.github.martinpaljak/apdu4j) [![Javadocs](https://www.javadoc.io/badge/com.github.martinpaljak/apdu4j.svg?stupidcamocache)](https://www.javadoc.io/doc/com.github.martinpaljak/apdu4j) [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/martinpaljak/apdu4j/blob/master/LICENSE)
 
 
 Command line tool and library of useful Java classes for working with smart cards and smart card readers via [JSR268](https://jcp.org/en/jsr/detail?id=268) (commonly known as [javax.smartcardio](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/package-summary.html)). While focus is on desktop PC/SC readers, some code can be re-used with arbitrary "APDU-command-response-ish" interfaces, either as [CommandAPDU](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/CommandAPDU.html)/[ResponseAPDU](https://docs.oracle.com/javase/8/docs/jre/api/security/smartcardio/spec/javax/smartcardio/ResponseAPDU.html) pairs or plain byte arrays.
@@ -23,8 +23,9 @@ Command line tool and library of useful Java classes for working with smart card
 * Or fetch from github and build it yourself, it is really easy (more instructions in [CONTRIBUTING](./CONTRIBUTING.md):
 
 ```shell
-git clone --recursive https://github.com/martinpaljak/apdu4j
+git clone https://github.com/martinpaljak/apdu4j
 cd apdu4j
+mvn package
 ant
 ```
 
@@ -109,6 +110,17 @@ ant
    add ```-verbose``` or ```-v``` to your command
 
 ### Usage from Java
+Include the dependency
+
+```xml
+<!-- https://mvnrepository.com/artifact/com.github.martinpaljak/apdu4j -->
+<dependency>
+    <groupId>com.github.martinpaljak</groupId>
+    <artifactId>apdu4j</artifactId>
+    <version>0.0.37</version>
+</dependency>
+```
+
 More information can be found from [Javadocs](https://martinpaljak.github.io/apdu4j), which are always improving.
 
 Before anything make sure you set the necessary properties to make javax.smartcardio work without tuning:
