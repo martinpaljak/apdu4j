@@ -33,7 +33,7 @@ deploy:
     - apdu4j.exe
   provider: releases
   api-key:
-    secure: kUETLp7FylqzqjmpOdDMwVT3cPecn9gzDyipzuOV7+rL+xjL5ZxeHVNiK2QNRG1pLwih4IRhKQjPHofmUoc0pyLIfz7PjKojdpintBcHXUn7CIMhFMURd6+DmIRIX6HNVXQNd/bF8OOYV+Azfukx5FTUmB9HDbJ6L0BEHO0Dl3E=
+    secure: "TgHHgXIDbDwFsop2ZG8FD73VlEA5aygu9bMp1eVrLPvpgpYLEZztBMNaqY+wlb1dJ7yWByvLmtYGx8HXdY5y2vROqtEvG8bBEz++39wNlAQ7tAeGox0EG+GNZtJ0Zcuho4JDgoxKaJW5vdltIN3JO783tEyJU6Ks8j4kPAHXrpA="
   skip_cleanup: true
   on:
     tags: true
