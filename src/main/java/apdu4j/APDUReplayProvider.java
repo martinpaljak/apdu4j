@@ -23,6 +23,7 @@ package apdu4j;
 
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.security.Provider;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -88,7 +89,7 @@ public class APDUReplayProvider extends Provider {
 			ATR atr;
 			String protocol;
 			protected ReplayTerminals(InputStream script_stream) {
-				script = new Scanner(script_stream);
+				script = new Scanner(script_stream, StandardCharsets.UTF_8.name());
 				commands = new ArrayList<>();
 				responses = new ArrayList<>();
 				boolean is_cmd = true;

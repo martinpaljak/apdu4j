@@ -28,7 +28,7 @@ import java.util.Map;
  *
  * @author Martin Paljak
  */
-public interface JSONMessagePipe {
+public interface JSONMessagePipe extends AutoCloseable{
 	void send(Map<String, Object> msg) throws IOException;
 	Map<String, Object> recv() throws IOException;
 	void close();

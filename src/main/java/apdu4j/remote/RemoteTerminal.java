@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Martin Paljak
+ * Copyright (c) 2015-2017 Martin Paljak
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,7 +35,7 @@ import apdu4j.HexUtils;
  *
  * @author Martin Paljak
  */
-public class RemoteTerminal {
+public class RemoteTerminal implements AutoCloseable {
 
 	@SuppressWarnings("serial")
 	public static class UserCancelExcption extends Exception {
@@ -45,7 +45,7 @@ public class RemoteTerminal {
 	}
 	private final JSONMessagePipe pipe;
 	private final CardTerminal terminal;
-	public String lang = "en"; // XXX: Getter?
+	private String lang = "en";
 
 	public enum Button {RED, GREEN, YELLOW}
 
@@ -135,7 +135,7 @@ public class RemoteTerminal {
 			throw new IOException("No value");
 		}
 		try {
-			return Integer.valueOf((String)r.get("value"));
+			return Integer.parseInt((String)r.get("value"));
 		} catch (NumberFormatException e) {
 			throw new IOException("Choice was not numeric", e);
 		}
@@ -186,9 +186,15 @@ public class RemoteTerminal {
 			m.put("text", message);
 			pipe.send(m);
 		} catch (IOException e) {
+			// Ignore exceptions from closed pipe
 		}
 		close();
 	}
+
+	public String getLang() {
+		return lang;
+	}
+	@Override
 	public void close() {
 		pipe.close();
 	}

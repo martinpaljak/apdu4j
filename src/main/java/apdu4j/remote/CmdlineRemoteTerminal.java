@@ -171,7 +171,7 @@ public class CmdlineRemoteTerminal implements Runnable {
 			input = input.trim();
 			int choice;
 			try {
-				choice = Integer.valueOf(input);
+				choice = Integer.parseInt(input);
 			} catch (NumberFormatException e) {
 				System.err.println("\""+input+"\" is not a number");
 				continue;

@@ -93,8 +93,9 @@ public class HTTPTransport implements JSONMessagePipe {
 	}
 
 	@Override
+	@SuppressWarnings("unchecked")
 	public synchronized Map<String, Object> recv() throws IOException {
-		HashMap<String, Object> r = new HashMap<>();
+		Map<String, Object> r;
 		if (c.getResponseCode() == 200) {
 			try (InputStream in = c.getInputStream()) {
 				byte [] response = new byte[c.getContentLength()];
@@ -106,11 +107,10 @@ public class HTTPTransport implements JSONMessagePipe {
 				try {
 					JSONObject obj = (JSONObject) JSONValue.parseWithException(new String(response, "UTF-8"));
 					logger.trace("RECV: {}", obj.toJSONString());
-					r.putAll(obj);
+					r = (Map<String, Object>)obj;
 				} catch (ParseException e) {
 					throw new IOException("Could not parse JSON", e);
 				}
-
 			}
 		} else {
 			logger.trace("Got response code {}", c.getResponseCode());

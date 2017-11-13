@@ -21,32 +21,26 @@
  */
 package apdu4j.remote;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.InetSocketAddress;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-
+import apdu4j.SCTool;
+import com.sun.net.httpserver.Headers;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpServer;
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
 import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.sun.net.httpserver.Headers;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
-import com.sun.net.httpserver.HttpServer;
-
-import apdu4j.SCTool;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.*;
 
 public class RemoteTerminalServer {
 	private static Logger logger = LoggerFactory.getLogger(RemoteTerminalServer.class);
@@ -59,7 +53,7 @@ public class RemoteTerminalServer {
 	private final static String BACKENDPOOL = "apdu4j.remote.backend.threadpool";
 
 
-	class Session {
+	static class Session {
 		// TODO: STATE
 		final UUID id;
 		final BlockingQueue<Map<String, Object>> toThread;
@@ -81,8 +75,8 @@ public class RemoteTerminalServer {
 	private HttpServer server;
 
 	public RemoteTerminalServer(Class<? extends RemoteTerminalThread> task) {
-		e = Executors.newFixedThreadPool(Integer.valueOf(System.getProperty(HTTPPOOL, "200")));
-		sessions = new ConcurrentHashMap<>(Integer.valueOf(System.getProperty(SESSIONS, "200")));
+		e = Executors.newFixedThreadPool(Integer.parseInt(System.getProperty(HTTPPOOL, "200")));
+		sessions = new ConcurrentHashMap<>(Integer.parseInt(System.getProperty(SESSIONS, "200")));
 		processor = task;
 	}
 
@@ -91,15 +85,15 @@ public class RemoteTerminalServer {
 		setStandardHeaders(req);
 		req.sendResponseHeaders(418, 0);
 		try (OutputStream body = req.getResponseBody()) {
-			body.write(("apdu4j/"+SCTool.getVersion()).getBytes());
+			body.write(("apdu4j/"+SCTool.getVersion()).getBytes(StandardCharsets.UTF_8));
 		}
 	}
 
 	public void start(InetSocketAddress address) throws IOException {
 
-		server = HttpServer.create(address, Integer.valueOf(System.getProperty(BACKLOG, "10")));
+		server = HttpServer.create(address, Integer.parseInt(System.getProperty(BACKLOG, "10")));
 		// threadpool!
-		server.setExecutor(Executors.newWorkStealingPool(Integer.valueOf(System.getProperty(HTTPPOOL, "10"))));
+		server.setExecutor(Executors.newWorkStealingPool(Integer.parseInt(System.getProperty(HTTPPOOL, "10"))));
 		// Only two handlers.
 		server.createContext("/", new MsgHandler());
 		server.createContext("/status", new StatusHandler());
@@ -137,35 +131,34 @@ public class RemoteTerminalServer {
 					throw new IOException("Could not add to thread queue!");
 				}
 				// backend has 60 seconds to figure out the next action.
-				Map<String, Object> resp = session.fromThread.poll(Long.valueOf(System.getProperty(THREADTIMEOUT, "60")), TimeUnit.SECONDS);
+				Map<String, Object> resp = session.fromThread.poll(Long.parseLong(System.getProperty(THREADTIMEOUT, "60")), TimeUnit.SECONDS);
 				if (resp == null) {
 					logger.warn("Timeout");
 					Map<String, Object> stop = new HashMap<>();
 					stop.put("cmd", "STOP");
 					stop.put("message", "Timeout waiting for reply from thread");
 					// If the thread does wake up, signal the closed session.
-					session.toThread.offer(stop);
+					if (!session.toThread.offer(stop))
+						logger.warn("Could not queue STOP message");
 					throw new IOException("Timeout");
 				}
 				// Log the respone from thread.
 				logger.trace("from thread: {}", new JSONObject(resp).toJSONString());
 
-				if (resp != null) {
-					// Add session ID to message from worker.
-					resp.put("session", session.id.toString());
-					// Convert message to JSON
-					JSONObject respjson = new JSONObject(resp);
-					logger.trace("SEND: {}", respjson.toJSONString());
+				// Add session ID to message from worker.
+				resp.put("session", session.id.toString());
+				// Convert message to JSON
+				JSONObject respjson = new JSONObject(resp);
+				logger.trace("SEND: {}", respjson.toJSONString());
 
-					// Send response
-					setStandardHeaders(r);
-					r.getResponseHeaders().set("Content-type", "application/json");
-					byte [] payload = respjson.toJSONString().getBytes("UTF-8");
-					r.sendResponseHeaders(200, payload.length);
-					// Close stream
-					try (OutputStream body = r.getResponseBody()) {
-						body.write(payload);
-					}
+				// Send response
+				setStandardHeaders(r);
+				r.getResponseHeaders().set("Content-type", "application/json");
+				byte[] payload = respjson.toJSONString().getBytes("UTF-8");
+				r.sendResponseHeaders(200, payload.length);
+				// Close stream
+				try (OutputStream body = r.getResponseBody()) {
+					body.write(payload);
 				}
 			} catch (InterruptedException e) {
 				logger.debug("Interrupted");
@@ -174,6 +167,7 @@ public class RemoteTerminalServer {
 		}
 
 		@Override
+		@SuppressWarnings("unchecked")
 		public void handle(HttpExchange req) throws IOException {
 			if (req.getRequestMethod().equals("POST")) {
 				// Parse the input
@@ -192,16 +186,14 @@ public class RemoteTerminalServer {
 
 						if (readlen == len) {
 							// Read the message from the interweb.
-							JSONObject obj;
+							final Map<String, Object> msg;
 							try {
-								obj = (JSONObject) JSONValue.parseWithException(new String(data, "UTF-8"));
+								JSONObject obj = (JSONObject) JSONValue.parseWithException(new String(data, "UTF-8"));
+								logger.trace("RECV: {}", obj.toJSONString());
+								msg = obj;
 							} catch (ParseException e) {
 								throw new IOException("Could not parse JSON", e);
 							}
-							logger.trace("RECV: {}", obj.toJSONString());
-							// Convert to standard map
-							HashMap<String, Object> msg = new HashMap<>();
-							msg.putAll(obj);
 
 							// Add client IP
 							if (req.getRequestHeaders().containsKey("X-Forwarded-For")) {
@@ -283,7 +275,7 @@ public class RemoteTerminalServer {
 			req.sendResponseHeaders(200, 0);
 			try (OutputStream body = req.getResponseBody()) {
 				String s = "apdu4j/"+SCTool.getVersion() + " OK: " + sessions.size();
-				body.write(s.getBytes());
+				body.write(s.getBytes(StandardCharsets.UTF_8));
 			}
 		}
 	}

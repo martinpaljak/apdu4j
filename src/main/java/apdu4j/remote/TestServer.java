@@ -93,7 +93,7 @@ public class TestServer extends RemoteTerminalThread {
 					terminal.statusMessage("Card returned: " + HexUtils.bin2hex(r.getBytes()));
 				}
 
-				terminal.input("Please enter your nam");
+				terminal.input("Please enter your name");
 			} catch (CardException e) {
 				terminal.statusMessage("Failed: " + e.getMessage());
 			} finally {

@@ -21,6 +21,8 @@
  */
 package apdu4j;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 import java.io.File;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.InvocationTargetException;
@@ -65,6 +67,7 @@ public class TerminalManager {
 	 * Locates PC/SC shared library on the system and automagically sets system properties so that SunPCSC
 	 * could find the smart card service. Call this before acquiring your TerminalFactory.
 	 */
+	@SuppressFBWarnings("DMI_HARDCODED_ABSOLUTE_FILENAME")
 	public static void fixPlatformPaths() {
 		if (System.getProperty(LIB_PROP) == null) {
 			// Set necessary parameters for seamless PC/SC access.
@@ -124,8 +127,8 @@ public class TerminalManager {
 
 	/**
 	 * Load the TerminalFactory, possibly from a JAR and with arguments
-	 *
 	 */
+	@SuppressFBWarnings("DP_CREATE_CLASSLOADER_INSIDE_DO_PRIVILEGED") // TODO: clarify and use service loader instead
 	public static TerminalFactory loadTerminalFactory(String jar, String classname, String type, String arg) throws NoSuchAlgorithmException {
 		try {
 			// To support things like host:port pairs, urldecode the arguments component if provided
