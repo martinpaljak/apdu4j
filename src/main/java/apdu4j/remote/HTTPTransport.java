@@ -55,8 +55,9 @@ public class HTTPTransport implements JSONMessagePipe {
 
 	// Open a connection to a URL, with a pinned cert (or no checking) and a keystore (or not clientside auth)
 	public static HTTPTransport open(URL u, X509Certificate pinned, KeyManagerFactory kmf) throws IOException {
+		SSLSocketFactory sf = SocketTransport.get_ssl_socket_factory(kmf, pinned);
 		HTTPTransport t = new HTTPTransport(u);
-		t.f = SocketTransport.get_ssl_socket_factory(kmf, pinned);
+		t.f = sf;
 		return t;
 	}
 
