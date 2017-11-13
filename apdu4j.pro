@@ -1,4 +1,4 @@
--injars target/apdu4j.jar
+-injars target/apdu4j.jar(!com/sun/jna/sunos**,!com/sun/jna/w32ce-arm)
 -libraryjars <java.home>/lib/rt.jar
 
 #-keep public class apdu4j.SCTool {
