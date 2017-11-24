@@ -233,7 +233,7 @@ public class SCTool {
         }
 
         // Terminals to work on
-        List<CardTerminal> do_readers = new ArrayList<CardTerminal>();
+        List<CardTerminal> do_readers = new ArrayList<>();
 
         try {
             // List Terminals
