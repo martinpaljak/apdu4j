@@ -12,7 +12,7 @@ public class TestReaderSelection {
     @Test
     public void testReaderSelectionATR() {
         try {
-            CardTerminal t = TerminalManager.getByATR(Arrays.asList(new byte[][]{
+            CardTerminal t = TerminalManager.getByATRBytes(Arrays.asList(new byte[][]{
                     HexUtils.hex2bin("3BFA1800008031FE45FE654944202F20504B4903")
             }));
             if (t != null) {

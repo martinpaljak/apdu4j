@@ -41,6 +41,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -254,7 +255,15 @@ public final class TerminalManager {
         }
     }
 
-    public static CardTerminal getByATR(Collection<byte[]> atrs) throws NoSuchAlgorithmException, CardException {
+    public static CardTerminal getByATR(Collection<ATR> atrs) throws NoSuchAlgorithmException, CardException {
+        HashSet<byte[]> atrbytes = new HashSet<>();
+        for (ATR a: atrs) {
+            atrbytes.add(a.getBytes());
+        }
+        return getByATRBytes(atrbytes);
+    }
+
+    public static CardTerminal getByATRBytes(Collection<byte[]> atrs) throws NoSuchAlgorithmException, CardException {
         TerminalFactory tf = TerminalFactory.getInstance("PC/SC", null, new jnasmartcardio.Smartcardio());
         CardTerminals ts = tf.terminals();
         List<CardTerminal> tl = ts.list(State.ALL);
