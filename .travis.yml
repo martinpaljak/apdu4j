@@ -9,8 +9,10 @@ before_script:
   - tar -C ext -xzf launch4j-3.11-linux.tgz
 install: true
 script:
+  - if [ "${COVERITY_SCAN_BRANCH}" == 1 ]; then exit; fi
   - mvn clean compile findbugs:check package
   - ant windist
+
 env:
   global:
     secure: hH+ndhQYLCfGaJ8XXW0GW9jO8wv4Ek0tDz3StzyVq9F+6meXOiGFIJ6MCyLPVZouxpCYj03PC0DunWAYYn+e3lgdMeOBLIg6/1BpOs5i0eHImE6O7pdo/+/jsHtR60PG9qRNfw2JXpPTI0F730o4UBi4V2eY2hWfmCIAWj61X9U=
@@ -24,7 +26,7 @@ addons:
       name: martinpaljak/apdu4j
       description: apdu4j
     notification_email: martin@martinpaljak.net
-    build_command: mvn compile
+    build_command: mvn clean compile
     branch_pattern: coverity
 
 deploy:
