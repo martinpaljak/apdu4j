@@ -1,5 +1,6 @@
 import apdu4j.HexUtils;
 import apdu4j.TerminalManager;
+import jnasmartcardio.Smartcardio;
 import org.junit.Test;
 
 import javax.smartcardio.CardException;
@@ -17,7 +18,7 @@ public class TestReaderSelection {
             if (t != null) {
                 System.out.println(t.getName());
             }
-        } catch (CardException | NoSuchAlgorithmException e) {
+        } catch (CardException | NoSuchAlgorithmException | Smartcardio.EstablishContextException e) {
             System.out.println("N/A");
         }
     }
@@ -31,7 +32,7 @@ public class TestReaderSelection {
             if (t != null) {
                 System.out.println(t.getName());
             }
-        } catch (CardException | NoSuchAlgorithmException e) {
+        } catch (CardException | NoSuchAlgorithmException | Smartcardio.EstablishContextException e) {
             System.out.println("N/A");
         }
     }
