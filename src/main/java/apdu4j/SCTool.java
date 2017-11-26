@@ -258,7 +258,11 @@ public final class SCTool {
                             vmd += pp.hasDisplay() ? "D" : " ";
                             vmd += "] ";
                         } catch (CardException e) {
-                            vmd = " [EEE] ";
+                            String err = TerminalManager.getExceptionMessage(e);
+                            if (err.equals("SCARD_E_SHARING_VIOLATION")) {
+                                vmd = " [   ] ";
+                            } else
+                                vmd = " [EEE] ";
                         }
                     }
                     String present = t.isCardPresent() ? "[*]" : "[ ]";
@@ -277,9 +281,15 @@ public final class SCTool {
                             // Detect exclusive mode. Hopes this always succeeds
                             if (err.equals("SCARD_E_SHARING_VIOLATION")) {
                                 present = "[X]";
-                                // XXX: wrap around try/catch as well
-                                c = t.connect("DIRECT");
-                                atr = c.getATR().getBytes();
+                                try {
+                                    c = t.connect("DIRECT");
+                                    atr = c.getATR().getBytes();
+                                } catch (CardException e2) {
+                                    String err2 = TerminalManager.getExceptionMessage(e2);
+                                    if (err2.equals("SCARD_E_SHARING_VIOLATION")) {
+                                        present = "[X]";
+                                    }
+                                }
                             } else {
                                 secondline = "          " + err;
                             }
@@ -306,7 +316,6 @@ public final class SCTool {
                         System.out.println(secondline);
                     if (thirdline != null)
                         System.out.println(thirdline);
-
                 }
             }
 
