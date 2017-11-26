@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2016 Martin Paljak
+ * Copyright (c) 2014-2017 Martin Paljak
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,9 +39,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -99,7 +99,7 @@ public final class TerminalManager {
                 }
             }
         } else {
-            // TODO: display some helping information?
+            // TODO: display some helpful information?
         }
     }
 
@@ -255,12 +255,45 @@ public final class TerminalManager {
         }
     }
 
-    public static CardTerminal getByATR(Collection<ATR> atrs) throws NoSuchAlgorithmException, CardException {
-        HashSet<byte[]> atrbytes = new HashSet<>();
-        for (ATR a: atrs) {
-            atrbytes.add(a.getBytes());
+    /**
+     * Return a list of CardTerminal-s that contain a card with one of the specified ATR-s.
+     * The reader might be unusable (in use in exclusive mode).
+     *
+     * @param atrs Collection of ATR-s to match
+     *
+     * @return list of CardTerminal-s
+     * @throws NoSuchAlgorithmException  if PC/SC is not present/running
+     * @throws CardException if PC/SC error happens
+     */
+    public static List<CardTerminal> byATR(Collection<ATR> atrs) throws NoSuchAlgorithmException, CardException {
+        TerminalFactory tf = TerminalFactory.getInstance("PC/SC", null, new jnasmartcardio.Smartcardio());
+        CardTerminals ts = tf.terminals();
+        List<CardTerminal> tl = ts.list(State.ALL);
+        ArrayList<CardTerminal> result = new ArrayList<>();
+        for (CardTerminal t : tl) {
+            logger.trace("Checking {}", t.getName());
+            if (t.isCardPresent()) {
+                // TODO: only cards available, not exclusively used
+                Card c = t.connect("DIRECT");
+                ATR cardatr = c.getATR();
+                c.disconnect(false);
+
+                for (ATR atr : atrs) {
+                    if (cardatr.equals(atr)) {
+                        logger.debug("{} matched for ATR {}", t.getName(), HexUtils.bin2hex(atr.getBytes()));
+                        result.add(t);
+                    }
+                }
+            }
         }
-        return getByATRBytes(atrbytes);
+        return result;
+    }
+
+    public static CardTerminal getByATR(Collection<ATR> atrs) throws NoSuchAlgorithmException, CardException {
+        List<CardTerminal> result = byATR(atrs);
+        if (result.size() == 0)
+            throw new CardNotPresentException("No card with specified ATR found");
+        return result.get(0);
     }
 
     public static CardTerminal getByATRBytes(Collection<byte[]> atrs) throws NoSuchAlgorithmException, CardException {

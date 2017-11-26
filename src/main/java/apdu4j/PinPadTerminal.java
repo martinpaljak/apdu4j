@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 Martin Paljak
+ * Copyright (c) 2015-2017 Martin Paljak
  * <p>
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,9 +34,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
-public class PinPadTerminal implements AutoCloseable {
+public final class PinPadTerminal implements AutoCloseable {
     private static final int CM_IOCTL_GET_FEATURE_REQUEST = CARD_CTL_CODE(3400);
-    private static Logger logger = LoggerFactory.getLogger(PinPadTerminal.class);
+    private static final Logger logger = LoggerFactory.getLogger(PinPadTerminal.class);
     private Map<FEATURE, Integer> features = new HashMap<>();
     private boolean display = false;
     private CardTerminal t = null;
@@ -167,7 +167,7 @@ public class PinPadTerminal implements AutoCloseable {
     }
 
     // IOCTL-s of this terminal
-    public static enum FEATURE {
+    public enum FEATURE {
         VERIFY_PIN_START(0x01),
         VERIFY_PIN_FINISH(0x02),
         MODIFY_PIN_START(0x03),
@@ -206,6 +206,5 @@ public class PinPadTerminal implements AutoCloseable {
         public int getValue() {
             return value;
         }
-
     }
 }

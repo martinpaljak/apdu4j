@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2015 Martin Paljak
+ * Copyright (c) 2014-2017 Martin Paljak
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -48,8 +48,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 
-
-public class SCTool {
+public final class SCTool {
     private static final String CMD_LIST = "list";
     private static final String CMD_APDU = "apdu";
     private static final String OPT_SHELL = "shell";
@@ -263,27 +262,51 @@ public class SCTool {
                         }
                     }
                     String present = t.isCardPresent() ? "[*]" : "[ ]";
-                    System.out.println(present + vmd + t.getName());
+                    String secondline = null;
+                    String thirdline = null;
 
                     if (args.has(OPT_VERBOSE) && t.isCardPresent()) {
+                        Card c = null;
+                        byte[] atr = null;
+                        // Try shared mode, to detect exclusive mode via exception
                         try {
-                            Card c = t.connect("DIRECT");
-                            String atr = HexUtils.bin2hex(c.getATR().getBytes()).toUpperCase();
-                            c.disconnect(false);
-                            System.out.println("          " + atr);
+                            c = t.connect("*");
+                            atr = c.getATR().getBytes();
+                        } catch (CardException e) {
+                            String err = TerminalManager.getExceptionMessage(e);
+                            // Detect exclusive mode. Hopes this always succeeds
+                            if (err.equals("SCARD_E_SHARING_VIOLATION")) {
+                                present = "[X]";
+                                // XXX: wrap around try/catch as well
+                                c = t.connect("DIRECT");
+                                atr = c.getATR().getBytes();
+                            } else {
+                                secondline = "          " + err;
+                            }
+                        } finally {
+                            if (c != null)
+                                c.disconnect(false);
+                        }
+
+                        if (atr != null) {
+                            secondline = "          " + HexUtils.bin2hex(atr).toUpperCase();
                             if (args.has(OPT_WEB)) {
-                                String url = "http://smartcard-atr.appspot.com/parse?ATR=" + atr;
+                                String url = "http://smartcard-atr.appspot.com/parse?ATR=" + HexUtils.bin2hex(atr);
                                 if (Desktop.isDesktopSupported()) {
                                     Desktop.getDesktop().browse(new URI(url + "&from=apdu4j"));
                                 } else {
-                                    System.out.println("          " + url);
+                                    thirdline = "          " + url;
                                 }
                             }
-                        } catch (CardException e) {
-                            // Probably thrown because reader is in exclusive mode
-                            System.out.println("          " + TerminalManager.getExceptionMessage(e));
                         }
                     }
+
+                    System.out.println(present + vmd + t.getName());
+                    if (secondline != null)
+                        System.out.println(secondline);
+                    if (thirdline != null)
+                        System.out.println(thirdline);
+
                 }
             }
 
@@ -325,7 +348,12 @@ public class SCTool {
                 System.out.println("Could not list readers: " + em);
             }
         }
-        // Do the meaningful work.
+
+        // If we have meaningful work with readers
+        if (!hasWork(args))
+            System.exit(0);
+
+        // Do it
         for (CardTerminal t : do_readers) {
             if (do_readers.size() > 1 || args.has(OPT_VERBOSE)) {
                 System.out.println("# " + t.getName());
@@ -339,6 +367,14 @@ public class SCTool {
                 throw e;
             }
         }
+    }
+
+    private static boolean hasWork(OptionSet args) {
+        if (args.has(CMD_APDU))
+            return true;
+        if (args.has(OPT_CONNECT))
+            return true;
+        return false;
     }
 
     private static void work(CardTerminal reader, OptionSet args) throws CardException {

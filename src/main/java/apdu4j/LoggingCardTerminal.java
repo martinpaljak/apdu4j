@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014-2016 Martin Paljak
+ * Copyright (c) 2014-2017 Martin Paljak
  * <p>
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,36 +33,44 @@ import java.util.Calendar;
 
 /**
  * Log everything going through this CardTerminal, also hypothetical SCard API calls for connect/disconnect.
- *
+ * <p>
  * Dump APDU-s to a file for automatic playback and inspection
  *
  * @author Martin Paljak
  */
 public class LoggingCardTerminal extends CardTerminal {
-
     // The actual terminal
     protected final CardTerminal terminal;
     protected final PrintStream log;
-    protected PrintStream dump;
+    protected final PrintStream dump;
 
-    private LoggingCardTerminal(CardTerminal term, OutputStream log, OutputStream dump) {
+    private LoggingCardTerminal(CardTerminal term, PrintStream log, PrintStream dump) {
         this.terminal = term;
+        this.log = log;
+        this.dump = dump;
+    }
+
+    private static LoggingCardTerminal make(CardTerminal term, OutputStream log, OutputStream dump) {
+        final PrintStream logstream;
+        final PrintStream dumpstream;
         try {
-            this.log = new PrintStream(log, true, StandardCharsets.UTF_8.name());
+            logstream = new PrintStream(log, true, StandardCharsets.UTF_8.name());
             if (dump != null) {
-                this.dump = new PrintStream(dump, true, StandardCharsets.UTF_8.name());
-            }
+                dumpstream = new PrintStream(dump, true, StandardCharsets.UTF_8.name());
+            } else
+                dumpstream = null;
         } catch (UnsupportedEncodingException e) {
             throw new Error("Must support UTF-8", e);
         }
+        return new LoggingCardTerminal(term, logstream, dumpstream);
     }
 
     public static LoggingCardTerminal getInstance(CardTerminal term) {
-        return new LoggingCardTerminal(term, System.out, null);
+        return make(term, System.out, null);
     }
 
     public static LoggingCardTerminal getInstance(CardTerminal term, OutputStream dump) {
-        return new LoggingCardTerminal(term, System.out, dump);
+        return make(term, System.out, dump);
     }
 
     @Override
@@ -104,7 +112,7 @@ public class LoggingCardTerminal extends CardTerminal {
                 log.println(" -> " + card.getProtocol() + ", " + atr);
                 if (dump != null) {
                     String ts = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss Z").format(Calendar.getInstance().getTime());
-                    dump.println("# Generated on " + ts + " by apdu4j");
+                    dump.println("# Generated on " + ts + " by apdu4j/" + SCTool.getVersion());
                     dump.println("# Using " + terminal.getName());
                     dump.println("# ATR: " + atr);
                     dump.println("# PROTOCOL: " + card.getProtocol());
@@ -133,7 +141,7 @@ public class LoggingCardTerminal extends CardTerminal {
 
         @Override
         public void endExclusive() throws CardException {
-            log.println("SCardEndTransaction()");
+            log.println("SCardEndTransaction(" + terminal.getName() + ")");
             card.endExclusive();
         }
 
@@ -154,12 +162,26 @@ public class LoggingCardTerminal extends CardTerminal {
 
         @Override
         public CardChannel openLogicalChannel() throws CardException {
-            throw new CardException("Logical channels not supported");
+            throw new CardException("Logical channels are not supported");
         }
 
         @Override
         public byte[] transmitControlCommand(int arg0, byte[] arg1) throws CardException {
-            throw new CardException("Control commands not (yet) supported");
+            log.print("SCardControl(\"" + terminal.getName() + "\", " + Integer.toString(arg0, 16) + ", " + HexUtils.bin2hex(arg1) + ")");
+            final byte[] result;
+            try {
+                result = card.transmitControlCommand(arg0, arg1);
+            } catch (CardException e) {
+                String err = TerminalManager.getExceptionMessage(e);
+                if (err != null) {
+                    log.println("-> " + err);
+                } else {
+                    log.println("-> Exception");
+                }
+                throw e;
+            }
+            log.println("-> " + HexUtils.bin2hex(result));
+            return result;
         }
 
         public final class LoggingCardChannel extends CardChannel {
@@ -221,7 +243,17 @@ public class LoggingCardTerminal extends CardTerminal {
                 log.flush();
 
                 long t = System.currentTimeMillis();
-                ResponseAPDU response = channel.transmit(apdu);
+                final ResponseAPDU response;
+                try {
+                    response = channel.transmit(apdu);
+                } catch (CardException e) {
+                    String err = TerminalManager.getExceptionMessage(e);
+                    if (err != null)
+                        System.out.println("<< " + err);
+                    else
+                        System.out.println("<< Exception");
+                    throw e;
+                }
                 long ms = System.currentTimeMillis() - t;
                 String time = ms + "ms";
                 if (ms > 1000) {
