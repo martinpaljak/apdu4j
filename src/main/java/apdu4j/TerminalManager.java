@@ -260,10 +260,9 @@ public final class TerminalManager {
      * The reader might be unusable (in use in exclusive mode).
      *
      * @param atrs Collection of ATR-s to match
-     *
      * @return list of CardTerminal-s
-     * @throws NoSuchAlgorithmException  if PC/SC is not present/running
-     * @throws CardException if PC/SC error happens
+     * @throws NoSuchAlgorithmException if PC/SC is not present/running
+     * @throws CardException            if PC/SC error happens
      */
     public static List<CardTerminal> byATR(Collection<ATR> atrs) throws NoSuchAlgorithmException, CardException {
         TerminalFactory tf = TerminalFactory.getInstance("PC/SC", null, new jnasmartcardio.Smartcardio());
