@@ -5,7 +5,7 @@
     <groupId>com.github.martinpaljak</groupId>
     <artifactId>apdu4j</artifactId>
     <packaging>jar</packaging>
-    <version>0.0.39</version>
+    <version>17.11.26</version>
     <name>apdu4j</name>
     <url>https://github.com/martinpaljak/apdu4j</url>
     <description>Working with smart card readers? Everything related to javax.smartcardio</description>
