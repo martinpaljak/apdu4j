@@ -227,8 +227,7 @@ public final class SCTool {
             terminals = tf.terminals();
         } catch (EstablishContextException e) {
             String msg = TerminalManager.getExceptionMessage(e);
-            System.err.println("No readers: " + msg);
-            System.exit(1);
+            fail("No readers: " + msg);
         }
 
         // Terminals to work on
@@ -242,8 +241,7 @@ public final class SCTool {
                     System.out.println("# Found " + terms.size() + " terminal" + (terms.size() == 1 ? "" : "s"));
                 }
                 if (terms.size() == 0) {
-                    System.err.println("No readers found");
-                    System.exit(1);
+                    fail("No readers found");
                 }
                 // List trminals
                 for (CardTerminal t : terms) {
@@ -259,7 +257,7 @@ public final class SCTool {
                             vmd += "] ";
                         } catch (CardException e) {
                             String err = TerminalManager.getExceptionMessage(e);
-                            if (err.equals("SCARD_E_SHARING_VIOLATION")) {
+                            if (err.equals(SCard.SCARD_E_SHARING_VIOLATION)) {
                                 vmd = " [   ] ";
                             } else
                                 vmd = " [EEE] ";
@@ -279,14 +277,14 @@ public final class SCTool {
                         } catch (CardException e) {
                             String err = TerminalManager.getExceptionMessage(e);
                             // Detect exclusive mode. Hopes this always succeeds
-                            if (err.equals("SCARD_E_SHARING_VIOLATION")) {
+                            if (err.equals(SCard.SCARD_E_SHARING_VIOLATION)) {
                                 present = "[X]";
                                 try {
                                     c = t.connect("DIRECT");
                                     atr = c.getATR().getBytes();
                                 } catch (CardException e2) {
                                     String err2 = TerminalManager.getExceptionMessage(e2);
-                                    if (err2.equals("SCARD_E_SHARING_VIOLATION")) {
+                                    if (err2.equals(SCard.SCARD_E_SHARING_VIOLATION)) {
                                         present = "[X]";
                                     }
                                 }
@@ -324,8 +322,7 @@ public final class SCTool {
                 String reader = (String) args.valueOf(OPT_READER);
                 CardTerminal t = terminals.getTerminal(reader);
                 if (t == null) {
-                    System.err.println("Reader \"" + reader + "\" not found.");
-                    System.exit(1);
+                    fail("Reader \"" + reader + "\" not found.");
                 }
                 do_readers = Arrays.asList(t);
             } else {
@@ -342,17 +339,15 @@ public final class SCTool {
                             do_readers = Arrays.asList(rdr);
                         }
                     } else {
-                        System.err.println("No reader with a card found!");
-                        System.exit(1);
+                        fail("No reader with a card found!");
                     }
                 }
             }
         } catch (CardException e) {
             // Address Windows with SunPCSC
             String em = TerminalManager.getExceptionMessage(e);
-            if (em.equals("SCARD_E_NO_READERS_AVAILABLE")) {
-                System.err.println("No reader with a card found!");
-                System.exit(1);
+            if (em.equals(SCard.SCARD_E_NO_READERS_AVAILABLE)) {
+                fail("No reader with a card found!");
             } else {
                 System.out.println("Could not list readers: " + em);
             }
@@ -370,7 +365,7 @@ public final class SCTool {
             try {
                 work(t, args);
             } catch (CardException e) {
-                if (TerminalManager.getExceptionMessage(e) == "SCARD_E_SHARING_VIOLATION") {
+                if (TerminalManager.getExceptionMessage(e).equals(SCard.SCARD_E_SHARING_VIOLATION)) {
                     continue;
                 }
                 throw e;
@@ -542,5 +537,10 @@ public final class SCTool {
             throw new IllegalArgumentException("Can connect to host:port pairs!");
         }
         return new InetSocketAddress(hostport[0], Integer.parseInt(hostport[1]));
+    }
+
+    private static void fail(String message) {
+        System.err.println(message);
+        System.exit(1);
     }
 }
