@@ -19,7 +19,7 @@ Command line tool and library of useful Java classes for working with smart card
 
 ### Get it now!
 * Download latest pre-built .JAR or .EXE from [release area](https://github.com/martinpaljak/apdu4j/releases)
-* Or fetch from github and build it yourself, it is really easy (more instructions in [CONTRIBUTING](./CONTRIBUTING.md):
+* Or fetch from github and build it yourself, it is really easy (more instructions in [CONTRIBUTING](./CONTRIBUTING.md)):
 
 ```shell
 git clone https://github.com/martinpaljak/apdu4j
@@ -32,91 +32,93 @@ ant
  * Before you begin:
    * You can run the command line utility anywhere where Java runs, like this:
 
-            java -jar apdu4j.jar
+         java -jar apdu4j.jar
    * But it is easier to add an alias or use a wrapper.            
    * On Linux add an alias to the shell like this:
 
-            alias sc="java -jar $(PWD)/apdu4j.jar"
-            # Now you can avoid typing java -jar and sc works from any folder
-            sc -h
+         alias sc="java -jar $(PWD)/apdu4j.jar"
+         # Now you can avoid typing java -jar and sc works from any folder
+         sc -h
 
-   * On Windows just use pre-packaged ```apdu4j.exe``` like this or rename it:
+   * On Windows just use pre-packaged `apdu4j.exe` like this or rename it:
 
-            apdu4j.exe -h
+         apdu4j.exe -h
 
  * Display all options:
 
-        sc -h
+       sc -h
  
  * List readers:
 
-        sc -l
+       sc -l
    
    Will produce something like
-```
-[ ] Gemalto Ezio Shield 01 00
-[*] ACS ACR 38U-CCID 02 00
-```
+
+       [ ] Gemalto Ezio Shield 01 00
+       [*] ACS ACR 38U-CCID 02 00
+
    The presence of a card or token is indicated with the asterisk
  * Be verbose:
 
-        sc -l -v
+       sc -l -v
+       
    Will produce:
 
-```
-# Using sun.security.smartcardio.SunPCSC - SunPCSC version 1.7
-# Found 3 terminals
-[ ] [VMD] Gemalto Ezio Shield 01 00
-[*] [   ] ACS ACR 38U-CCID 02 00
-              3BF91300008131FE454A434F503234325233A2
-[ ] [   ] ACS ACR 38U-CCID 03 00
-```
-   In addition to the ATR of the inserted card below the reader, PinPad features of the terminal are shown: V - PIN verification, M - PIN modification, D - display
+       # Using jnasmartcardio.Smartcardio - JNA2PCSC version 0.2
+       # Found 4 terminals
+       [X] [   ] Yubico Yubikey 4 U2F+CCID
+                 3BF81300008131FE15597562696B657934D4
+       [ ] [VMD] Gemalto Ezio Shield 01 00
+       [*] [   ] ACS ACR 38U-CCID 02 00
+                 3BF91300008131FE454A434F503234325233A2
+       [ ] [   ] ACS ACR 38U-CCID 03 00
+
+   In addition to the ATR of the inserted card below the reader, PinPad features of the terminal are shown: V - PIN verification, M - PIN modification, D - display. X instead of the asterisk indicates a reader used exclusively by some other application.
 
  * Take you directly to the [online ATR database](http://smartcard-atr.appspot.com/)
 
-        sc -l -v -w
+       sc -l -v -w
 
  * Use a virtual smart card reader provider (format for `-p` is `jar:class:args`, where `args` part can be URL-encoded):
-        sc -p some.jar:com.example.VirtualTerminalProvider:tcp%3A%2F%2F192.168.1.1%3A7000 -lv
+       
+       sc -p some.jar:com.example.VirtualTerminalProvider:tcp%3A%2F%2F192.168.1.1%3A7000 -lv
 
- * Send the APDU ```00A40C0000``` to the card:
+ * Send the APDU `00A40C0000` to the card:
 
-        sc -a 00A40C0000
+       sc -a 00A40C0000
 
  * The same with forced T=0 protocol (similar for T=1):
 
-        sc -t0 -a 00A40C0000
+       sc -t0 -a 00A40C0000
 
- * The same, with an additional APDU, while dumping everything to ```card.dump```
+ * The same, with an additional APDU, while dumping everything to `card.dump`
  
-        sc -t0 -a 00A40C0000 -a 80:01:04:00:00 -dump card.dump
+       sc -t0 -a 00A40C0000 -a 80:01:04:00:00 -dump card.dump
 
  * SunPCSC - use specific PC/SC library:
 
-        sc -lib /usr/local/lib/pcsclite.so -l
+       sc -lib /usr/local/lib/pcsclite.so -l
 
  * SunPCSC - don't issue `GET RESPONSE` commands:
 
-        sc -no-get-response -a 00A4040000 -v
+       sc -no-get-response -a 00A4040000 -v
 
- * Show APDU-s sent to the card (using ```LoggingCardTerminal```):
+ * Show APDU-s sent to the card (using `LoggingCardTerminal`):
    
-   add ```-debug``` or ```-d``` to your command
+   add `-debug` or `-d` to your command
 
  * Be verbose:
    
-   add ```-verbose``` or ```-v``` to your command
+   add `-verbose` or `-v` to your command
 
 ### Usage from Java
 Include the dependency
 
 ```xml
-<!-- https://mvnrepository.com/artifact/com.github.martinpaljak/apdu4j -->
 <dependency>
     <groupId>com.github.martinpaljak</groupId>
     <artifactId>apdu4j</artifactId>
-    <version>0.0.37</version>
+    <version>17.11.26</version>
 </dependency>
 ```
 
@@ -130,7 +132,7 @@ TerminalManager.fixPlatformPaths();
 ```
 
 #### LoggingCardTerminal
- * Show a debugging trace (like ```-d```) of PC/SC calls and exhanged APDU-s with timing on System.out:
+ * Show a debugging trace (like `-d`) of PC/SC calls and exhanged APDU-s with timing on System.out:
  
 ```java
 import apdu4j.LogginCardTerminal;
