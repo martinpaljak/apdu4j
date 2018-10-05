@@ -1,7 +1,7 @@
 import apdu4j.HexUtils;
 import apdu4j.TerminalManager;
 import jnasmartcardio.Smartcardio;
-import org.junit.Test;
+import org.testng.annotations.Test;
 
 import javax.smartcardio.CardException;
 import javax.smartcardio.CardTerminal;
