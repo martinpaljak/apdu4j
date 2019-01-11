@@ -101,6 +101,8 @@ public class LoggingCardTerminal extends CardTerminal {
 
 
     public final class LoggingCard extends Card {
+        private long inBytes = 0;
+        private long outBytes = 0;
         private final Card card;
 
         private LoggingCard(CardTerminal term, String protocol) throws CardException {
@@ -132,7 +134,8 @@ public class LoggingCardTerminal extends CardTerminal {
 
         @Override
         public void disconnect(boolean arg0) throws CardException {
-            log.println("SCardDisconnect(\"" + terminal.getName() + "\", " + arg0 + ")");
+            log.println("SCardDisconnect(\"" + terminal.getName() + "\", " + arg0 + ") tx:" + outBytes + "/rx:" + inBytes);
+            inBytes = outBytes = 0;
             if (dump != null) {
                 dump.close();
             }
@@ -141,7 +144,7 @@ public class LoggingCardTerminal extends CardTerminal {
 
         @Override
         public void endExclusive() throws CardException {
-            log.println("SCardEndTransaction(" + terminal.getName() + ")");
+            log.println("SCardEndTransaction(\"" + terminal.getName() + "\")");
             card.endExclusive();
         }
 
@@ -246,6 +249,7 @@ public class LoggingCardTerminal extends CardTerminal {
                 final ResponseAPDU response;
                 try {
                     response = channel.transmit(apdu);
+                    outBytes += cb.length;
                 } catch (CardException e) {
                     String err = TerminalManager.getExceptionMessage(e);
                     if (err != null)
@@ -260,6 +264,7 @@ public class LoggingCardTerminal extends CardTerminal {
                     time = ms / 1000 + "s" + ms % 1000 + "ms";
                 }
                 byte[] rb = response.getBytes();
+                inBytes += rb.length;
                 System.out.print("A<< (" + String.format("%04d", response.getData().length) + "+2) (" + time + ")");
                 if (rb.length > 2) {
                     log.print(" " + HexUtils.bin2hex(Arrays.copyOfRange(rb, 0, rb.length - 2)));
@@ -280,7 +285,9 @@ public class LoggingCardTerminal extends CardTerminal {
 
                 log.println("B>> " + card.getProtocol() + " (" + commandBytes.length + ") " + HexUtils.bin2hex(commandBytes));
                 int response = channel.transmit(cmd, rsp);
+                outBytes += commandBytes.length;
                 byte[] responseBytes = new byte[response];
+                inBytes += responseBytes.length;
                 rsp.get(responseBytes);
                 rsp.position(0);
                 log.println("B<< (" + responseBytes.length + ") " + HexUtils.bin2hex(responseBytes));
