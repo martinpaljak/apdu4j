@@ -9,3 +9,6 @@
 /apdu4j.sh
 /lib/*.jar
 /version.txt
+**.iml
+/.idea
+/*/target

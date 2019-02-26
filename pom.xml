@@ -1,19 +1,21 @@
 <?xml version="1.0"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.github.martinpaljak</groupId>
         <artifactId>javacard</artifactId>
-        <version>18.10.04</version>
+        <version>19.05.08</version>
     </parent>
     <artifactId>apdu4j</artifactId>
-    <packaging>jar</packaging>
+    <version>18.05.01</version>
+    <packaging>pom</packaging>
     <name>apdu4j</name>
     <url>https://github.com/martinpaljak/apdu4j</url>
     <description>Working with smart card readers? Everything related to javax.smartcardio</description>
     <scm>
         <url>https://github.com/martinpaljak/apdu4j</url>
-        <developerConnection>scm:git:git@github.com:martinpaljak/apdu4j.git</developerConnection>        
+        <developerConnection>scm:git:git@github.com:martinpaljak/apdu4j.git</developerConnection>
     </scm>
     <licenses>
         <license>
@@ -21,47 +23,34 @@
             <url>https://github.com/martinpaljak/apdu4j/blob/master/LICENSE</url>
             <distribution>repo</distribution>
         </license>
+        <license>
+            <name>GPL</name>
+            <url>https://github.com/martinpaljak/apdu4j/blob/master/core/src/main/java/apdu4j/CommandAPDU.java</url>
+            <distribution>repo</distribution>
+        </license>
     </licenses>
+    <modules>
+        <module>core</module>
+        <module>pcsc</module>
+        <module>tool</module>
+        <module>json-remote-emv</module>
+        <module>testing</module>
+    </modules>
+
     <dependencies>
-        <dependency>
-            <groupId>io.github.jnasmartcardio</groupId>
-            <artifactId>jnasmartcardio</artifactId>
-            <version>0.2.7</version>
-        </dependency>
-        <!-- Remote EMV JSON Reader -->
-        <dependency>
-            <groupId>com.googlecode.json-simple</groupId>
-            <artifactId>json-simple</artifactId>
-            <version>1.1.1</version>
-            <scope>provided</scope>
-            <optional>true</optional>
-        </dependency>
-        <!-- logging for cmdline -->
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-simple</artifactId>
-            <version>${slf4j.version}</version>
-            <optional>true</optional>
-        </dependency>
         <!-- Logging -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>${slf4j.version}</version>
+            <version>1.7.25</version>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/org.bouncycastle/bcprov-jdk15on -->
         <dependency>
-            <groupId>org.bouncycastle</groupId>
-            <artifactId>bcprov-jdk15on</artifactId>
-            <version>${bc.version}</version>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>1.7.25</version>
+            <scope>test</scope>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/net.sf.jopt-simple/jopt-simple -->
-        <dependency>
-            <groupId>net.sf.jopt-simple</groupId>
-            <artifactId>jopt-simple</artifactId>
-            <version>${jopt.version}</version>
-        </dependency>
-        <!-- For abstract base class -->
+        <!-- Testing -->
         <dependency>
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
@@ -76,6 +65,7 @@
             </resource>
         </resources>
         <plugins>
+            <!-- GitTagCalVer -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
@@ -101,37 +91,10 @@
                     </arguments>
                 </configuration>
             </plugin>
+            <!-- Reproducible -->
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-shade-plugin</artifactId>
-                <version>3.1.0</version>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                        <configuration>
-                            <finalName>apdu4j</finalName>
-                            <transformers>
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>apdu4j.SCTool</mainClass>
-                                </transformer>
-                            </transformers>
-                            <filters>
-                                <filter>
-                                    <artifact>*:*</artifact>
-                                    <excludes>
-                                        <exclude>META-INF/*.SF</exclude>
-                                        <exclude>META-INF/*.DSA</exclude>
-                                        <exclude>META-INF/*.RSA</exclude>
-                                        <exclude>META-INF/maven/**</exclude>
-                                    </excludes>
-                                </filter>
-                            </filters>
-                        </configuration>
-                    </execution>
-                </executions>
+                <groupId>io.github.zlika</groupId>
+                <artifactId>reproducible-build-maven-plugin</artifactId>
             </plugin>
         </plugins>
     </build>

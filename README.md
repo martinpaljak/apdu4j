@@ -186,7 +186,7 @@ reader = LoggingCardTerminal.getInstance(reader, o);
 This is a [TerminalFactory][TerminalFactory] that presents a single reader that will reply to commands from a session stored with [LoggingCardTerminal](#loggingcardterminal). This allows to test certain code in a way that doesn't require physical readers or tokens.
 
 ```java
-import apdu4j.APDUReplayProvider;
+import apdu4j.providers.APDUReplayProvider;
 
 FileInputStream f = new FileInputStream(new File("card.dump"));
 TerminalFactory tf = TerminalFactory.getInstance("PC/SC", f, new APDUReplayProvider());
