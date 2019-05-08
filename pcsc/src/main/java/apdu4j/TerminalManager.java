@@ -108,7 +108,7 @@ public final class TerminalManager {
         }
     }
 
-    /**
+    /*
      * Load the TerminalFactory, possibly from a JAR and with arguments
      */
     @SuppressFBWarnings("DP_CREATE_CLASSLOADER_INSIDE_DO_PRIVILEGED") // TODO: clarify and use service loader instead
@@ -149,7 +149,7 @@ public final class TerminalManager {
     }
 
 
-    /**
+    /*
      * Given a specification for a TerminalFactory, returns a TerminalFactory instance.
      * <p>
      * The format is: jar:class:args, some heuristics is made to make the function DWIM.
@@ -352,12 +352,10 @@ public final class TerminalManager {
      * Return a list of CardTerminal-s that contain a card with one of the specified ATR-s.
      * The reader might be unusable (in use in exclusive mode).
      *
+     * @param terminals List of CardTerminal-s to use
      * @param atrs Collection of ATR-s to match
      * @return list of CardTerminal-s
-     * @throws NoSuchAlgorithmException if PC/SC is not present/running
-     * @throws CardException            if PC/SC error happens
      */
-
     public static List<CardTerminal> byATR(List<CardTerminal> terminals, Collection<byte[]> atrs) {
         return terminals.stream().filter(t -> {
             try {
