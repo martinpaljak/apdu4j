@@ -1,4 +1,4 @@
--injars target/apdu4j.jar(!com/sun/jna/sunos**,!com/sun/jna/w32ce-arm)
+-injars tool/target/apdu4j.jar(!com/sun/jna/sunos**,!com/sun/jna/w32ce-arm)
 -libraryjars <java.home>/lib/rt.jar
 
 -keep class apdu4j.** { *; }

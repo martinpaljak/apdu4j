@@ -5,10 +5,10 @@
   <target name="fetch" description="fetch dependencies">
     <mkdir dir="lib"/>
     <!-- Remember to update apdu4j.pro and .classpath as well! -->
-    <get src="http://central.maven.org/maven2/net/sf/proguard/proguard-base/5.3/proguard-base-5.3.jar" dest="lib" verbose="true" skipexisting="true"/>
+    <get src="http://central.maven.org/maven2/net/sf/proguard/proguard-base/6.0.3/proguard-base-6.0.3.jar" dest="lib" verbose="true" skipexisting="true"/>
   </target>
   <target name="check" depends="fetch" unless="insecure">
-    <checksum algorithm="SHA-256" file="lib/proguard-base-5.3.jar" property="6ddbbcbd3ef979a588ee2732920b00c335649dcb72f464eaaf0ce9685a539572" verifyProperty="proguardOK"/>
+    <checksum algorithm="SHA-256" file="lib/proguard-base-6.0.3.jar" property="75bc89695fa66e75374ecda439b802406f0ab1d826dd386eed0a23b1f0a9d264" verifyProperty="proguardOK"/>
     <fail message="Checksum failure">
       <condition>
         <or>
@@ -23,7 +23,7 @@
     <java classname="proguard.ProGuard" fork="true" failonerror="true">
       <arg line="@apdu4j.pro"/>
       <classpath>
-        <pathelement location="lib/proguard-base-5.3.jar"/>
+        <pathelement location="lib/proguard-base-6.0.3.jar"/>
       </classpath>
     </java>
   </target>
