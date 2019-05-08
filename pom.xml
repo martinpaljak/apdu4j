@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.github.martinpaljak</groupId>
         <artifactId>javacard</artifactId>
-        <version>19.05.08</version>
+        <version>19.05.09</version>
     </parent>
     <artifactId>apdu4j</artifactId>
     <version>19.05.08</version>
