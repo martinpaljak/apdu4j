@@ -44,9 +44,7 @@ import java.security.Security;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
+import java.util.*;
 import java.util.List;
 
 public final class SCTool {
@@ -77,7 +75,6 @@ public final class SCTool {
 
     private static final String OPT_NO_GET_RESPONSE = "no-get-response";
     private static final String OPT_LIB = "lib";
-    private static final String OPT_WEB = "web";
     private static final String OPT_PROVIDERS = "P";
     private static final String OPT_TEST_SERVER = "testserver";
 
@@ -95,7 +92,7 @@ public final class SCTool {
         parser.acceptsAll(Arrays.asList("h", OPT_HELP), "show help");
         parser.acceptsAll(Arrays.asList("r", OPT_READER), "use reader").withRequiredArg();
         parser.acceptsAll(Arrays.asList("a", CMD_APDU), "send APDU").withRequiredArg();
-        parser.acceptsAll(Arrays.asList("w", OPT_WEB), "open ATR in web");
+        parser.acceptsAll(Arrays.asList("w", OPT_WAIT), "wait for card insertion");
         parser.acceptsAll(Arrays.asList("V", OPT_VERSION), "show version information");
         parser.acceptsAll(Arrays.asList("s", OPT_SHELL), "start shell");
 
@@ -109,7 +106,6 @@ public final class SCTool {
 
         parser.accepts(OPT_PROVIDERS, "list providers");
         parser.accepts(OPT_ALL, "process all readers");
-        parser.accepts(OPT_WAIT, "wait for card insertion");
         parser.accepts(OPT_T0, "use T=0");
         parser.accepts(OPT_T1, "use T=1");
         parser.accepts(OPT_EXCLUSIVE, "use EXCLUSIVE mode (JNA only)");
@@ -267,7 +263,7 @@ public final class SCTool {
                     String present = t.isCardPresent() ? "[*]" : "[ ]";
                     String secondline = null;
                     String thirdline = null;
-
+                    String filler = "          ";
                     if (args.has(OPT_VERBOSE) && t.isCardPresent()) {
                         Card c = null;
                         byte[] atr = null;
@@ -290,7 +286,7 @@ public final class SCTool {
                                     }
                                 }
                             } else {
-                                secondline = "          " + err;
+                                secondline = err;
                             }
                         } finally {
                             if (c != null)
@@ -298,23 +294,29 @@ public final class SCTool {
                         }
 
                         if (atr != null) {
-                            secondline = "          " + HexUtils.bin2hex(atr).toUpperCase();
-                            if (args.has(OPT_WEB)) {
-                                String url = "http://smartcard-atr.appspot.com/parse?ATR=" + HexUtils.bin2hex(atr);
-                                if (Desktop.isDesktopSupported()) {
-                                    Desktop.getDesktop().browse(new URI(url + "&from=apdu4j"));
+                            secondline = HexUtils.bin2hex(atr).toUpperCase();
+                            if (ATRList.locate().isPresent() || System.getenv().containsKey("SMARTCARD_LIST")) {
+                                final ATRList atrList;
+                                if (System.getenv().containsKey("SMARTCARD_LIST")) {
+                                    atrList = ATRList.from(System.getenv("SMARTCARD_LIST"));
                                 } else {
-                                    thirdline = "          " + url;
+                                    atrList = ATRList.from(ATRList.locate().get());
                                 }
+                                Optional<Map.Entry<String, String>> desc = atrList.match(atr);
+                                if (desc.isPresent()) {
+                                    thirdline = atrList.match(atr).get().getValue().replace("\n", filler);
+                                }
+                            } else {
+                                thirdline = "https://smartcard-atr.appspot.com/parse?ATR=" + HexUtils.bin2hex(atr);
                             }
                         }
                     }
 
                     System.out.println(present + vmd + t.getName());
                     if (secondline != null)
-                        System.out.println(secondline);
+                        System.out.println(filler + secondline);
                     if (thirdline != null)
-                        System.out.println(thirdline);
+                        System.out.println(filler + thirdline);
                 }
             }
 
