@@ -65,7 +65,6 @@ public class ATRList {
     }
 
     // Does the same as https://github.com/LudovicRousseau/pcsc-tools/blob/master/ATR_analysis#L58
-    @edu.umd.cs.findbugs.annotations.SuppressFBWarnings("DMI_HARDCODED_ABSOLUTE_FILENAME")
     public static Optional<String> locate() {
         String home = System.getProperty("user.home", "");
         Path[] paths = new Path[]{

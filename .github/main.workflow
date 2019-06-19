@@ -4,15 +4,21 @@ workflow "Default workflow for pushes" {
 }
 
 action "mvn" {
-  uses = "docker://maven:3.6.0-jdk-8"
+  needs = "mvn-11"
+  uses = "docker://maven:3.6.1-jdk-8"
   runs = "mvn"
   args = "-U -B verify"
 }
 
+action "mvn-11" {
+  uses = "docker://maven:3.6.1-jdk-11"
+  runs = "mvn"
+  args = "-U -B verify"
+}
 
 action "on-tag" {
-  # Filter for tag
   needs = "mvn"
+  # Filter for tag
   uses = "actions/bin/filter@master"
   args = "tag"
 }

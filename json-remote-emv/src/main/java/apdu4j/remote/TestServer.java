@@ -101,8 +101,6 @@ public class TestServer extends RemoteTerminalThread {
 			}
 		} catch (IOException e) {
 			logger.error("Communication error", e);
-		} catch (UserCancelExcption e) {
-			logger.warn("User cancelled the operation with red button");
 		}
 	}
 }
