@@ -21,12 +21,11 @@
  */
 package apdu4j.remote;
 
-import java.io.IOException;
-import java.util.Map;
+import apdu4j.HexUtils;
 
 import javax.smartcardio.CardTerminal;
-
-import apdu4j.HexUtils;
+import java.io.IOException;
+import java.util.Map;
 
 /**
  * Implementation of the <a href=
@@ -37,165 +36,168 @@ import apdu4j.HexUtils;
  */
 public class RemoteTerminal implements AutoCloseable {
 
-	@SuppressWarnings("serial")
-	public static class UserCancelExcption extends Exception {
-		public UserCancelExcption(String message) {
-			super(message);
-		}
-	}
-	private final JSONMessagePipe pipe;
-	private final CardTerminal terminal;
-	private String lang = "en";
+    @SuppressWarnings("serial")
+    public static class UserCancelExcption extends Exception {
+        public UserCancelExcption(String message) {
+            super(message);
+        }
+    }
 
-	public enum Button {RED, GREEN, YELLOW}
+    private final JSONMessagePipe pipe;
+    private final CardTerminal terminal;
+    private String lang = "en";
 
-	public RemoteTerminal(JSONMessagePipe pipe) {
-		this.pipe = pipe;
-		this.terminal = new JSONCardTerminal(pipe);
-	}
+    public enum Button {RED, GREEN, YELLOW}
 
-	public CardTerminal getCardTerminal() {
-		return terminal;
-	}
+    public RemoteTerminal(JSONMessagePipe pipe) {
+        this.pipe = pipe;
+        this.terminal = new JSONCardTerminal(pipe);
+    }
 
-	public Map<String, Object> start() throws IOException {
-		// Read the first START message.
-		Map<String, Object> m = pipe.recv();
-		if (m.containsKey("cmd") && m.get("cmd").equals("START")) {
-			if (m.containsKey("lang") && m.get("lang").toString().matches("\\p{Lower}{2}")) {
-				lang = (String) m.get("lang");
-			}
-			return m;
-		} else {
-			throw new IOException("Invalid START message");
-		}
+    public CardTerminal getCardTerminal() {
+        return terminal;
+    }
 
-	}
-	/**
-	 * Shows a message on the screen
-	 *
-	 * @param text message to be shown
-	 * @throws IOException when communication fails
-	 */
-	public void statusMessage(String text) throws IOException {
-		Map<String, Object> m = JSONProtocol.cmd("message");
-		m.put("text", text);
-		pipe.send(m);
-		if (!JSONProtocol.check(m, pipe.recv())) {
-			throw new IOException("Could not display status");
-		}
-	}
+    public Map<String, Object> start() throws IOException {
+        // Read the first START message.
+        Map<String, Object> m = pipe.recv();
+        if (m.containsKey("cmd") && m.get("cmd").equals("START")) {
+            if (m.containsKey("lang") && m.get("lang").toString().matches("\\p{Lower}{2}")) {
+                lang = (String) m.get("lang");
+            }
+            return m;
+        } else {
+            throw new IOException("Invalid START message");
+        }
 
-	/**
-	 * Shows a dialog message to the user and returns the pressed button.
-	 *
-	 * @param message text to display to the user
-	 * @return {@link Button} that was pressed by the user
-	 * @throws IOException when communication fails
-	 */
-	public Button dialog(String message) throws IOException, UserCancelExcption {
-		Map<String, Object> m = JSONProtocol.cmd("dialog");
-		m.put("text", message);
-		pipe.send(m);
-		Map<String, Object> r = pipe.recv();
-		if (!JSONProtocol.check(m, r) || !r.containsKey("button")) {
-			throw new IOException("Unknown button pressed");
-		}
-		return Button.valueOf(((String)r.get("button")).toUpperCase());
-	}
+    }
 
-	/**
-	 * Asks for input from the user.
-	 *
-	 * @param message text to display to the user
-	 * @return null or input
-	 * @throws IOException when communication fails
-	 */
-	public String input(String message) throws IOException, UserCancelExcption {
-		Map<String, Object> m = JSONProtocol.cmd("input");
-		m.put("text", message);
-		pipe.send(m);
-		Map<String, Object> r = pipe.recv();
-		if (!JSONProtocol.check(m, r) || !r.containsKey("value")) {
-			throw new IOException("No value");
-		}
-		return (String) r.get("value");
-	}
+    /**
+     * Shows a message on the screen
+     *
+     * @param text message to be shown
+     * @throws IOException when communication fails
+     */
+    public void statusMessage(String text) throws IOException {
+        Map<String, Object> m = JSONProtocol.cmd("message");
+        m.put("text", text);
+        pipe.send(m);
+        if (!JSONProtocol.check(m, pipe.recv())) {
+            throw new IOException("Could not display status");
+        }
+    }
+
+    /**
+     * Shows a dialog message to the user and returns the pressed button.
+     *
+     * @param message text to display to the user
+     * @return {@link Button} that was pressed by the user
+     * @throws IOException when communication fails
+     */
+    public Button dialog(String message) throws IOException {
+        Map<String, Object> m = JSONProtocol.cmd("dialog");
+        m.put("text", message);
+        pipe.send(m);
+        Map<String, Object> r = pipe.recv();
+        if (!JSONProtocol.check(m, r) || !r.containsKey("button")) {
+            throw new IOException("Unknown button pressed");
+        }
+        return Button.valueOf(((String) r.get("button")).toUpperCase());
+    }
+
+    /**
+     * Asks for input from the user.
+     *
+     * @param message text to display to the user
+     * @return null or input
+     * @throws IOException when communication fails
+     */
+    public String input(String message) throws IOException {
+        Map<String, Object> m = JSONProtocol.cmd("input");
+        m.put("text", message);
+        pipe.send(m);
+        Map<String, Object> r = pipe.recv();
+        if (!JSONProtocol.check(m, r) || !r.containsKey("value")) {
+            throw new IOException("No value");
+        }
+        return (String) r.get("value");
+    }
 
 
-	public int select(String message, Map<Integer, String> choices) throws IOException, UserCancelExcption {
-		Map<String, Object> m = JSONProtocol.cmd("select");
-		for (Map.Entry<Integer, String> e: choices.entrySet()) {
-			m.put(e.getKey().toString(), e.getValue());
-		}
-		m.put("text", message);
-		pipe.send(m);
-		Map<String, Object> r = pipe.recv();
-		if (!JSONProtocol.check(m, r) || !r.containsKey("value")) {
-			throw new IOException("No value");
-		}
-		try {
-			return Integer.parseInt((String)r.get("value"));
-		} catch (NumberFormatException e) {
-			throw new IOException("Choice was not numeric", e);
-		}
-	}
+    public int select(String message, Map<Integer, String> choices) throws IOException {
+        Map<String, Object> m = JSONProtocol.cmd("select");
+        for (Map.Entry<Integer, String> e : choices.entrySet()) {
+            m.put(e.getKey().toString(), e.getValue());
+        }
+        m.put("text", message);
+        pipe.send(m);
+        Map<String, Object> r = pipe.recv();
+        if (!JSONProtocol.check(m, r) || !r.containsKey("value")) {
+            throw new IOException("No value");
+        }
+        try {
+            return Integer.parseInt((String) r.get("value"));
+        } catch (NumberFormatException e) {
+            throw new IOException("Choice was not numeric", e);
+        }
+    }
 
-	/**
-	 * Shows the response of the APDU to the user.
-	 *
-	 * Normally this requires the verification of a PIN code beforehand.
-	 *
-	 * @param message text to display to the user
-	 * @param apdu APDU to send to the terminal
-	 * @return {@link Button} that was pressed by the user
-	 * @throws IOException when communication fails
-	 */
-	public Button decrypt(String message, byte[] apdu) throws IOException, UserCancelExcption{
-		Map<String, Object> m = JSONProtocol.cmd("decrypt");
-		m.put("text", message);
-		m.put("bytes", HexUtils.bin2hex(apdu));
-		pipe.send(m);
-		Map<String, Object> r = pipe.recv();
-		if (JSONProtocol.check(m, r)) {
-			return Button.valueOf(((String)r.get("button")).toUpperCase());
-		} else {
-			throw new IOException("Unknown button pressed");
-		}
-	}
+    /**
+     * Shows the response of the APDU to the user.
+     * <p>
+     * Normally this requires the verification of a PIN code beforehand.
+     *
+     * @param message text to display to the user
+     * @param apdu    APDU to send to the terminal
+     * @return {@link Button} that was pressed by the user
+     * @throws IOException when communication fails
+     */
+    public Button decrypt(String message, byte[] apdu) throws IOException {
+        Map<String, Object> m = JSONProtocol.cmd("decrypt");
+        m.put("text", message);
+        m.put("bytes", HexUtils.bin2hex(apdu));
+        pipe.send(m);
+        Map<String, Object> r = pipe.recv();
+        if (JSONProtocol.check(m, r)) {
+            return Button.valueOf(((String) r.get("button")).toUpperCase());
+        } else {
+            throw new IOException("Unknown button pressed");
+        }
+    }
 
-	/**
-	 * Issues a ISO VERIFY on the remote terminal.
-	 *
-	 * @param p2 P2 parameter in the VERIFY APDU
-	 * @param text to be displayed to the user
-	 * @return true if VERIFY returned 0x9000, false otherwise
-	 * @throws IOException when communication fails
-	 */
-	public boolean verifyPIN(int p2, String text) throws IOException, UserCancelExcption{
-		Map<String, Object> m = JSONProtocol.cmd("verify");
-		m.put("p2", p2);
-		m.put("text", text);
-		pipe.send(m);
-		return JSONProtocol.check(m, pipe.recv());
-	}
+    /**
+     * Issues a ISO VERIFY on the remote terminal.
+     *
+     * @param p2   P2 parameter in the VERIFY APDU
+     * @param text to be displayed to the user
+     * @return true if VERIFY returned 0x9000, false otherwise
+     * @throws IOException when communication fails
+     */
+    public boolean verifyPIN(int p2, String text) throws IOException {
+        Map<String, Object> m = JSONProtocol.cmd("verify");
+        m.put("p2", p2);
+        m.put("text", text);
+        pipe.send(m);
+        return JSONProtocol.check(m, pipe.recv());
+    }
 
-	public void stop(String message){
-		try {
-			Map<String, Object> m = JSONProtocol.cmd("stop");
-			m.put("text", message);
-			pipe.send(m);
-		} catch (IOException e) {
-			// Ignore exceptions from closed pipe
-		}
-		close();
-	}
+    public void stop(String message) {
+        try {
+            Map<String, Object> m = JSONProtocol.cmd("stop");
+            m.put("text", message);
+            pipe.send(m);
+        } catch (IOException e) {
+            // Ignore exceptions from closed pipe
+        }
+        close();
+    }
 
-	public String getLang() {
-		return lang;
-	}
-	@Override
-	public void close() {
-		pipe.close();
-	}
+    public String getLang() {
+        return lang;
+    }
+
+    @Override
+    public void close() {
+        pipe.close();
+    }
 }

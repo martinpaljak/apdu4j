@@ -217,7 +217,7 @@ public class RemoteTerminalServer {
 									}
 
 									// Initiate a thread with the queue
-									RemoteTerminalThread thread = processor.newInstance();
+									RemoteTerminalThread thread = processor.getDeclaredConstructor().newInstance();
 									thread.setQueues(sess.toThread, sess.fromThread);
 									thread.setSession(sid.toString());
 									// execute created thread with queues
@@ -229,7 +229,7 @@ public class RemoteTerminalServer {
 									// Put into session map if it did not throw.
 									sessions.put(sid, sess);
 
-								} catch (SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException e) {
+								} catch (SecurityException | ReflectiveOperationException | IllegalArgumentException e) {
 									logger.error("Could not start worker thread", e);
 									throw new RuntimeException("Could not initiate a worker thread!", e);
 								}

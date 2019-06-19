@@ -31,10 +31,8 @@ import joptsimple.OptionSet;
 import javax.net.ssl.KeyManagerFactory;
 import javax.smartcardio.*;
 import javax.smartcardio.CardTerminals.State;
-import java.awt.*;
 import java.io.*;
 import java.net.InetSocketAddress;
-import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -45,7 +43,6 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.*;
-import java.util.List;
 
 public final class SCTool {
     private static final String CMD_LIST = "list";
@@ -135,6 +132,7 @@ public final class SCTool {
         return args;
     }
 
+    @SuppressWarnings("deprecation") // Provider.getVersion()
     public static void main(String[] argv) throws Exception {
         OptionSet args = parseOptions(argv);
 

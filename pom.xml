@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.github.martinpaljak</groupId>
         <artifactId>javacard</artifactId>
-        <version>19.05.08</version>
+        <version>19.06.19</version>
     </parent>
     <artifactId>apdu4j</artifactId>
     <version>19.05.08</version>
@@ -65,6 +65,21 @@
             </resource>
         </resources>
         <plugins>
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <configuration>
+                    <excludeFilterFile>spotbugs.xml</excludeFilterFile>
+                </configuration>
+            </plugin>
+            <!-- TODO: move to metacard -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <configuration>
+                    <source>8</source>
+                </configuration>
+            </plugin>
             <!-- GitTagCalVer -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>

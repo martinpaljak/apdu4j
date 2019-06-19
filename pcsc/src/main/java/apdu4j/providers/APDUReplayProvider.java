@@ -39,6 +39,7 @@ public class APDUReplayProvider extends Provider {
     private static final String PROVIDER_NAME = "APDUReplay";
     private static final String TERMINAL_NAME = "Replay Terminal 0";
 
+    @SuppressWarnings("deprecation") // 11 would prefer String, String, String super
     public APDUReplayProvider() {
         super(PROVIDER_NAME, 0.1d, "APDU Replay from apdu4j/" + TerminalManager.getVersion());
         put("TerminalFactory.PC/SC", APDUReplayProviderSpi.class.getName());
