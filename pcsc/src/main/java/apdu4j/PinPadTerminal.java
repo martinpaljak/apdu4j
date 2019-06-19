@@ -71,7 +71,7 @@ public final class PinPadTerminal implements AutoCloseable {
             int l = tlv[i + 1] & 0xFF;
             byte[] v = Arrays.copyOfRange(tlv, i + 2, i + 2 + l);
             i += v.length + 2;
-            System.out.println(Integer.toHexString(t) + "=" + HexUtils.bin2hex(v));
+            //System.out.println(Integer.toHexString(t) + "=" + HexUtils.bin2hex(v));
         }
     }
 
