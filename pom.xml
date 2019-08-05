@@ -8,7 +8,7 @@
         <version>19.06.19</version>
     </parent>
     <artifactId>apdu4j</artifactId>
-    <version>19.05.08</version>
+    <version>19.08.01-WIP</version>
     <packaging>pom</packaging>
     <name>apdu4j</name>
     <url>https://github.com/martinpaljak/apdu4j</url>
@@ -33,7 +33,6 @@
         <module>core</module>
         <module>pcsc</module>
         <module>tool</module>
-        <module>json-remote-emv</module>
         <module>testing</module>
     </modules>
 
@@ -62,6 +61,9 @@
         <resources>
             <resource>
                 <directory>target/generated-resources</directory>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
             </resource>
         </resources>
         <plugins>

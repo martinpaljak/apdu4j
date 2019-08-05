@@ -1,5 +1,27 @@
+/*
+ * Copyright (c) 2019 Martin Paljak
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 package apdu4j;
 
+import apdu4j.i.BIBOProvider;
 import com.googlecode.lanterna.TerminalSize;
 import com.googlecode.lanterna.TextColor;
 import com.googlecode.lanterna.gui2.*;
@@ -12,21 +34,18 @@ import javax.smartcardio.CardException;
 import javax.smartcardio.CardTerminal;
 import javax.smartcardio.CardTerminals;
 import java.io.IOException;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Optional;
 
-public class CardTerminalChooser implements Runnable {
+public class Fancy implements Runnable, BIBOProvider {
     MultiWindowTextGUI gui;
     Terminal terminal;
     Screen screen;
     BasicWindow mainWindow;
     CardTerminals terminals;
-
     CardTerminal chosenOne = null;
-
     ChangeListener listener;
-
-
 
     private BasicWindow makeMainWindow() throws IOException {
         // Create the main window
@@ -84,12 +103,17 @@ public class CardTerminalChooser implements Runnable {
         }
     }
 
-    CardTerminalChooser(CardTerminals terminals) throws IOException {
+    public Fancy() {
+
+    }
+
+    private Fancy create(CardTerminals terminals) throws IOException {
         this.terminals = terminals;
         terminal = new DefaultTerminalFactory().createTerminal();
         screen = new TerminalScreen(terminal);
         gui = new MultiWindowTextGUI(screen, new DefaultWindowManager(), new EmptySpace(TextColor.ANSI.BLUE));
         mainWindow = makeMainWindow();
+        return this;
     }
 
 
@@ -111,18 +135,28 @@ public class CardTerminalChooser implements Runnable {
         return Optional.ofNullable(chosenOne);
     }
 
-    public static void main(String[] args) throws Exception {
-        CardTerminalChooser chooser = new CardTerminalChooser(TerminalManager.getTerminalFactory(null).terminals());
-        chooser.run();
-        if (chooser.getTerminal().isPresent()) {
-            System.out.println("present: " + chooser.getTerminal().get().getName());
-        } else {
-            System.out.println("not present");
+    @Override
+    public BIBO getBIBO() {
+        // TODO: fancy stuff and DWIM
+        try {
+            Fancy chooser = create(TerminalManager.getTerminalFactory().terminals());
+            chooser.run();
+            Optional<CardTerminal> chosen = chooser.getTerminal();
+            chooser.quit();
+            if (chosen.isPresent()) {
+                System.out.println("present: " + chooser.getTerminal().get().getName());
+                return CardChannelBIBO.getBIBO(chosen.get().connect("*").getBasicChannel());
+            } else {
+                System.out.println("not present");
+                throw new IllegalStateException("No reader chosen");
+            }
+        } catch (CardException | IOException | NoSuchAlgorithmException e) {
+            System.err.println("Failed: " + e.getMessage());
+            throw new IllegalStateException("No reader chosen");
         }
     }
 
     class ChangeListener extends Thread {
-
         final CardTerminals terms;
 
         ChangeListener(CardTerminals terminals) {

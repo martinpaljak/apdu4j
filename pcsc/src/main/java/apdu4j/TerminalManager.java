@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2017 Martin Paljak
+ * Copyright (c) 2014-2019 Martin Paljak
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,6 +21,7 @@
  */
 package apdu4j;
 
+import jnasmartcardio.Smartcardio;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,17 +32,8 @@ import javax.security.auth.callback.UnsupportedCallbackException;
 import javax.smartcardio.*;
 import javax.smartcardio.CardTerminals.State;
 import java.io.*;
-import java.lang.reflect.InvocationTargetException;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLClassLoader;
-import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
-import java.security.Provider;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -54,8 +46,6 @@ import java.util.stream.Collectors;
  * Facilitates working with javax.smartcardio
  */
 public final class TerminalManager {
-    static final String SUN_CLASS = "sun.security.smartcardio.SunPCSC";
-    static final String JNA_CLASS = "jnasmartcardio.Smartcardio";
     static final String LIB_PROP = "sun.security.smartcardio.library";
     private static final Logger logger = LoggerFactory.getLogger(TerminalManager.class);
     private static final String debian64_path = "/usr/lib/x86_64-linux-gnu/libpcsclite.so.1";
@@ -106,88 +96,6 @@ public final class TerminalManager {
         }
     }
 
-    /*
-     * Load the TerminalFactory, possibly from a JAR and with arguments
-     */
-    // TODO: clarify and use service loader instead
-    public static TerminalFactory loadTerminalFactory(String jar, String classname, String type, String arg) throws NoSuchAlgorithmException {
-        try {
-            // To support things like host:port pairs, urldecode the arguments component if provided
-            if (arg != null) {
-                arg = URLDecoder.decode(arg, "UTF-8");
-            }
-            final TerminalFactory tf;
-            final Class<?> cls; // XXX: stricter type
-            if (jar != null) {
-                // Specify class loader
-                URLClassLoader loader = new URLClassLoader(new URL[]{new File(jar).toURI().toURL()}, TerminalManager.class.getClassLoader());
-                // Load custom provider
-                cls = Class.forName(classname, true, loader);
-            } else {
-                // Load provider
-                cls = Class.forName(classname);
-            }
-            Provider p = (Provider) cls.getConstructor().newInstance();
-            tf = TerminalFactory.getInstance(type == null ? "PC/SC" : type, arg, p);
-            return tf;
-        } catch (UnsupportedEncodingException | MalformedURLException | ClassNotFoundException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException | NoSuchMethodException | SecurityException e) {
-            throw new NoSuchAlgorithmException("Could not load " + classname + ": " + e.getMessage());
-        } catch (NoSuchAlgorithmException e) {
-            if (e.getCause() != null) {
-                Class<?> cause = e.getCause().getClass();
-                if (cause.equals(java.lang.UnsupportedOperationException.class)) {
-                    throw new NoSuchAlgorithmException(e.getCause().getMessage());
-                }
-                if (cause.equals(java.lang.UnsatisfiedLinkError.class)) {
-                    throw new NoSuchAlgorithmException(e.getCause().getMessage());
-                }
-            }
-            throw e;
-        }
-    }
-
-
-    /*
-     * Given a specification for a TerminalFactory, returns a TerminalFactory instance.
-     * <p>
-     * The format is: jar:class:args, some heuristics is made to make the function DWIM.
-     *
-     * @param spec provider specification
-     * @return properly loaded TerminalFactory from the provider
-     * @throws NoSuchAlgorithmException if the provider can not be loaded for some reason
-     */
-    // FIXME: use ServiceLoader
-    public static TerminalFactory getTerminalFactory(String spec) throws NoSuchAlgorithmException {
-        // Default to bundled JNA by default.
-        if (spec == null) {
-            spec = JNA_CLASS;
-        }
-        // Always set the right path to pcsc
-        fixPlatformPaths();
-
-        // Split by colon marks
-        String[] args = spec.split(":");
-        if (args.length == 1) {
-            // Assumed to be just the class
-            return loadTerminalFactory(null, args[0], null, null);
-        } else if (args.length == 2) {
-            Path jarfile = Paths.get(args[0]);
-            // If the first component is a valid file, assume provider!class
-            if (Files.exists(jarfile)) {
-                return loadTerminalFactory(args[0], args[1], null, null);
-            } else {
-                // Assume the first part is class and the second part is parameter
-                return loadTerminalFactory(null, args[0], null, args[1]);
-            }
-        } else if (args.length == 3) {
-            // jar:class:args
-            return loadTerminalFactory(args[0], args[1], null, args[2]);
-        } else {
-            throw new IllegalArgumentException("Could not parse (too many components): " + spec);
-        }
-    }
-
-
     static boolean ignoreReader(String ignore, String name) {
         if (ignore != null) {
             String[] names = ignore.toLowerCase().split(";");
@@ -200,6 +108,9 @@ public final class TerminalManager {
         return false;
     }
 
+    public static TerminalFactory getTerminalFactory() throws NoSuchAlgorithmException {
+        return TerminalFactory.getInstance("PC/SC", null, new Smartcardio());
+    }
 
     public static void listReaders(String ignore, List<CardTerminal> terminals, PrintStream to, boolean pinpad) {
         try {
@@ -351,7 +262,7 @@ public final class TerminalManager {
      * The reader might be unusable (in use in exclusive mode).
      *
      * @param terminals List of CardTerminal-s to use
-     * @param atrs Collection of ATR-s to match
+     * @param atrs      Collection of ATR-s to match
      * @return list of CardTerminal-s
      */
     public static List<CardTerminal> byATR(List<CardTerminal> terminals, Collection<byte[]> atrs) {

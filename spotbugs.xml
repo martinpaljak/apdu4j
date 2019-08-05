@@ -9,11 +9,6 @@
   </Match>
   <Match>
     <Class name="apdu4j.TerminalManager"/>
-    <Method name="loadTerminalFactory"/>
-    <Bug pattern="DP_CREATE_CLASSLOADER_INSIDE_DO_PRIVILEGED"/>
-  </Match>
-  <Match>
-    <Class name="apdu4j.TerminalManager"/>
     <Method name="fixPlatformPaths"/>
     <Bug pattern="DMI_HARDCODED_ABSOLUTE_FILENAME"/>
   </Match>
