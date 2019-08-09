@@ -1,0 +1,31 @@
+on: push
+name: Default workflow for pushes
+jobs:
+  mvn-11:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    - name: mvn-11
+      uses: docker://maven:3.6.1-jdk-11
+      with:
+        entrypoint: mvn
+        args: -U -B verify
+  mvn-release:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    - name: mvn
+      uses: docker://maven:3.6.1-jdk-8
+      with:
+        entrypoint: mvn
+        args: -U -B verify
+    - name: on-tag
+      uses: actions/bin/filter@master
+      with:
+        args: tag
+    - name: release
+      uses: martinpaljak/actions/deploy-release@master
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        args: tool/target/apdu4j.jar
