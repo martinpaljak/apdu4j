@@ -1,7 +1,7 @@
 on: push
-push:
-  tags:
-  - '*'
+  push:
+    tags:
+    - '*'
 name: Default workflow for tags
 jobs:
   mvn-release:
