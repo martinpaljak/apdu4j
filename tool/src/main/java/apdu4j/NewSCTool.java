@@ -121,6 +121,7 @@ public class NewSCTool implements Callable<Integer> {
     }
 
     @Override
+    @SuppressWarnings("deprecation") // Provider.getVersion()
     public Integer call() {
         // Shorthand
 
