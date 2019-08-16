@@ -1,18 +1,9 @@
 on:
   push:
     tags: '*'
-name: Default workflow for pushes
+name: Default workflow for TAGS
 jobs:
-  mvn-java-11:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@master
-    - name: mvn-java-11 
-      uses: docker://maven:3.6.1-jdk-11
-      with:
-        entrypoint: mvn
-        args: -U -B package
-  mvn-java-8:
+  mvn-java-8-release:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@master
