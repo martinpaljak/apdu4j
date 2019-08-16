@@ -1,0 +1,26 @@
+on:
+  push:
+    tags: '*'
+name: Default workflow for pushes
+jobs:
+  mvn-java-11:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    - name: mvn-java-11 
+      uses: docker://maven:3.6.1-jdk-11
+      with:
+        entrypoint: mvn
+        args: -U -B package
+  mvn-java-8:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    - name: mvn-java-8
+      uses: docker://maven:3.6.1-jdk-8
+      with:
+        entrypoint: mvn
+        args: -T4 -U -B package
+    - name: echo
+      run: cat /proc/cpuinfo
+      
