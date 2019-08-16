@@ -19,3 +19,6 @@ jobs:
       with:
         entrypoint: mvn
         args: -T4 -U -B package
+    - name: echo
+      run: cat /proc/cpuinfo
+      
