@@ -56,6 +56,8 @@ public final class TerminalManager {
     private static final String fedora64_path = "/usr/lib64/libpcsclite.so.1";
     private static final String raspbian_path = "/usr/lib/arm-linux-gnueabihf/libpcsclite.so.1";
 
+    private final List<CardTerminal> terminals;
+
     /**
      * Locates PC/SC shared library on the system and automagically sets system properties so that SunPCSC
      * could find the smart card service. Call this before acquiring your TerminalFactory.
@@ -99,19 +101,17 @@ public final class TerminalManager {
     static boolean ignoreReader(String ignore, String name) {
         if (ignore != null) {
             String[] names = ignore.toLowerCase().split(";");
-            for (String n : names) {
-                if (name.toLowerCase().contains(n)) {
-                    return true;
-                }
-            }
+            return Arrays.stream(names).anyMatch(e -> name.toLowerCase().contains(e));
         }
         return false;
     }
 
+    // Utility function to return a "Good terminal factory"
     public static TerminalFactory getTerminalFactory() throws NoSuchAlgorithmException {
         return TerminalFactory.getInstance("PC/SC", null, new Smartcardio());
     }
 
+    // Utility function that lists known readers
     public static void listReaders(String ignore, List<CardTerminal> terminals, PrintStream to, boolean pinpad) {
         try {
             for (CardTerminal t : terminals) {
@@ -183,43 +183,38 @@ public final class TerminalManager {
         }
     }
 
-    public static Optional<CardTerminal> getTheReader(String arg, String ignore, Collection<byte[]> atrs, long wait) throws CardException, NoSuchAlgorithmException {
-        TerminalFactory tf = TerminalFactory.getInstance("PC/SC", null, new jnasmartcardio.Smartcardio());
-        CardTerminals ts = tf.terminals();
+    public static TerminalManager getInstance(CardTerminals terminals) throws CardException {
+        return getInstance(terminals.list());
+    }
 
-        List<CardTerminal> terminals = ts.list();
+    public static TerminalManager getInstance(List<CardTerminal> terminals) {
+        return new TerminalManager(terminals);
+    }
 
-        // DWIM: wait for a reader if none present
-        if (terminals.size() == 0 && wait > 0) {
-            if (ts.waitForChange(wait)) {
-                ts = tf.terminals();
-                terminals = ts.list();
-                if (terminals.size() == 1) {
-                    return Optional.of(terminals.get(0));
-                }
-            } else {
-                logger.warn("Timeout waiting for a NFC reader");
-                return Optional.empty();
-            }
-        }
+    private TerminalManager(List<CardTerminal> terminals) {
+        this.terminals = terminals;
+    }
 
+    // Do some DWIM to get a reader out of many
+    public Optional<CardTerminal> dwim(String arg, String ignore, Collection<byte[]> atrs) throws CardException, NoSuchAlgorithmException {
         if (arg != null) {
             // DWIM 1: specify reader by human index, 1..9
-            try {
-                int n = Integer.parseInt(arg);
+            if (arg.length() == 1 && Character.isDigit(arg.charAt(0))) {
+                int n = Character.getNumericValue(arg.charAt(0));
                 if (n > 0 && n < 10 && n <= terminals.size()) {
-                    return Optional.of(terminals.get(n - 1));
+                    CardTerminal t = terminals.get(n - 1);
+                    logger.debug("Matched {} based on index {}", t.getName(), n);
+                    return Optional.of(t);
                 } else {
                     logger.error(n + ": only have " + terminals.size() + " readers.");
                     listReaders(ignore, terminals, System.err, false);
                 }
-            } catch (NumberFormatException e) {
-                // ignore
             }
 
             // DWIM 2: portion of the name
-            List<CardTerminal> matchingName = terminals.stream().filter(t -> t.getName().toLowerCase().contains(arg)).collect(Collectors.toList());
+            List<CardTerminal> matchingName = terminals.stream().filter(t -> t.getName().toLowerCase().contains(arg.toLowerCase())).collect(Collectors.toList());
             if (matchingName.size() == 1) {
+                logger.debug("Matched {}", matchingName.get(0));
                 return Optional.of(matchingName.get(0));
             } else if (matchingName.size() == 0) {
                 logger.error(String.format("No reader matches '%s'", arg));
@@ -229,29 +224,42 @@ public final class TerminalManager {
                 listReaders(ignore, terminals, System.err, false);
             }
         } else {
-            // If just one reader, simple
+            // No reader indicated. Try to figure one out automagically
+            // No readers
             if (terminals.size() == 0) {
                 logger.error("No smart card readers available");
                 return Optional.empty();
-            } else if (terminals.size() == 1) {
-                return Optional.of(terminals.get(0));
-            } else {
-                // Multiple readers.
-                // DWIM 1: Only one has card
-                List<CardTerminal> withCard = ts.list(State.CARD_PRESENT);
-                if (withCard.size() == 1) {
-                    return Optional.of(withCard.get(0));
-                }
-
-                // DWIM 2: Only one matches ATR hints
-                List<CardTerminal> withAtr = byATR(ts.list(State.CARD_PRESENT), atrs);
-                if (withAtr.size() == 1) {
-                    return Optional.of(withAtr.get(0));
-                }
-                // DWIM 3: TODO: no cards in any, wait for insertion
-                System.err.println("Multiple readers, must choose one:");
-                listReaders(ignore, terminals, System.err, false);
             }
+
+            // One reader
+            if (terminals.size() == 1) {
+                return Optional.of(terminals.get(0));
+            }
+
+            // Multiple readers.
+            // DWIM 1: Only one has card
+            List<CardTerminal> withCard = terminals.stream().filter(e -> {
+                try {
+                    return e.isCardPresent();
+                } catch (CardException ex) {
+                    return false;
+                }
+            }).collect(Collectors.toList());
+            if (withCard.size() == 1) {
+                logger.debug("Selected the only reader with a card");
+                return Optional.of(withCard.get(0));
+            }
+
+            // DWIM 2: Only one matches ATR hints
+            List<CardTerminal> withAtr = byATR(terminals, atrs);
+            if (withAtr.size() == 1) {
+                logger.debug("Selected the only reader with a matching ATR");
+                return Optional.of(withAtr.get(0));
+            }
+            // DWIM 3: TODO: no cards in any, wait for insertion
+            System.err.println("Multiple readers, must choose one:");
+            listReaders(ignore, terminals, System.err, false);
+
         }
         return Optional.empty();
     }
@@ -296,7 +304,8 @@ public final class TerminalManager {
 
 
     // Locate a terminal by AID
-    public static List<CardTerminal> byAID(List<CardTerminal> terminals, Collection<byte[]> aids) throws CardException {
+    public static List<CardTerminal> byAID(List<CardTerminal> terminals, Collection<byte[]> aids) throws
+            CardException {
         return terminals.stream().filter(t -> {
             try {
                 if (t.isCardPresent()) {
@@ -335,36 +344,32 @@ public final class TerminalManager {
 
 
     CallbackHandler getCallbackHandler() {
-        return new CallbackHandler() {
-            @Override
-            public void handle(Callback[] callbacks) throws IOException, UnsupportedCallbackException {
-                for (Callback c : callbacks) {
-                    if (c instanceof TextOutputCallback) {
-                        TextOutputCallback cb = (TextOutputCallback) c;
+        return callbacks -> {
+            for (Callback c : callbacks) {
+                if (c instanceof TextOutputCallback) {
+                    TextOutputCallback cb = (TextOutputCallback) c;
 
-                        final String type;
-                        switch (cb.getMessageType()) {
-                            case TextOutputCallback.INFORMATION:
-                                type = "INFORMATION";
-                                break;
-                            case TextOutputCallback.WARNING:
-                                type = "WARNING";
-                                break;
-                            case TextOutputCallback.ERROR:
-                                type = "ERROR";
-                                break;
-                            default:
-                                type = "MESSAGE";
-                        }
-
-                        System.out.println(type + ": " + cb.getMessage());
+                    final String type;
+                    switch (cb.getMessageType()) {
+                        case TextOutputCallback.INFORMATION:
+                            type = "INFORMATION";
+                            break;
+                        case TextOutputCallback.WARNING:
+                            type = "WARNING";
+                            break;
+                        case TextOutputCallback.ERROR:
+                            type = "ERROR";
+                            break;
+                        default:
+                            type = "MESSAGE";
                     }
+                    System.out.println(type + ": " + cb.getMessage());
                 }
             }
         };
     }
 
-    // Connect to a card, waiting for a card if necessary
+    // Connect to a card in reader, waiting for a card if necessary
     public static Card connect(CardTerminal terminal, String protocol, CallbackHandler cb) throws CardException {
         try {
             if (!terminal.isCardPresent()) {
@@ -412,6 +417,7 @@ public final class TerminalManager {
         return e.getMessage();
     }
 
+    // Returns CalVer of the utility
     public static String getVersion() {
         String version = "unknown-development";
         try (InputStream versionfile = TerminalManager.class.getResourceAsStream("pro_version.txt")) {

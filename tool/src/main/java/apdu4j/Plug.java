@@ -24,6 +24,9 @@ package apdu4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.naming.NamingException;
+import javax.naming.ldap.LdapName;
+import javax.naming.ldap.Rdn;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -37,12 +40,12 @@ import java.security.cert.X509Certificate;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class Plug extends SecurityManager {
+public final class Plug extends SecurityManager {
     private static final Logger logger = LoggerFactory.getLogger(Plug.class);
 
     Plug() {
         Class<?>[] ctx = getClassContext();
-        verifyClassSignature(ctx[ctx.length - 1]);
+        verifyClassSignature(ctx[ctx.length - 1], K);
     }
 
     @Override
@@ -62,18 +65,24 @@ public class Plug extends SecurityManager {
         }
     }
 
-    static void verifyClassSignature(Class<?> c) {
+    // Check that class c is signed by k. Fail in ugly way if not
+    static void verifyClassSignature(Class<?> c, String k) {
+        byte[] K = HexUtils.hex2bin(k);
         try {
             CodeSource cs = c.getProtectionDomain().getCodeSource();
             if (cs == null)
                 throw new SecurityException("no code source");
             if (cs.getCodeSigners() == null || cs.getCodeSigners().length != 1)
                 throw new SecurityException("unsigned code");
-            X509Certificate cert = (X509Certificate) cs.getCodeSigners()[0].getSignerCertPath().getCertificates().get(0);
-            cert.checkValidity();
-            byte[] hash = MessageDigest.getInstance("SHA-256").digest(cert.getEncoded());
-            if (!Arrays.equals(HexUtils.hex2bin(K), hash) && System.getProperty(K) == null)
-                throw new SecurityException("invalid signature");
+            for (CodeSigner signer : cs.getCodeSigners()) {
+                X509Certificate cert = (X509Certificate) signer.getSignerCertPath().getCertificates().get(0);
+                cert.checkValidity();
+                byte[] hash = MessageDigest.getInstance("SHA-256").digest(cert.getEncoded());
+                if (Arrays.equals(K, hash) && System.getProperty(k) == null)
+                    return;
+            }
+            // Nothing matched.
+            throw new SecurityException("invalid signature");
         } catch (Exception e) {
             if (!(e instanceof SecurityException))
                 e.printStackTrace();
@@ -83,20 +92,37 @@ public class Plug extends SecurityManager {
         }
     }
 
-    public static void verifyExecutable() {
+    // Check that current execution context is signed by k
+    public static void verifyExecutable(String k) {
         try {
             Class<?>[] callers = ((Plug) System.getSecurityManager()).getClassContext();
-            verifyClassSignature(callers[callers.length - 1]);
+            verifyClassSignature(callers[callers.length - 1], k);
         } catch (Exception e) {
             throw new SecurityException("could not locate code source");
         }
     }
 
+    // TODO: locate K
     public static String getExpirationDate() {
         return ((X509Certificate) Plug.class.getProtectionDomain().getCodeSource().getCertificates()[0]).getNotAfter().toString();
     }
 
+    public static String getAuthor(Class<?> cls) {
+        try {
+            X509Certificate c = (X509Certificate) cls.getProtectionDomain().getCodeSource().getCertificates()[0];
+            LdapName ldapDN = new LdapName(c.getSubjectX500Principal().getName());
+            for (Rdn rdn : ldapDN.getRdns()) {
+                if (rdn.getType().equals("CN"))
+                    return rdn.getValue().toString();
+            }
+            return c.getSubjectX500Principal().getName();
+        } catch (NamingException e) {
+            throw new RuntimeException("Could not extract signature CN", e);
+        }
+    }
+
     // Make a classloader of .jar files in a given folder.
+    // FIXME: false positive?
     @edu.umd.cs.findbugs.annotations.SuppressFBWarnings("NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE")
     static ClassLoader pluginFolderClassLoader(Path folder) throws IOException {
         if (!Files.isDirectory(folder)) {
@@ -104,7 +130,7 @@ public class Plug extends SecurityManager {
             return Thread.currentThread().getContextClassLoader();
         }
 
-        logger.debug("Plugin classloader for {}", folder);
+        logger.debug("Plugins loaded from {}", folder);
         try (DirectoryStream<Path> entries = Files.newDirectoryStream(folder)) {
             ArrayList<URL> plugins = new ArrayList<>();
             for (Path p : entries) {
@@ -130,7 +156,7 @@ public class Plug extends SecurityManager {
             List<T> list = new ArrayList<>();
             sl.iterator().forEachRemaining(list::add);
             list.stream().forEach(e -> logger.debug("Found {} from {}", e.getClass().getCanonicalName(), pluginfile(e)));
-            list.stream().forEach(e -> verifyClassSignature(e.getClass()));
+            list.stream().forEach(e -> verifyClassSignature(e.getClass(), K));
             return list.stream().filter(e -> identifies(name, e.getClass())).findFirst();
         } catch (ServiceConfigurationError e) {
             throw new RuntimeException("Failed to load plugin: " + e.getCause().getMessage());
@@ -189,8 +215,8 @@ public class Plug extends SecurityManager {
         ServiceLoader<T> sl = ServiceLoader.load(service, bundledLoader);
         List<T> list = new ArrayList<>();
         sl.iterator().forEachRemaining(list::add);
-        logger.debug("Found %d services for %s%n", list.size(), service.getCanonicalName());
-        list.stream().forEach(e -> System.out.printf("%s from %s%n", e.getClass().getCanonicalName(), pluginfile(e)));
+        logger.debug("Found {} services for {}", list.size(), service.getCanonicalName());
+        list.stream().forEach(e -> System.out.printf("%s from %s (by %s)%n", e.getClass().getCanonicalName(), pluginfile(e), Plug.getAuthor(e.getClass())));
     }
 
     // Returns the classloader that contains plugin folder jar-s

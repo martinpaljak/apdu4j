@@ -24,11 +24,12 @@ package apdu4j;
 import apdu4j.i.BIBOProvider;
 import apdu4j.i.BIBOServiceProvider;
 import apdu4j.p.CardTerminalServiceProvider;
+import apdu4j.p.CardTerminalTouchApplicationProvider;
+import apdu4j.p.TouchTerminalApplication;
 import apdu4j.terminals.LoggingCardTerminal;
-import jnasmartcardio.Smartcardio.EstablishContextException;
-import joptsimple.OptionException;
-import joptsimple.OptionParser;
-import joptsimple.OptionSet;
+import jnasmartcardio.Smartcardio;
+import picocli.CommandLine;
+import picocli.CommandLine.*;
 
 import javax.smartcardio.*;
 import java.io.*;
@@ -36,132 +37,96 @@ import java.nio.charset.StandardCharsets;
 import java.security.Provider;
 import java.security.Security;
 import java.util.*;
+import java.util.concurrent.Callable;
 
-public final class SCTool {
-    private static final String OPT_LIST = "list";
-    private static final String OPT_READER = "reader";
-    private static final String OPT_ALL = "all";
+@Command(name = "apdu4j", sortOptions = false)
+public class NewSCTool implements Callable<Integer> {
+    @Option(names = {"-v", "--verbose"}, description = "Be verbose. Add more for more verbose")
+    boolean[] verboses = new boolean[0];
+    boolean verbose;
 
-    private static final String OPT_WAIT = "wait";
+    @Option(names = {"-l", "--list"}, description = "List readers.")
+    boolean listReaders;
+    @Option(names = {"-r", "--reader"}, description = "Use reader.")
+    String readerName;
+    @Option(names = {"-s", "--service"}, description = "Run service.", paramLabel = "<service>")
+    String service;
+    @Option(names = {"-S", "--touch-service"}, description = "Run service repeatedly.", paramLabel = "<service>")
+    String touchService;
+    @Option(names = {"-a", "--apdu"}, description = "Send APDU.", paramLabel = "<HEX>")
+    byte[][] apdu;
+    @ArgGroup(heading = "Protocol selection (default is T=*)%n")
+    T0T1 proto = new T0T1();
 
-    private static final String OPT_APDU = "apdu";
-
-    private static final String OPT_SERVICE = "service";
-    private static final String OPT_TOUCH_SERVICE = "touch-service";
-
-    private static final String OPT_VERBOSE = "verbose";
-    private static final String OPT_DEBUG = "debug";
-    private static final String OPT_VERSION = "version";
-    private static final String OPT_ERROR = "error";
-    private static final String OPT_FORCE = "force";
-
-    private static final String OPT_DUMP = "dump";
-    private static final String OPT_REPLAY = "replay";
-
-    private static final String OPT_HELP = "help";
-    private static final String OPT_SUN = "sun";
-    private static final String OPT_T0 = "t0";
-    private static final String OPT_T1 = "t1";
-    private static final String OPT_EXCLUSIVE = "exclusive";
-
-    private static final String OPT_NO_GET_RESPONSE = "no-get-response";
-    private static final String OPT_LIB = "lib";
-    private static final String OPT_PROVIDERS = "P";
-
-    private static boolean verbose = false;
-
-    private static OptionSet parseOptions(String[] argv) throws IOException {
-        OptionSet args = null;
-        OptionParser parser = new OptionParser();
-        parser.acceptsAll(Arrays.asList("l", OPT_LIST), "list readers");
-        parser.acceptsAll(Arrays.asList("v", OPT_VERBOSE), "be verbose");
-        parser.acceptsAll(Arrays.asList("f", OPT_FORCE), "use force");
-        parser.acceptsAll(Arrays.asList("d", OPT_DEBUG), "show debug");
-        parser.acceptsAll(Arrays.asList("e", OPT_ERROR), "fail if not 0x9000");
-        parser.acceptsAll(Arrays.asList("h", OPT_HELP), "show help");
-        parser.acceptsAll(Arrays.asList("r", OPT_READER), "use reader").withRequiredArg().describedAs("Reader name or plugin file");
-        //parser.acceptsAll(Arrays.asList("A", OPT_ALL), "use all readers");
-        parser.acceptsAll(Arrays.asList("a", OPT_APDU), "send APDU").requiredIf(OPT_APDU).withRequiredArg().describedAs("HEX");
-        parser.acceptsAll(Arrays.asList("w", OPT_WAIT), "wait for card insertion");
-        parser.acceptsAll(Arrays.asList("V", OPT_VERSION), "show version information");
-        parser.acceptsAll(Arrays.asList("s", OPT_SERVICE), "run service").withRequiredArg().describedAs("Service name or plugin file");
-        parser.acceptsAll(Arrays.asList("S", OPT_TOUCH_SERVICE), "run service repeatedly").withRequiredArg().describedAs("Service name or plugin file");
-
-        // TODO: move to plugin
-        parser.accepts(OPT_DUMP, "save dump to file").withRequiredArg().ofType(File.class);
-        parser.accepts(OPT_REPLAY, "replay command from dump").withRequiredArg().ofType(File.class);
-
-        parser.accepts(OPT_SUN, "load SunPCSC");
-
-        parser.accepts(OPT_PROVIDERS, "list providers");
-        parser.accepts(OPT_T0, "use T=0");
-        parser.accepts(OPT_T1, "use T=1");
-        parser.accepts(OPT_EXCLUSIVE, "use EXCLUSIVE mode (JNA only)");
-        parser.accepts(OPT_NO_GET_RESPONSE, "don't use GET RESPONSE");
-        parser.accepts(OPT_LIB, "use specific PC/SC lib with SunPCSC").withRequiredArg().describedAs("path");
-
-        // Parse arguments
-        try {
-            args = parser.parse(argv);
-            // Try to fetch all values so that format is checked before usage
-            for (String s : parser.recognizedOptions().keySet()) {
-                args.valuesOf(s);
-            }
-        } catch (OptionException e) {
-            if (e.getCause() != null) {
-                System.err.println(e.getMessage() + ": " + e.getCause().getMessage());
-            } else {
-                System.err.println(e.getMessage());
-            }
-            System.err.println();
-            help_and_exit(parser, System.err);
-        }
-        if (args.has(OPT_HELP)) {
-            help_and_exit(parser, System.out);
-        }
-        return args;
+    static class T0T1 {
+        @Option(names = {"-t0"}, description = "Use T=0")
+        boolean t0;
+        @Option(names = {"-t1"}, description = "Use T=1")
+        boolean t1;
     }
 
-    @SuppressWarnings("deprecation") // Provider.getVersion()
-    public static void main(String[] argv) throws Exception {
-        OptionSet args = parseOptions(argv);
+    @ArgGroup(heading = "Low level options%n", validate = false)
+    LowLevel lowlevel = new LowLevel();
 
+    static class LowLevel {
+        @Option(names = {"-X", "--exclusive"}, description = "Use EXCLUSIVE mode (JNA only)")
+        boolean exclusive;
+        @Option(names = "--sun", description = "Use SunPCSC instead of JNA")
+        boolean useSUN;
+        @Option(names = "--no-get-response", description = "Do not use GET RESPONSE")
+        boolean noGetResponse;
+        @Option(names = {"-P", "--list-providers"}, description = "List providers")
+        boolean listProviders;
+        @Option(names = {"--lib"}, description = "Use PC/SC library with SunPCSC")
+        String library;
+    }
+
+    static void configureLogging() {
         // Set up slf4j simple in a way that pleases us
         System.setProperty("org.slf4j.simpleLogger.showThreadName", "true");
         System.setProperty("org.slf4j.simpleLogger.showShortLogName", "true");
         System.setProperty("org.slf4j.simpleLogger.levelInBrackets", "true");
-        // Set logging before calling Plug (which uses logging)
-        if (args.has(OPT_VERBOSE)) {
-            verbose = true;
-            System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "debug");
-            if (args.has(OPT_DEBUG)) {
-                System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "trace");
-            }
-        } else {
-            System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "warn");
-        }
+        // Default level
+        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "warn");
+    }
 
+    public static void main(String[] args) {
+        configureLogging();
+        // Parse CLI
+        NewSCTool tool = new NewSCTool();
+        CommandLine cli = new CommandLine(tool);
+        cli.registerConverter(byte[].class, s -> HexUtils.hex2bin(s));
+        try {
+            ParseResult r = cli.parseArgs(args);
+            // Before we initialize users, like Plug
+            if (tool.verboses.length > 2)
+                System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "trace");
+            if (tool.verboses.length > 1)
+                System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "debug");
+            if (tool.verboses.length > 0)
+                tool.verbose = true;
+        } catch (ParameterException ex) { // command line arguments could not be parsed
+            System.err.println(ex.getMessage());
+            ex.getCommandLine().usage(System.err);
+            System.exit(1);
+        }
         // Verifies the signature
         System.setSecurityManager(new Plug());
-
-        if (args.has(OPT_VERSION)) {
-            String version = "apdu4j " + getVersion();
-            // Append host information
-            version += "\nRunning on " + System.getProperty("os.name");
-            version += " " + System.getProperty("os.version");
-            version += " " + System.getProperty("os.arch");
-            version += ", Java " + System.getProperty("java.version");
-            version += " by " + System.getProperty("java.vendor");
-            System.out.println(version);
-            System.out.println("Valid until " + Plug.getExpirationDate());
-        }
 
         // We always bundle JNA with the tool, so add it to the providers.
         Security.addProvider(new jnasmartcardio.Smartcardio());
 
+        // Run program
+        cli.execute(args);
+    }
+
+    @Override
+    public Integer call() {
+        // Shorthand
+
         try {
             // List TerminalFactory providers
-            if (args.has(OPT_PROVIDERS)) {
+            if (lowlevel.listProviders) {
                 Provider providers[] = Security.getProviders("TerminalFactory.PC/SC");
                 System.out.println("Existing TerminalFactory providers:");
                 if (providers != null) {
@@ -170,46 +135,44 @@ public final class SCTool {
                     }
                 }
                 // List all plugins
-                for (Class<?> p : Arrays.asList(BIBOProvider.class, BIBOServiceProvider.class, CardTerminalServiceProvider.class)) {
+                for (Class<?> p : Arrays.asList(BIBOProvider.class, BIBOServiceProvider.class, CardTerminalServiceProvider.class, CardTerminalTouchApplicationProvider.class)) {
                     System.out.printf("Plugins for %s%n", p.getCanonicalName());
                     Plug.listPlugins(p);
                 }
             }
-
-            // Fix (SunPCSC) properties on non-windows platforms
-            TerminalManager.fixPlatformPaths();
-
             // Don't issue APDU-s internally
-            if (args.has(OPT_NO_GET_RESPONSE)) {
+            if (lowlevel.noGetResponse) {
                 System.setProperty("sun.security.smartcardio.t0GetResponse", "false");
                 System.setProperty("sun.security.smartcardio.t1GetResponse", "false");
                 System.setProperty("jnasmartcardio.transparent", "true");
             }
 
-            // Override PC/SC library path (Only applies to SunPCSC)
-            if (args.has(OPT_LIB)) {
-                System.setProperty("sun.security.smartcardio.library", (String) args.valueOf(OPT_LIB));
-            }
-
             final TerminalFactory tf;
             CardTerminals terminals = null;
 
+            // Separate trycatch block for potential Windows exception in terminal listing
             try {
-                if (args.has(OPT_SUN)) {
+                if (lowlevel.useSUN) {
+                    // Fix (SunPCSC) properties on non-windows platforms
+                    TerminalManager.fixPlatformPaths();
+                    // Override PC/SC library path (Only applies to SunPCSC)
+                    if (lowlevel.library != null) {
+                        System.setProperty("sun.security.smartcardio.library", lowlevel.library);
+                    }
                     tf = TerminalFactory.getDefault();
+                    if (System.getProperty(TerminalManager.LIB_PROP) != null && verbose) {
+                        System.out.println("# " + TerminalManager.LIB_PROP + "=" + System.getProperty(TerminalManager.LIB_PROP));
+                    }
                 } else {
                     tf = TerminalManager.getTerminalFactory();
                 }
 
                 if (verbose) {
                     System.out.println("# Using " + tf.getProvider().getClass().getCanonicalName() + " - " + tf.getProvider());
-                    if (System.getProperty(TerminalManager.LIB_PROP) != null) {
-                        System.out.println("# " + TerminalManager.LIB_PROP + "=" + System.getProperty(TerminalManager.LIB_PROP));
-                    }
                 }
-                // Get all terminals
+                // Get all terminals. This can throw
                 terminals = tf.terminals();
-            } catch (EstablishContextException e) {
+            } catch (Smartcardio.EstablishContextException e) {
                 String msg = TerminalManager.getExceptionMessage(e);
                 fail("No readers: " + msg);
             }
@@ -219,7 +182,7 @@ public final class SCTool {
 
             try {
                 // List terminals
-                if (args.has(OPT_LIST)) {
+                if (listReaders) {
                     List<CardTerminal> terms = terminals.list();
                     if (verbose) {
                         System.out.println("# Found " + terms.size() + " terminal" + (terms.size() == 1 ? "" : "s"));
@@ -228,7 +191,7 @@ public final class SCTool {
                         fail("No readers found");
                     }
                     for (CardTerminal t : terms) {
-                        if (args.has(OPT_VERBOSE))
+                        if (verbose)
                             t = LoggingCardTerminal.getInstance(t);
                         String vmd = " ";
                         if (verbose) {
@@ -252,7 +215,7 @@ public final class SCTool {
                         String secondline = null;
                         String thirdline = null;
                         String filler = "          ";
-                        if (args.has(OPT_VERBOSE) && t.isCardPresent()) {
+                        if (verbose && t.isCardPresent()) {
                             Card c = null;
                             byte[] atr = null;
                             // Try shared mode, to detect exclusive mode via exception
@@ -310,10 +273,13 @@ public final class SCTool {
 
                 TerminalManager tm = TerminalManager.getInstance(TerminalManager.getTerminalFactory().terminals());
                 // Select terminal to work on
-                reader = tm.dwim((String) args.valueOf(OPT_READER), null, Collections.emptyList());
+                reader = tm.dwim(readerName, null, Collections.emptyList());
+                if (reader.isPresent() && readerName != null) {
+                    System.out.printf("Selected \"%s\" based on \"%s\"%n", reader.get().getName(), readerName);
+                }
                 if (!reader.isPresent()) {
-                    if (args.has(OPT_READER)) {
-                        fail("Reader \"" + (String) args.valueOf(OPT_READER) + "\" not found.");
+                    if (readerName != null) { // DWIM failed
+                        fail("Reader \"" + readerName + "\" not found.");
                     } else {
                         fail("Specify reader with -r");
                     }
@@ -328,24 +294,25 @@ public final class SCTool {
                 }
             }
 
-            if (args.has(OPT_VERBOSE)) {
+
+            if (verbose) {
                 FileOutputStream o = null;
-                if (args.has(OPT_DUMP)) {
-                    try {
-                        o = new FileOutputStream((File) args.valueOf(OPT_DUMP));
-                    } catch (FileNotFoundException e) {
-                        System.err.println("Can not dump to " + args.valueOf(OPT_DUMP));
-                    }
-                }
+                //if (args.has(OPT_DUMP)) {
+                //    try {
+                //        o = new FileOutputStream((File) args.valueOf(OPT_DUMP));
+                //    } catch (FileNotFoundException e) {
+                //        System.err.println("Can not dump to " + args.valueOf(OPT_DUMP));
+                //    }
+                //}
                 reader = Optional.of(LoggingCardTerminal.getInstance(reader.get(), o));
             }
 
             // If we have meaningful work
-            if (!(args.has(OPT_SERVICE) || args.has(OPT_APDU) || args.has(OPT_TOUCH_SERVICE)))
+            if (service == null && apdu == null && touchService == null)
                 System.exit(0);
 
             // Do it
-            work(reader.get(), args);
+            work(reader.get());
         } catch (CardException e) {
             if (TerminalManager.getExceptionMessage(e) != null) {
                 System.out.println("PC/SC failure: " + TerminalManager.getExceptionMessage(e));
@@ -358,21 +325,21 @@ public final class SCTool {
                 e.printStackTrace();
             System.exit(1);
         }
+        return 0;
     }
 
-
-    static String getProtocol(OptionSet args) {
+    private String getProtocol() {
         String protocol;
-        if (args.has(OPT_T0)) {
+        if (proto.t0) {
             protocol = "T=0";
-        } else if (args.has(OPT_T1)) {
+        } else if (proto.t1) {
             protocol = "T=1";
         } else {
             protocol = "*";
         }
 
         // JNA-proprietary
-        if (args.has(OPT_EXCLUSIVE)) {
+        if (lowlevel.exclusive) {
             protocol = "EXCLUSIVE;" + protocol;
         } else if (System.getProperty("os.name").toLowerCase().contains("windows")) {
             // Windows 8+ have the "5 seconds of transaction" limit. Because we want reliability
@@ -385,7 +352,7 @@ public final class SCTool {
         return protocol;
     }
 
-    private static void waitForCardOrExit(CardTerminal t) throws CardException {
+    private void waitForCardOrExit(CardTerminal t) throws CardException {
         boolean found = false;
         System.err.print("Waiting for card ...");
         for (int i = 20; i > 0 && !found; i--) {
@@ -399,19 +366,21 @@ public final class SCTool {
         }
     }
 
-    private static void repeat(CardTerminal reader, OptionSet args, BIBOServiceProvider srvc) throws CardException {
+    // Run a service repeatedly on a terminal
+    private void repeat(CardTerminal reader, BIBOServiceProvider srvc) throws CardException {
         Thread cleanup = new Thread(() -> {
             System.err.println("\napdu4j is done");
         });
         Runtime.getRuntime().addShutdownHook(cleanup);
 
         try {
-            while (true) {
+            while (!Thread.currentThread().isInterrupted()) {
                 waitForCardOrExit(reader);
                 final Card card;
                 try {
-                    card = reader.connect(getProtocol(args));
+                    card = reader.connect(getProtocol());
                 } catch (CardException e) {
+                    // If connect fails, it was probably removed from field
                     System.err.println("W: Too fast, try again!");
                     Thread.sleep(300); // to avoid instant re-powering
                     continue;
@@ -426,10 +395,12 @@ public final class SCTool {
                 // Wait until card is removed
                 do {
                     removed = reader.waitForCardAbsent(1000);
+                    System.out.print(".");
                     if (i >= 10 && i % 10 == 0) {
                         System.err.println("W: Remove card!");
                     }
                 } while (removed == false && i++ < 60);
+                System.out.println();
                 // Final check. If card has not been removed, fail
                 if (!removed) {
                     fail("E: Stuck card detected: " + reader.getName());
@@ -441,37 +412,42 @@ public final class SCTool {
         }
     }
 
-    private static void work(CardTerminal reader, OptionSet args) throws CardException {
-        // TODO: must be handled before calling this.
-        if (!reader.isCardPresent()) {
-            fail("No card in " + reader.getName());
-        }
-        if (args.has(OPT_TOUCH_SERVICE)) {
-            Optional<BIBOServiceProvider> biboService = Plug.getPlugin(args.valueOf(OPT_TOUCH_SERVICE).toString(), BIBOServiceProvider.class);
-            if (biboService.isPresent()) {
-                repeat(reader, args, biboService.get());
+    private void work(CardTerminal reader) throws CardException {
+        if (touchService != null) {
+            Optional<CardTerminalTouchApplicationProvider> touchApp = Plug.getPlugin(touchService, CardTerminalTouchApplicationProvider.class);
+            if (touchApp.isPresent()) {
+                TouchTerminalApplication app = touchApp.get().get(reader, getProtocol());
+                try {
+                    app.run();
+                } catch (Exception e) {
+                    System.err.printf("Application crashed: %s %s%n", e.getClass().getName(), e.getMessage());
+                    if (verboses.length > 3)
+                        e.printStackTrace();
+                } finally {
+                    return;
+                }
             }
         } else {
             Card c = null;
             try {
-                c = reader.connect(getProtocol(args));
-                if (args.has(OPT_APDU)) {
-                    for (Object s : args.valuesOf(OPT_APDU)) {
-                        javax.smartcardio.CommandAPDU a = new javax.smartcardio.CommandAPDU(HexUtils.stringToBin((String) s));
+                c = reader.connect(getProtocol());
+                if (apdu != null) {
+                    for (byte[] s : apdu) {
+                        javax.smartcardio.CommandAPDU a = new javax.smartcardio.CommandAPDU(s);
                         javax.smartcardio.ResponseAPDU r = c.getBasicChannel().transmit(a);
-                        if (args.has(OPT_ERROR) && r.getSW() != 0x9000) {
+                        if (r.getSW() != 0x9000) { // TODO: force
                             fail("Card returned " + String.format("%04X", r.getSW()) + ", exiting!");
                         }
                     }
                 }
-                if (args.has(OPT_SERVICE)) {
+                if (service != null) {
                     // Locate plugin. First try terminal plugin
-                    Optional<CardTerminalServiceProvider> pcscService = Plug.getPlugin(args.valueOf(OPT_SERVICE).toString(), CardTerminalServiceProvider.class);
+                    Optional<CardTerminalServiceProvider> pcscService = Plug.getPlugin(service, CardTerminalServiceProvider.class);
                     if (pcscService.isPresent()) {
                         System.exit(pcscService.get().get().apply(reader) ? 0 : 1);
                     }
                     // Then arbitrary BIBO
-                    Optional<BIBOServiceProvider> biboService = Plug.getPlugin(args.valueOf(OPT_SERVICE).toString(), BIBOServiceProvider.class);
+                    Optional<BIBOServiceProvider> biboService = Plug.getPlugin(service, BIBOServiceProvider.class);
                     if (biboService.isPresent()) {
                         System.exit(biboService.get().get().apply(CardBIBO.wrap(c)) ? 0 : 1);
                     }
@@ -482,13 +458,6 @@ public final class SCTool {
                 }
             }
         }
-    }
-
-    private static void help_and_exit(OptionParser parser, PrintStream o) throws IOException {
-        System.err.println("# apdu4j command line utility");
-        System.err.println();
-        parser.printHelpOn(o);
-        System.exit(1);
     }
 
     public static String getVersion() {

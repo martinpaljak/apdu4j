@@ -67,6 +67,10 @@ public final class CommandAPDU {
     private transient int ne;
     // index of start of data within the apdu array
     private transient int dataOffset;
+
+    public CommandAPDU(String apdu) {
+        this(HexUtils.hex2bin(apdu));
+    }
     /**
      * Constructs a CommandAPDU from a byte array containing the complete
      * APDU contents (header and body).

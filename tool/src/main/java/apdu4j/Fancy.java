@@ -145,7 +145,7 @@ public class Fancy implements Runnable, BIBOProvider {
             chooser.quit();
             if (chosen.isPresent()) {
                 System.out.println("present: " + chooser.getTerminal().get().getName());
-                return CardChannelBIBO.getBIBO(chosen.get().connect("*").getBasicChannel());
+                return CardBIBO.wrap(chosen.get().connect("*"));
             } else {
                 System.out.println("not present");
                 throw new IllegalStateException("No reader chosen");

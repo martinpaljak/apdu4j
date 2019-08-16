@@ -48,7 +48,7 @@ public class HexUtils {
 		char data[] = str.toCharArray();
 		final int len = data.length;
 		if ((len & 0x01) != 0) {
-			throw new IllegalArgumentException("Odd number of characters: " + str);
+			throw new IllegalArgumentException("Odd number of characters: " + str.length());
 		}
 		final byte[] out = new byte[len >> 1];
 		// two characters form the hex value.

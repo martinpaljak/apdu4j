@@ -113,13 +113,13 @@ public class LoggingCardTerminal extends CardTerminal {
             log.flush();
             try {
                 card = terminal.connect(protocol);
-                String atr = HexUtils.bin2hex(card.getATR().getBytes());
-                log.println(" -> " + card.getProtocol() + ", " + atr);
+                byte[] atr = card.getATR().getBytes();
+                log.println(" -> " + card.getProtocol() + (atr.length > 0 ? ", " + HexUtils.bin2hex(atr) : ""));
                 if (dump != null) {
                     String ts = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss Z").format(Calendar.getInstance().getTime());
                     dump.println("# Generated on " + ts + " by apdu4j/" + TerminalManager.getVersion());
                     dump.println("# Using " + terminal.getName());
-                    dump.println("# ATR: " + atr);
+                    dump.println("# ATR: " + HexUtils.bin2hex(atr));
                     dump.println("# PROTOCOL: " + card.getProtocol());
                     dump.println("#");
                 }
@@ -173,7 +173,7 @@ public class LoggingCardTerminal extends CardTerminal {
 
         @Override
         public byte[] transmitControlCommand(int arg0, byte[] arg1) throws CardException {
-            log.print("SCardControl(\"" + terminal.getName() + "\", " + Integer.toString(arg0, 16) + ", " + HexUtils.bin2hex(arg1) + ")");
+            log.print("SCardControl(\"" + terminal.getName() + "\", 0x" + Integer.toString(arg0, 16) + ", " + HexUtils.bin2hex(arg1) + ")");
             final byte[] result;
             try {
                 result = card.transmitControlCommand(arg0, arg1);

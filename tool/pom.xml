@@ -21,13 +21,18 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.9.9</version>
+            <version>2.9.9.3</version>
         </dependency>
         <!-- cmdline -->
         <dependency>
             <groupId>net.sf.jopt-simple</groupId>
             <artifactId>jopt-simple</artifactId>
             <version>5.0.4</version>
+        </dependency>
+        <dependency>
+            <groupId>info.picocli</groupId>
+            <artifactId>picocli</artifactId>
+            <version>4.0.1</version>
         </dependency>
         <!-- Fancy terminal chooser -->
         <dependency>
@@ -63,7 +68,7 @@
                             <transformers>
                                 <transformer
                                         implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>apdu4j.SCTool</mainClass>
+                                    <mainClass>apdu4j.NewSCTool</mainClass>
                                 </transformer>
                             </transformers>
                             <filters>

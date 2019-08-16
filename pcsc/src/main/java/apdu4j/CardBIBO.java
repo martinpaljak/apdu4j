@@ -1,19 +1,22 @@
 package apdu4j;
 
+import javax.smartcardio.Card;
 import javax.smartcardio.CardChannel;
 import javax.smartcardio.CardException;
 import javax.smartcardio.CommandAPDU;
 import java.io.IOException;
 
-public class CardChannelBIBO implements BIBO {
-    private final CardChannel channel;
+public class CardBIBO implements BIBO {
+    protected final Card card;
+    protected final CardChannel channel;
 
-    private CardChannelBIBO(CardChannel channel) {
-        this.channel = channel;
+    protected CardBIBO(Card card) {
+        this.card = card;
+        this.channel = card.getBasicChannel();
     }
 
-    public static APDUBIBO getBIBO(CardChannel channel) {
-        return new APDUBIBO(new CardChannelBIBO(channel));
+    public static CardBIBO wrap(Card card) {
+        return new CardBIBO(card);
     }
 
     @Override
