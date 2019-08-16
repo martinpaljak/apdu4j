@@ -5,6 +5,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@master
+    - name: mvn-java-11 
       uses: docker://maven:3.6.1-jdk-11
       with:
         entrypoint: mvn
@@ -13,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@master
+    - name: mvn-java-8
       uses: docker://maven:3.6.1-jdk-8
       with:
         entrypoint: mvn
