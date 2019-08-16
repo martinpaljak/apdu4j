@@ -1,4 +1,6 @@
-on: push
+on:
+  tags:
+  - '*'
 name: Default workflow for pushes
 jobs:
   mvn-java-11:
