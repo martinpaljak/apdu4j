@@ -1,6 +1,6 @@
 on:
   push:
-    tags: '*'
+    tags: v*
 name: Default workflow for TAGS
 jobs:
   mvn-java-8-release:
