@@ -186,7 +186,7 @@ reader = LoggingCardTerminal.getInstance(reader, o);
 This is a [TerminalFactory][TerminalFactory] that presents a single reader that will reply to commands from a session stored with [LoggingCardTerminal](#loggingcardterminal). This allows to test certain code in a way that doesn't require physical readers or tokens.
 
 ```java
-import apdu4j.providers.APDUReplayProvider;
+import apdu4j.providers.APDUReplayProvider2;
 
 FileInputStream f = new FileInputStream(new File("card.dump"));
 TerminalFactory tf = TerminalFactory.getInstance("PC/SC", f, new APDUReplayProvider());
@@ -226,7 +226,7 @@ When working with [GlobalPlatformPro](https://github.com/martinpaljak/GlobalPlat
 
 ### Included/used open source projects
 
- * [JOpt Simple](http://pholser.github.io/jopt-simple/) for parsing command line (MIT)
+ * [picocli](https://picocli.info/) for parsing command line (Apache 2.0)
  * [Launch4j](http://launch4j.sourceforge.net/) for generating .exe (BSD/MIT)
  * [jnasmartcardio][jnasmartcardio] for PC/SC access (CC0 / public domain)
 

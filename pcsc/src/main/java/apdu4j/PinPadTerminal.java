@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-2017 Martin Paljak
+ * Copyright (c) 2015-2020 Martin Paljak
  * <p>
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,13 +33,14 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+// Construct and parse necessary PC/SC CCID pinpad blocks
 public final class PinPadTerminal implements AutoCloseable {
     private static final int CM_IOCTL_GET_FEATURE_REQUEST = SCard.CARD_CTL_CODE(3400);
     private static final Logger logger = LoggerFactory.getLogger(PinPadTerminal.class);
     private Map<FEATURE, Integer> features = new HashMap<>();
     private boolean display = false;
-    private CardTerminal t = null;
-    private Card c = null;
+    private CardTerminal t;
+    private Card c;
 
     private PinPadTerminal(CardTerminal terminal, Card card) {
         this.t = terminal;
@@ -48,7 +49,7 @@ public final class PinPadTerminal implements AutoCloseable {
 
     // Parse the features into FEATURE -> control code map
     private static Map<FEATURE, Integer> tokenize(byte[] tlv) {
-        HashMap<FEATURE, Integer> m = new HashMap<FEATURE, Integer>();
+        HashMap<FEATURE, Integer> m = new HashMap<>();
 
         if (tlv.length % 6 != 0) {
             throw new IllegalArgumentException("Bad response length: " + tlv.length);
@@ -71,18 +72,16 @@ public final class PinPadTerminal implements AutoCloseable {
             int l = tlv[i + 1] & 0xFF;
             byte[] v = Arrays.copyOfRange(tlv, i + 2, i + 2 + l);
             i += v.length + 2;
-            //System.out.println(Integer.toHexString(t) + "=" + HexUtils.bin2hex(v));
+            logger.trace("{}={}", Integer.toHexString(t), HexUtils.bin2hex(v));
         }
     }
 
     public static PinPadTerminal getInstance(CardTerminal terminal) {
-        PinPadTerminal p = new PinPadTerminal(terminal, null);
-        return p;
+        return new PinPadTerminal(terminal, null);
     }
 
     public static PinPadTerminal getInstance(Card card) {
-        PinPadTerminal p = new PinPadTerminal(null, card);
-        return p;
+        return new PinPadTerminal(null, card);
     }
 
     private void parse_pin_properties(byte[] prop) {
@@ -115,7 +114,7 @@ public final class PinPadTerminal implements AutoCloseable {
 
         // Get PIN properties, if possible
         if (features.containsKey(FEATURE.IFD_PIN_PROPERTIES)) {
-            resp = c.transmitControlCommand(features.get(FEATURE.IFD_PIN_PROPERTIES), new byte[]{});
+            resp = c.transmitControlCommand(features.get(FEATURE.IFD_PIN_PROPERTIES), new byte[0]);
             if (resp != null && resp.length > 0) {
                 parse_pin_properties(resp);
             }
@@ -123,7 +122,7 @@ public final class PinPadTerminal implements AutoCloseable {
 
         // Get other properties
         if (features.containsKey(FEATURE.GET_TLV_PROPERTIES)) {
-            resp = c.transmitControlCommand(features.get(FEATURE.GET_TLV_PROPERTIES), new byte[]{});
+            resp = c.transmitControlCommand(features.get(FEATURE.GET_TLV_PROPERTIES), new byte[0]);
             if (resp != null && resp.length > 0) {
                 parse_tlv_properties(resp);
             }

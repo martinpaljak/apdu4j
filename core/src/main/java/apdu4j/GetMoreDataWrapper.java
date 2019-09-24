@@ -21,14 +21,14 @@
  */
 package apdu4j;
 
-public class GetResponseWrapper implements BIBO {
-    private BIBO wrapped;
+public class GetMoreDataWrapper implements BIBO {
+    BIBO wrapped;
 
-    public static GetResponseWrapper wrap(BIBO bibo) {
-        return new GetResponseWrapper(bibo);
+    public static GetMoreDataWrapper wrap(BIBO bibo) {
+        return new GetMoreDataWrapper(bibo);
     }
 
-    public GetResponseWrapper(BIBO bibo) {
+    public GetMoreDataWrapper(BIBO bibo) {
         this.wrapped = bibo;
     }
 
@@ -40,7 +40,7 @@ public class GetResponseWrapper implements BIBO {
             byte[] r = wrapped.transceive(command);
             ResponseAPDU res = new ResponseAPDU(r);
             response = concatenate(response, res.getData());
-            if (res.getSW1() == 0x61) {
+            if (res.getSW1() == 0x9F) {
                 // XXX: dependence on CommandAPDU for 256
                 command = new CommandAPDU(command[0], 0xC0, 0x00, 0x00, res.getSW2() == 0x00 ? 256 : res.getSW2()).getBytes();
             } else {

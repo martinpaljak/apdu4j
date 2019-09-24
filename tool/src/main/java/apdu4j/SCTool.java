@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2017 Martin Paljak
+ * Copyright (c) 2014-2020 Martin Paljak
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,504 +21,558 @@
  */
 package apdu4j;
 
-import apdu4j.remote.*;
+import apdu4j.i.BIBOProvider;
+import apdu4j.i.SmartCardApp;
+import apdu4j.i.TouchTerminalApp;
+import apdu4j.p.CardTerminalApp;
+import apdu4j.p.CardTerminalProvider;
+import apdu4j.p.TouchTerminalRunner;
 import apdu4j.terminals.LoggingCardTerminal;
-import jnasmartcardio.Smartcardio.EstablishContextException;
-import joptsimple.OptionException;
-import joptsimple.OptionParser;
-import joptsimple.OptionSet;
+import jnasmartcardio.Smartcardio;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import picocli.CommandLine;
+import picocli.CommandLine.*;
 
-import javax.net.ssl.KeyManagerFactory;
 import javax.smartcardio.*;
-import javax.smartcardio.CardTerminals.State;
-import java.io.*;
-import java.net.InetSocketAddress;
-import java.net.URL;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.security.Provider;
 import java.security.Security;
-import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509Certificate;
 import java.util.*;
+import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-public final class SCTool {
-    private static final String CMD_LIST = "list";
-    private static final String CMD_APDU = "apdu";
-    private static final String OPT_SHELL = "shell";
-    private static final String OPT_PROVIDER = "provider";
+@Command(name = "apdu4j", versionProvider = SCTool.class, mixinStandardHelpOptions = true, subcommands = {HelpCommand.class})
+public class SCTool implements Callable<Integer>, IVersionProvider {
+    final Logger logger = LoggerFactory.getLogger(SCTool.class);
+    private TerminalFactory tf = null;
+    @Option(names = {"-v", "--verbose"}, description = "Be verbose")
+    boolean verbose;
+    @Option(names = {"-d", "--debug"}, description = "Trace APDU-s")
+    boolean debug;
+    @Option(names = {"-f", "--force"}, description = "Force, don't stop on errors")
+    boolean force;
+    @Option(names = {"-l", "--list"}, description = "List readers")
+    boolean list;
+    @Option(names = {"-P", "--plugins"}, description = "List plugins")
+    boolean listPlugins;
+    @Option(names = {"-W", "--no-wait"}, description = "Don't wait for card before running app")
+    boolean noWait;
+    @Option(names = {"-B", "--bare-bibo"}, description = "Don't handle 61XX/6CXX")
+    boolean bareBibo;
+    @Option(names = {"-r", "--reader"}, arity = "0..1", description = "Use reader", paramLabel = "<reader>", fallbackValue = "")
+    String reader;
+    @Option(names = {"-a", "--apdu"}, description = "Send APDU-s", paramLabel = "<HEX>")
+    byte[][] apdu = {};
 
-    private static final String OPT_READER = "reader";
-    private static final String OPT_ALL = "all";
-    private static final String OPT_VERBOSE = "verbose";
-    private static final String OPT_DEBUG = "debug";
-    private static final String OPT_VERSION = "version";
-    private static final String OPT_ERROR = "error";
-    private static final String OPT_DUMP = "dump";
-    private static final String OPT_REPLAY = "replay";
+    @Parameters
+    String[] params = {};
 
-    private static final String OPT_HELP = "help";
-    private static final String OPT_SUN = "sun";
-    private static final String OPT_T0 = "t0";
-    private static final String OPT_T1 = "t1";
-    private static final String OPT_EXCLUSIVE = "exclusive";
-    private static final String OPT_CONNECT = "connect";
-    private static final String OPT_PINNED = "pinned";
-    private static final String OPT_P12 = "p12";
-    private static final String OPT_WAIT = "wait";
+    @ArgGroup(heading = "Protocol selection (default is T=*)%n")
+    T0T1 proto = new T0T1();
 
-
-    private static final String OPT_NO_GET_RESPONSE = "no-get-response";
-    private static final String OPT_LIB = "lib";
-    private static final String OPT_PROVIDERS = "P";
-    private static final String OPT_TEST_SERVER = "testserver";
-
-
-    private static boolean verbose = false;
-
-    private static OptionSet parseOptions(String[] argv) throws IOException {
-        OptionSet args = null;
-        OptionParser parser = new OptionParser();
-        parser.acceptsAll(Arrays.asList("l", CMD_LIST), "list readers");
-        parser.acceptsAll(Arrays.asList("p", OPT_PROVIDER), "specify provider").withRequiredArg();
-        parser.acceptsAll(Arrays.asList("v", OPT_VERBOSE), "be verbose");
-        parser.acceptsAll(Arrays.asList("d", OPT_DEBUG), "show debug");
-        parser.acceptsAll(Arrays.asList("e", OPT_ERROR), "fail if not 0x9000");
-        parser.acceptsAll(Arrays.asList("h", OPT_HELP), "show help");
-        parser.acceptsAll(Arrays.asList("r", OPT_READER), "use reader").withRequiredArg();
-        parser.acceptsAll(Arrays.asList("a", CMD_APDU), "send APDU").withRequiredArg();
-        parser.acceptsAll(Arrays.asList("w", OPT_WAIT), "wait for card insertion");
-        parser.acceptsAll(Arrays.asList("V", OPT_VERSION), "show version information");
-        parser.acceptsAll(Arrays.asList("s", OPT_SHELL), "start shell");
-
-        parser.accepts(OPT_DUMP, "save dump to file").withRequiredArg().ofType(File.class);
-        parser.accepts(OPT_REPLAY, "replay command from dump").withRequiredArg().ofType(File.class);
-
-        parser.accepts(OPT_SUN, "load SunPCSC");
-        parser.accepts(OPT_CONNECT, "connect to URL or host:port").withRequiredArg();
-        parser.accepts(OPT_P12, "path:pass of client PKCS#12").withRequiredArg();
-        parser.accepts(OPT_PINNED, "require certificate").withRequiredArg().ofType(File.class);
-
-        parser.accepts(OPT_PROVIDERS, "list providers");
-        parser.accepts(OPT_ALL, "process all readers");
-        parser.accepts(OPT_T0, "use T=0");
-        parser.accepts(OPT_T1, "use T=1");
-        parser.accepts(OPT_EXCLUSIVE, "use EXCLUSIVE mode (JNA only)");
-        parser.accepts(OPT_TEST_SERVER, "run a test server on port 10000").withRequiredArg();
-        parser.accepts(OPT_NO_GET_RESPONSE, "don't use GET RESPONSE with SunPCSC");
-        parser.accepts(OPT_LIB, "use specific PC/SC lib with SunPCSC").withRequiredArg();
-
-        // Parse arguments
-        try {
-            args = parser.parse(argv);
-            // Try to fetch all values so that format is checked before usage
-            for (String s : parser.recognizedOptions().keySet()) {
-                args.valuesOf(s);
-            }
-        } catch (OptionException e) {
-            if (e.getCause() != null) {
-                System.err.println(e.getMessage() + ": " + e.getCause().getMessage());
-            } else {
-                System.err.println(e.getMessage());
-            }
-            System.err.println();
-            help_and_exit(parser, System.err);
-        }
-        if (args.has(OPT_HELP)) {
-            help_and_exit(parser, System.out);
-        }
-        return args;
+    static class T0T1 {
+        @Option(names = {"--t0"}, description = "Use T=0")
+        boolean t0;
+        @Option(names = {"--t1"}, description = "Use T=1")
+        boolean t1;
     }
 
-    @SuppressWarnings("deprecation") // Provider.getVersion()
-    public static void main(String[] argv) throws Exception {
-        OptionSet args = parseOptions(argv);
+    @ArgGroup(heading = "Low level options%n", validate = false)
+    LowLevel lowlevel = new LowLevel();
 
-        if (args.has(OPT_VERBOSE)) {
-            verbose = true;
-            // Set up slf4j simple in a way that pleases us
-            System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "debug");
-            if (args.has(OPT_DEBUG)) {
-                System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "trace");
-            }
-            System.setProperty("org.slf4j.simpleLogger.showThreadName", "true");
-            System.setProperty("org.slf4j.simpleLogger.showShortLogName", "true");
-            System.setProperty("org.slf4j.simpleLogger.levelInBrackets", "true");
-        } else {
-            System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "warn");
-        }
+    static class LowLevel {
+        @Option(names = {"-X", "--exclusive"}, description = "Use EXCLUSIVE mode (JNA only)")
+        boolean exclusive;
+        @Option(names = {"-S", "--sun"}, description = "Use SunPCSC instead of JNA", arity = "0..1", paramLabel = "<lib>", fallbackValue = "")
+        String useSUN;
+    }
 
-        if (args.has(OPT_VERSION)) {
-            String version = "apdu4j " + getVersion();
-            // Append host information
-            version += "\nRunning on " + System.getProperty("os.name");
-            version += " " + System.getProperty("os.version");
-            version += " " + System.getProperty("os.arch");
-            version += ", Java " + System.getProperty("java.version");
-            version += " by " + System.getProperty("java.vendor");
-            System.out.println(version);
-        }
-        if (args.has(OPT_TEST_SERVER)) {
-            // TODO: have the possibility to run SocketServer as well, based on argument (tcp: vs http:)
-            RemoteTerminalServer srv = new RemoteTerminalServer(TestServer.class);
-            srv.start(string2socket((String) args.valueOf(OPT_TEST_SERVER)));
-            System.out.println("Hit ctrl-c to quit");
-            while (true) {
-                Thread.sleep(5000);
-                srv.gc(System.currentTimeMillis() - 5 * 60 * 1000); // 5 minutes
-            }
-        }
+    private void verbose(String s) {
+        if (verbose)
+            System.out.println("# " + s);
+    }
 
-        // We always bundle JNA with the tool, so add it to the providers.
-        Security.addProvider(new jnasmartcardio.Smartcardio());
-
-        // List TerminalFactory providers
-        if (args.has(OPT_PROVIDERS)) {
-            Provider providers[] = Security.getProviders("TerminalFactory.PC/SC");
-            if (providers != null) {
-                System.out.println("Existing TerminalFactory providers:");
-                for (Provider p : providers) {
-                    System.out.println(p.getName() + " v" + p.getVersion() + " (" + p.getInfo() + ")");
-                }
-            }
-        }
-
-        // Fix (SunPCSC) properties on non-windows platforms
-        TerminalManager.fixPlatformPaths();
-
-        // Only applies to SunPCSC
-        if (args.has(OPT_NO_GET_RESPONSE)) {
-            System.setProperty("sun.security.smartcardio.t0GetResponse", "false");
-            System.setProperty("sun.security.smartcardio.t1GetResponse", "false");
-        }
-
-        // Override PC/SC library path (Only applies to SunPCSC)
-        if (args.has(OPT_LIB)) {
-            System.setProperty("sun.security.smartcardio.library", (String) args.valueOf(OPT_LIB));
-        }
-
-        final TerminalFactory tf;
-        CardTerminals terminals = null;
-
+    @Command(name = "list", description = "List available smart card readers.", aliases = {"ls"})
+    public int listReaders(@Option(names = {"-v", "--verbose"}) boolean verbose) {
+        final ReaderAliases aliases = ReaderAliases.getDefault();
         try {
-            // Get a terminal factory
-            if (args.has(OPT_PROVIDER)) {
-                tf = TerminalManager.getTerminalFactory((String) args.valueOf(OPT_PROVIDER));
-            } else if (args.has(OPT_SUN)) {
-                tf = TerminalManager.getTerminalFactory(TerminalManager.SUN_CLASS);
-            } else {
-                tf = TerminalManager.getTerminalFactory(TerminalManager.JNA_CLASS);
+            List<CardTerminal> terms = getTerminalFactory().terminals().list();
+            verbose(String.format("Found %d reader%s", terms.size(), terms.size() == 1 ? "" : "s"));
+            if (terms.size() == 0) {
+                fail("No readers found");
             }
-
-            if (verbose) {
-                System.out.println("# Using " + tf.getProvider().getClass().getCanonicalName() + " - " + tf.getProvider());
-                if (System.getProperty(TerminalManager.LIB_PROP) != null) {
-                    System.out.println("# " + TerminalManager.LIB_PROP + "=" + System.getProperty(TerminalManager.LIB_PROP));
-                }
-            }
-            // Get all terminals
-            terminals = tf.terminals();
-        } catch (EstablishContextException e) {
-            String msg = TerminalManager.getExceptionMessage(e);
-            fail("No readers: " + msg);
-        }
-
-        // Terminals to work on
-        List<CardTerminal> do_readers = new ArrayList<>();
-
-        try {
-            // List Terminals
-            if (args.has(CMD_LIST)) {
-                List<CardTerminal> terms = terminals.list();
+            // TODO: consolidate connects, so that logging would not interleave listing
+            for (CardTerminal t : terms) {
+                if (debug)
+                    t = LoggingCardTerminal.getInstance(t);
+                String vmd = " ";
                 if (verbose) {
-                    System.out.println("# Found " + terms.size() + " terminal" + (terms.size() == 1 ? "" : "s"));
-                }
-                if (terms.size() == 0) {
-                    fail("No readers found");
-                }
-                // List trminals
-                for (CardTerminal t : terms) {
-                    String vmd = " ";
-                    if (verbose) {
-                        try (PinPadTerminal pp = PinPadTerminal.getInstance(t)) {
-                            pp.probe();
-                            // Verify, Modify, Display
-                            vmd += "[";
-                            vmd += pp.canVerify() ? "V" : " ";
-                            vmd += pp.canModify() ? "M" : " ";
-                            vmd += pp.hasDisplay() ? "D" : " ";
-                            vmd += "] ";
-                        } catch (CardException e) {
-                            String err = TerminalManager.getExceptionMessage(e);
-                            if (err.equals(SCard.SCARD_E_SHARING_VIOLATION)) {
-                                vmd = " [   ] ";
-                            } else
-                                vmd = " [EEE] ";
-                        }
+                    try (PinPadTerminal pp = PinPadTerminal.getInstance(t)) {
+                        pp.probe();
+                        // Verify, Modify, Display
+                        vmd += "[";
+                        vmd += pp.canVerify() ? "V" : " ";
+                        vmd += pp.canModify() ? "M" : " ";
+                        vmd += pp.hasDisplay() ? "D" : " ";
+                        vmd += "] ";
+                    } catch (CardException e) {
+                        String err = TerminalManager.getExceptionMessage(e);
+                        if (err.equals(SCard.SCARD_E_SHARING_VIOLATION)) {
+                            vmd = " [???] ";
+                        } else
+                            vmd = " [EEE] ";
                     }
-                    String present = t.isCardPresent() ? "[*]" : "[ ]";
-                    String secondline = null;
-                    String thirdline = null;
-                    String filler = "          ";
-                    if (args.has(OPT_VERBOSE) && t.isCardPresent()) {
-                        Card c = null;
-                        byte[] atr = null;
-                        // Try shared mode, to detect exclusive mode via exception
-                        try {
-                            c = t.connect("*");
-                            atr = c.getATR().getBytes();
-                        } catch (CardException e) {
-                            String err = TerminalManager.getExceptionMessage(e);
-                            // Detect exclusive mode. Hopes this always succeeds
-                            if (err.equals(SCard.SCARD_E_SHARING_VIOLATION)) {
-                                present = "[X]";
-                                try {
-                                    c = t.connect("DIRECT");
-                                    atr = c.getATR().getBytes();
-                                } catch (CardException e2) {
-                                    String err2 = TerminalManager.getExceptionMessage(e2);
-                                    if (err2.equals(SCard.SCARD_E_SHARING_VIOLATION)) {
-                                        present = "[X]";
-                                    }
-                                }
-                            } else {
-                                secondline = err;
-                            }
-                        } finally {
-                            if (c != null)
-                                c.disconnect(false);
-                        }
-
-                        if (atr != null) {
-                            secondline = HexUtils.bin2hex(atr).toUpperCase();
-                            if (ATRList.locate().isPresent() || System.getenv().containsKey("SMARTCARD_LIST")) {
-                                final ATRList atrList;
-                                if (System.getenv().containsKey("SMARTCARD_LIST")) {
-                                    atrList = ATRList.from(System.getenv("SMARTCARD_LIST"));
-                                } else {
-                                    atrList = ATRList.from(ATRList.locate().get());
-                                }
-                                Optional<Map.Entry<String, String>> desc = atrList.match(atr);
-                                if (desc.isPresent()) {
-                                    thirdline = atrList.match(atr).get().getValue().replace("\n", filler);
-                                }
-                            } else {
-                                thirdline = "https://smartcard-atr.appspot.com/parse?ATR=" + HexUtils.bin2hex(atr);
-                            }
-                        }
-                    }
-
-                    System.out.println(present + vmd + t.getName());
-                    if (secondline != null)
-                        System.out.println(filler + secondline);
-                    if (thirdline != null)
-                        System.out.println(filler + thirdline);
                 }
-            }
-
-            // Select terminals to work on
-            if (args.has(OPT_READER)) {
-                String reader = (String) args.valueOf(OPT_READER);
-                CardTerminal t = terminals.getTerminal(reader);
-                if (t == null) {
-                    fail("Reader \"" + reader + "\" not found.");
-                }
-                do_readers = Arrays.asList(t);
-            } else {
-                do_readers = terminals.list(State.CARD_PRESENT);
-                if (do_readers.size() == 0 && !args.has(CMD_LIST)) {
-                    // But if there is a single reader, wait for a card insertion
-                    List<CardTerminal> empty = terminals.list(State.CARD_ABSENT);
-                    if (empty.size() == 1 && args.has(OPT_WAIT)) {
-                        CardTerminal rdr = empty.get(0);
-                        System.out.println("Please enter a card into " + rdr.getName());
-                        if (!empty.get(0).waitForCardPresent(30000)) {
-                            System.out.println("Timeout.");
+                String present = t.isCardPresent() ? "[*]" : "[ ]";
+                String secondline = null;
+                String thirdline = null;
+                String filler = "          ";
+                if (verbose && t.isCardPresent()) {
+                    Card c = null;
+                    byte[] atr = null;
+                    // Try shared mode, to detect exclusive mode via exception
+                    try {
+                        c = t.connect("*");
+                        atr = c.getATR().getBytes();
+                    } catch (CardException e) {
+                        String err = TerminalManager.getExceptionMessage(e);
+                        // Detect exclusive mode. Hopes this always succeeds
+                        if (err.equals(SCard.SCARD_E_SHARING_VIOLATION)) {
+                            present = "[X]";
+                            try {
+                                c = t.connect("DIRECT");
+                                atr = c.getATR().getBytes();
+                            } catch (CardException e2) {
+                                String err2 = TerminalManager.getExceptionMessage(e2);
+                                if (err2.equals(SCard.SCARD_E_SHARING_VIOLATION)) {
+                                    present = "[X]";
+                                }
+                            }
                         } else {
-                            do_readers = Arrays.asList(rdr);
+                            secondline = err;
                         }
-                    } else {
-                        fail("No reader with a card found!");
+                    } finally {
+                        if (c != null)
+                            c.disconnect(false);
+                    }
+
+                    if (atr != null) {
+                        secondline = HexUtils.bin2hex(atr).toUpperCase();
+                        if (ATRList.locate().isPresent() || System.getenv().containsKey("SMARTCARD_LIST")) {
+                            final ATRList atrList;
+                            if (System.getenv().containsKey("SMARTCARD_LIST")) {
+                                atrList = ATRList.from(System.getenv("SMARTCARD_LIST"));
+                            } else {
+                                atrList = ATRList.from(ATRList.locate().get());
+                            }
+                            Optional<Map.Entry<String, String>> desc = atrList.match(atr);
+                            if (desc.isPresent()) {
+                                thirdline = atrList.match(atr).get().getValue().replace("\n", filler);
+                            }
+                        } else {
+                            thirdline = "https://smartcard-atr.apdu.fr/parse?ATR=" + HexUtils.bin2hex(atr);
+                        }
                     }
                 }
+
+                final String name = aliases.extended(t.getName());
+                System.out.println(present + vmd + name);
+                if (secondline != null)
+                    System.out.println(filler + secondline);
+                if (thirdline != null)
+                    System.out.println(filler + thirdline);
             }
-        } catch (CardException e) {
+        } catch (CardException | IOException e) {
+            fail("Failed: " + e.getMessage());
             // Address Windows with SunPCSC
             String em = TerminalManager.getExceptionMessage(e);
             if (em.equals(SCard.SCARD_E_NO_READERS_AVAILABLE)) {
                 fail("No reader with a card found!");
             } else {
-                System.out.println("Could not list readers: " + em);
+                fail("Could not list readers: " + em);
             }
         }
+        return 0;
+    }
 
-        // If we have meaningful work with readers
-        if (!hasWork(args))
-            System.exit(0);
+    @Command(name = "run", description = "Run specified smart card application")
+    public int runApp(@Parameters(paramLabel = "<app>", index = "0") String app, @Parameters(index = "1..*") String[] args) {
+        try {
+            System.out.println("running app: " + app);
+            System.out.println("running with args: " + Arrays.toString(args));
 
-        // Do it
-        for (CardTerminal t : do_readers) {
-            if (do_readers.size() > 1 || args.has(OPT_VERBOSE)) {
-                System.out.println("# " + t.getName());
+            // Resolve the app
+            if (args == null)
+                args = new String[0];
+            if (!resolveApp(app)) {
+                System.err.println("App not found: " + app);
+                return 66;
             }
+            Optional<CardTerminal> rdr = getTheTerminal(reader);
+            if (!rdr.isPresent()) {
+                fail("Specify valid reader to use with -r");
+            } else {
+                logger.info("Using " + rdr.get());
+            }
+
+            CardTerminal reader = rdr.get();
+
+            // This sets the protocol property, also for CardTerminalApp and TouchTerminalApp
+            getProtocol();
+
+            // TODO: reverse order and resolve apps before running, to avoid plugin lookup warnings
+            // First a CardTerminalApp
+            Optional<CardTerminalApp> terminalApp = Plug.getRemotePluginIfNotLocal(app, CardTerminalApp.class);
+            if (terminalApp.isPresent()) {
+                exiter();
+                return terminalApp.get().run(reader, args);
+            }
+
+            // Then TouchTerminalApp
+            Optional<TouchTerminalApp> touchApp = Plug.getRemotePluginIfNotLocal(app, TouchTerminalApp.class);
+            if (touchApp.isPresent()) {
+                exiter();
+                return TouchTerminalRunner.run(reader, touchApp.get(), args);
+            }
+
+            // Then SmartCardApp
+            Optional<SmartCardApp> biboApp = Plug.getRemotePluginIfNotLocal(app, SmartCardApp.class);
+            if (biboApp.isPresent()) {
+                try (BIBO bibo = getBIBO(rdr)) {
+                    APDUBIBO ar = new APDUBIBO(bibo);
+                    // This allows to send "initialization" APDU-s before an app
+                    if (apdu != null) {
+                        for (byte[] s : apdu) {
+                            CommandAPDU a = new CommandAPDU(s);
+                            ResponseAPDU r = ar.transmit(a);
+                            if (r.getSW() != 0x9000 && !force) {
+                                fail("Card returned " + String.format("%04X", r.getSW()) + ", exiting!");
+                            }
+                        }
+                    }
+                    // Then run the app
+                    exiter();
+                    return biboApp.get().run(bibo, args);
+                }
+            }
+        } catch (CardException e) {
+            logger.error("Card failed: " + e.getMessage(), e);
+            System.err.println("Failed: " + e.getMessage());
+        } catch (RuntimeException e) {
+            logger.error("App failed: " + e.getMessage(), e);
+        }
+        return 66;
+    }
+
+    void exiter() {
+        if (verbose)
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> System.out.println("\n\nYou were using apdu4j. Cool!")));
+    }
+
+    @Command(name = "apdu", description = "Send raw APDU-s (Bytes Out)")
+    public int sendAPDU(@Parameters(paramLabel = "<hex>", arity = "1..*") List<byte[]> apdus) {
+        // Prepend the -a ones
+        List<byte[]> toCard = new ArrayList<>(Arrays.asList(apdu));
+        toCard.addAll(apdus);
+        try (APDUBIBO b = new APDUBIBO(getBIBO(getTheTerminal(reader)))) {
+            for (byte[] s : toCard) {
+                ResponseAPDU r = b.transmit(new CommandAPDU(s));
+                if (r.getSW() != 0x9000 && !force) {
+                    fail("Card returned " + String.format("%04X", r.getSW()) + ", exiting!");
+                }
+            }
+        } catch (CardException e) {
+            logger.error("Could not connect: " + e.getMessage(), e);
+            return 1;
+        } catch (BIBOException e) {
+            logger.error("Failed: " + e.getMessage(), e);
+            return 1;
+        }
+        return 0;
+    }
+
+
+    @Command(name = "plugins", description = "List available plugins.")
+    @SuppressWarnings("deprecation")
+    // Provider.getVersion()
+    public int listPlugins() {
+        // List TerminalFactory providers
+        Provider providers[] = Security.getProviders("TerminalFactory.PC/SC");
+        System.out.println("Existing TerminalFactory providers:");
+        if (providers != null) {
+            for (Provider p : providers) {
+                System.out.printf("%s v%s (%s) from %s%n", p.getName(), p.getVersion(), p.getInfo(), Plug.pluginfile(p));
+            }
+        }
+        // List all plugins
+        for (Class<?> p : Arrays.asList(BIBOProvider.class, CardTerminalProvider.class)) {
+            System.out.printf("Plugins for %s%n", p.getCanonicalName());
+            Plug.listPlugins(p);
+        }
+
+        // List all apps
+        for (Class<?> p : Arrays.asList(SmartCardApp.class, TouchTerminalApp.class, CardTerminalApp.class)) {
+            System.out.printf("Apps for %s%n", p.getCanonicalName());
+            Plug.listPlugins(p);
+        }
+        return 1;
+    }
+
+
+    static void configureLogging() {
+        // Set up slf4j simple in a way that pleases us
+        System.setProperty("org.slf4j.simpleLogger.showThreadName", "true");
+        System.setProperty("org.slf4j.simpleLogger.showShortLogName", "true");
+        System.setProperty("org.slf4j.simpleLogger.levelInBrackets", "true");
+
+        System.setProperty("org.slf4j.simpleLogger.showDateTime", "true");
+        System.setProperty("org.slf4j.simpleLogger.dateTimeFormat", "HH:mm:ss:SSS");
+
+        // Default level
+        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "warn");
+    }
+
+    public static void main(String[] args) {
+        try {
+            // Configure logging
+            configureLogging();
+            // We always bundle JNA with the tool, so add it to the providers as well
+            Security.addProvider(new jnasmartcardio.Smartcardio());
+            // Parse CLI
+            SCTool tool = new SCTool();
+            CommandLine cli = new CommandLine(tool);
+            // To support "sc gp -ldv"
+            cli.setUnmatchedOptionsArePositionalParams(true);
+            //cli.setStopAtUnmatched(true);
+            cli.setStopAtPositional(true);
+            cli.registerConverter(byte[].class, s -> HexUtils.stringToBin(s));
             try {
-                work(t, args);
-            } catch (CardException e) {
-                if (TerminalManager.getExceptionMessage(e).equals(SCard.SCARD_E_SHARING_VIOLATION)) {
-                    continue;
-                }
-                throw e;
+                cli.parseArgs(args);
+                if (tool.debug)
+                    System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "debug");
+            } catch (ParameterException ex) { // command line arguments could not be parsed
+                System.err.println(ex.getMessage());
+                ex.getCommandLine().usage(System.err);
+                System.exit(1);
             }
+
+            // Run program
+            cli.execute(args);
+        } catch (RuntimeException e) {
+            fail("Error: " + e.getMessage());
         }
     }
 
-    private static boolean hasWork(OptionSet args) {
-        if (args.has(CMD_APDU))
-            return true;
-        if (args.has(OPT_CONNECT))
-            return true;
-        return false;
+
+    @Override
+    public Integer call() {
+        // Old style shorthands
+        if (listPlugins)
+            return listPlugins();
+        if (list)
+            return listReaders(verbose);
+        if (apdu.length > 0) {
+            return sendAPDU(Arrays.asList(apdu));
+        }
+        // Default is to run apps
+        if (params.length > 0) {
+            if (resolveApp(params[0])) {
+                return runApp(params[0], Arrays.copyOfRange(params, 1, params.length));
+            } else {
+                System.err.println("Unknown app: " + params[0]);
+                return 66;
+            }
+        }
+        System.out.println("Nothing to do!");
+        return 0;
     }
 
-    private static void work(CardTerminal reader, OptionSet args) throws CardException {
-        if (!reader.isCardPresent()) {
-            System.out.println("No card in " + reader.getName());
-            return;
+    Optional<String> forceLibraryPath() {
+        if (lowlevel.useSUN != null && lowlevel.useSUN.trim().length() > 0) {
+            return Optional.of(lowlevel.useSUN.trim());
         }
+        return Optional.empty();
+    }
 
-        if (args.has(OPT_VERBOSE)) {
-            FileOutputStream o = null;
-            if (args.has(OPT_DUMP)) {
-                try {
-                    o = new FileOutputStream((File) args.valueOf(OPT_DUMP));
-                } catch (FileNotFoundException e) {
-                    System.err.println("Can not dump to " + args.valueOf(OPT_DUMP));
+
+    // Return a terminal factory, taking into account CLI options
+    TerminalFactory getTerminalFactory() {
+        if (tf != null)
+            return tf;
+        // Separate trycatch block for potential Windows exception in terminal listing
+        try {
+            if (lowlevel.useSUN != null) {
+                // Fix (SunPCSC) properties on non-windows platforms
+                TerminalManager.fixPlatformPaths();
+
+                // Override PC/SC library path (Only applies to SunPCSC)
+                forceLibraryPath().ifPresent(e -> System.setProperty(TerminalManager.LIB_PROP, e));
+
+                // Log the library if verbose
+                if (verbose && System.getProperty(TerminalManager.LIB_PROP) != null) {
+                    System.out.println("# " + TerminalManager.LIB_PROP + "=" + System.getProperty(TerminalManager.LIB_PROP));
                 }
+                // Get the built-int provider
+                tf = TerminalFactory.getDefault();
+            } else {
+                // Get JNA
+                tf = TerminalManager.getTerminalFactory();
             }
-            reader = LoggingCardTerminal.getInstance(reader, o);
-        }
 
-        // This allows to override the protocol for RemoteTerminal as well.
+            if (verbose) {
+                System.out.println("# Using " + tf.getProvider().getClass().getCanonicalName() + " - " + tf.getProvider());
+            }
+            return tf;
+        } catch (Smartcardio.EstablishContextException e) {
+            String msg = TerminalManager.getExceptionMessage(e);
+            fail("No readers: " + msg);
+            return null; // sugar.
+        }
+    }
+
+
+    boolean weHaveApp(String spec) {
+        return Stream.concat(Plug.pluginStream(SmartCardApp.class), Plug.pluginStream(CardTerminalApp.class)).anyMatch(e -> Plug.identifies(spec, e.getClass()));
+    }
+
+    boolean resolveApp(String spec) {
+        return Plug.getRemotePluginIfNotLocal(spec, SmartCardApp.class).isPresent()
+                || Plug.getRemotePluginIfNotLocal(spec, CardTerminalApp.class).isPresent()
+                || Plug.getRemotePluginIfNotLocal(spec, TouchTerminalApp.class).isPresent();
+    }
+
+    private String getProtocol() {
         String protocol;
-        boolean transact = true;
-        if (args.has(OPT_T0)) {
+        if (proto.t0) {
             protocol = "T=0";
-        } else if (args.has(OPT_T1)) {
+        } else if (proto.t1) {
             protocol = "T=1";
         } else {
             protocol = "*";
         }
+
         // JNA-proprietary
-        if (args.has(OPT_EXCLUSIVE)) {
-            protocol = "EXCLUSIVE;" + protocol;
-        } else if (System.getProperty("os.name").toLowerCase().contains("windows") && args.has(OPT_CONNECT)) {
+        if (lowlevel.useSUN == null) {
             // Windows 8+ have the "5 seconds of transaction" limit. Because we want reliability
             // and don't have access to arbitrary SCard* calls via javax.smartcardio, we rely on
             // JNA interface and its EXCLUSIVE access instead and do NOT use the SCardBeginTransaction
             // capability of the JNA interface.
             // https://msdn.microsoft.com/en-us/library/windows/desktop/aa379469%28v=vs.85%29.aspx
-            transact = false;
-            protocol = "EXCLUSIVE;" + protocol;
+            if (System.getProperty("os.name").toLowerCase().contains("windows") || lowlevel.exclusive)
+                protocol = "EXCLUSIVE;" + protocol;
         }
+        System.setProperty(CardTerminalApp.PROTOCOL_PROPERTY, protocol);
+        return protocol;
+    }
 
-        if (args.has(CMD_APDU) || args.has(OPT_SHELL)) {
-            Card c = null;
-            try {
-                c = reader.connect(protocol);
+    private String envOrMeta(String n1) {
+        if (System.getenv().containsKey(n1)) {
+            String v1 = System.getenv(n1);
+            if (v1.startsWith("$")) {
+                String n2 = v1.substring(1);
+                if (!System.getenv().containsKey(n2))
+                    logger.warn("${} is not set", n2);
+                return System.getenv(n2);
+            } else
+                return v1;
+        }
+        return null;
+    }
 
-                if (args.has(CMD_APDU)) {
-                    for (Object s : args.valuesOf(CMD_APDU)) {
-                        javax.smartcardio.CommandAPDU a = new javax.smartcardio.CommandAPDU(HexUtils.stringToBin((String) s));
-                        javax.smartcardio.ResponseAPDU r = c.getBasicChannel().transmit(a);
-                        if (args.has(OPT_ERROR) && r.getSW() != 0x9000) {
-                            System.out.println("Card returned " + String.format("%04X", r.getSW()) + ", exiting!");
-                            return;
-                        }
-                    }
-                } else {
-                    Shell s = new Shell(c);
-                    s.run();
-                    return;
-                }
-            } catch (CardException e) {
-                if (TerminalManager.getExceptionMessage(e) != null) {
-                    System.out.println("PC/SC failure: " + TerminalManager.getExceptionMessage(e));
-                    return;
-                } else {
-                    throw e;
-                }
-            } finally {
-                if (c != null) {
-                    c.disconnect(true);
-                }
-            }
-        } else if (args.has(OPT_CONNECT)) {
-            String remote = (String) args.valueOf(OPT_CONNECT);
-            JSONMessagePipe transport = null;
-            KeyManagerFactory kmf = null;
-            X509Certificate pinnedcert = null;
-
-
-            try {
-                // Connection parameters
-                if (args.has(OPT_P12)) {
-                    String[] pathpass = args.valueOf(OPT_P12).toString().split(":");
-                    if (pathpass.length != 2) {
-                        throw new IllegalArgumentException("Must be path:password!");
-                    }
-                    kmf = SocketTransport.get_key_manager_factory(pathpass[0], pathpass[1]);
-                }
-                if (args.has(OPT_PINNED)) {
-                    pinnedcert = certFromPEM(((File) args.valueOf(OPT_PINNED)).getPath());
-                }
-
-                // Select transport
-                if (remote.startsWith("http://") || remote.startsWith("https://")) {
-                    transport = HTTPTransport.open(new URL(remote), pinnedcert, kmf);
-                } else {
-                    transport = SocketTransport.connect(string2socket(remote), null);
-                }
-
-                // Connect the transport and the terminal
-                CmdlineRemoteTerminal c = new CmdlineRemoteTerminal(transport, reader);
-                c.forceProtocol(protocol);
-                c.transact(transact);
-                // Run
-                c.run();
-            } catch (IOException e) {
-                System.err.println("Communication error: " + e.getMessage());
-            } finally {
-                if (transport != null)
-                    transport.close();
+    // Return a BIBO or fail
+    private BIBO getBIBO(Optional<CardTerminal> rdr) throws CardException {
+        if (!rdr.isPresent()) {
+            fail("Specify valid reader to use with -r");
+        } else {
+            logger.info("Using " + rdr.get());
+        }
+        CardTerminal reader = rdr.get();
+        if (!noWait && !reader.isCardPresent()) {
+            boolean present = TouchTerminalRunner.waitForCard(reader, 60);
+            if (!present) {
+                fail("No card in reader. Quit.");
             }
         }
-    }
-
-    private static void help_and_exit(OptionParser parser, PrintStream o) throws IOException {
-        System.err.println("# apdu4j command line utility\n");
-        parser.printHelpOn(o);
-        System.exit(1);
-    }
-
-    private static X509Certificate certFromPEM(String path) throws IOException {
-        try {
-            // TODO: use PEMParser
-            String pem = new String(Files.readAllBytes(Paths.get(path)), StandardCharsets.US_ASCII);
-            String[] lines = pem.split("\n");
-            String[] b64 = Arrays.copyOfRange(lines, 1, lines.length - 1);
-            byte[] bytes = Base64.getDecoder().decode(String.join("", b64));
-            CertificateFactory cf;
-            cf = CertificateFactory.getInstance("X.509");
-            X509Certificate cert = (X509Certificate) cf.generateCertificate(new ByteArrayInputStream(bytes));
-            return cert;
-        } catch (CertificateException e) {
-            throw new IOException(e);
+        Card c = reader.connect(getProtocol());
+        final BIBO bibo;
+        if (bareBibo) {
+            bibo = CardBIBO.wrap(c);
+        } else {
+            bibo = GetResponseWrapper.wrap(CardBIBO.wrap(c));
         }
+        return bibo;
     }
 
-    public static String getVersion() {
+    // Return a terminal
+    private Optional<CardTerminal> getTheTerminal(String spec) {
+        // Don't issue APDU-s internally
+        if (bareBibo) {
+            System.setProperty("sun.security.smartcardio.t0GetResponse", "false");
+            System.setProperty("sun.security.smartcardio.t1GetResponse", "false");
+            System.setProperty("jnasmartcardio.transparent", "true");
+        }
+
+        Optional<CardTerminal> result = Optional.empty();
+        if (spec == null) {
+            // if APDU4J_READER present - use this, resolving plugins
+            String APDU4J_READER = "APDU4J_READER";
+            if (envOrMeta(APDU4J_READER) != null) {
+                result = Plug.pluginStream(CardTerminalProvider.class) // stream of CTP
+                        .map(e -> e.getTerminal(envOrMeta(APDU4J_READER))) // stream of optional<cardTerminal>
+                        .filter(Optional::isPresent).map(Optional::get)
+                        .findFirst();
+                if (!result.isPresent()) {
+                    logger.warn(String.format("$%s present but does not resolve to a reader", APDU4J_READER));
+                }
+            } else {
+                // if only one reader - use this (after applying EXCLUDE)
+                TerminalFactory tf = getTerminalFactory();
+                CardTerminals terminals = tf.terminals();
+                String ignoreList = System.getenv("APDU4J_READER_IGNORE");
+                try {
+                    List<CardTerminal> terms = terminals.list().stream().filter(e -> TerminalManager.ignoreReader(ignoreList, e.getName())).collect(Collectors.toList());
+                    if (terms.size() == 1) {
+                        result = Optional.of(terms.get(0));
+                    } else {
+                        // if more than on reader - use fancy chooser (possibly graying out exclude ones)
+                        result = FancyChooser.forTerminals(getTerminalFactory().terminals()).call();
+                    }
+                } catch (CardException | IOException e) {
+                    logger.error("Failed to list/choose readers: " + e.getMessage());
+                }
+            }
+            // if chooser not possible - require usage of -r (return empty optional)
+        } else {
+            // if -r present but no value: force chooser
+            if (reader.length() == 0) {
+                try {
+                    result = FancyChooser.forTerminals(getTerminalFactory().terminals()).call();
+                } catch (IOException | CardException e) {
+                    logger.error("Could not choose terminal: " + e.getMessage(), e);
+                }
+            } else {
+                // -r present with a value: match plugins
+                result = Plug.pluginStream(CardTerminalProvider.class) // stream of CTP
+                        .map(e -> e.getTerminal(reader)) // stream of optional<cardTerminal>
+                        .filter(Optional::isPresent).map(Optional::get)
+                        .findFirst();
+                if (!result.isPresent()) {
+                    logger.warn(String.format("%s does not resolve to a reader", reader));
+                }
+            }
+            // if no match, see if -r is a URL, then load plugin from there
+        }
+        result.ifPresent((t) -> System.out.println("# Using " + t.getName()));
+        return result.map(t -> debug ? LoggingCardTerminal.getInstance(t) : t);
+    }
+
+    public String[] getVersion() {
         String version = "unknown-development";
         try (InputStream versionfile = SCTool.class.getResourceAsStream("pro_version.txt")) {
             if (versionfile != null) {
@@ -529,15 +583,7 @@ public final class SCTool {
         } catch (IOException e) {
             version = "unknown-error";
         }
-        return version;
-    }
-
-    private static InetSocketAddress string2socket(String s) {
-        String[] hostport = s.split(":");
-        if (hostport.length != 2) {
-            throw new IllegalArgumentException("Can connect to host:port pairs!");
-        }
-        return new InetSocketAddress(hostport[0], Integer.parseInt(hostport[1]));
+        return new String[]{version};
     }
 
     private static void fail(String message) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2016 Martin Paljak
+ * Copyright (c) 2019 Martin Paljak
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,45 +22,40 @@
 package apdu4j.providers;
 
 import apdu4j.HexUtils;
-import apdu4j.TerminalManager;
 
 import javax.smartcardio.*;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.security.Provider;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
 
-@SuppressWarnings("serial")
-public class APDUReplayProvider extends Provider {
-    private static final String PROVIDER_NAME = "APDUReplay";
-    private static final String TERMINAL_NAME = "Replay Terminal 0";
+public class APDUReplayProvider extends EmulatedTerminalProvider {
+    static final long serialVersionUID = -8337184383179443730L;
 
-    @SuppressWarnings("deprecation") // 11 would prefer String, String, String super
     public APDUReplayProvider() {
-        super(PROVIDER_NAME, 0.1d, "APDU Replay from apdu4j/" + TerminalManager.getVersion());
-        put("TerminalFactory.PC/SC", APDUReplayProviderSpi.class.getName());
+        super((input) -> {
+            if (input instanceof InputStream) {
+                return new ReplayTerminal((InputStream) input, true);
+            }
+            throw new IllegalArgumentException("Don't know how to make terminal");
+        });
     }
 
-    public static class APDUReplayProviderSpi extends TerminalFactorySpi {
-        boolean strict = true;
-        InputStream script = null;
+
+    public static final class ReplayTerminal extends CardTerminal {
+        private static final String PROTOCOL = "# PROTOCOL: ";
+        private static final String ATR = "# ATR: ";
+
+        ATR atr;
+        String protocol;
+
+        final boolean strict;
         List<byte[]> commands = null;
         List<byte[]> responses = null;
 
-        public APDUReplayProviderSpi(Object parameter) {
-            if (parameter != null && (parameter instanceof InputStream)) {
-                script = (InputStream) parameter;
-            }
-        }
-
-        @Override
-        public CardTerminals engineTerminals() {
-            return new ReplayTerminals(script);
-        }
 
         public synchronized byte[] replay_transmit(byte[] cmd) throws CardException {
             if (commands.size() == 0) {
@@ -69,175 +64,159 @@ public class APDUReplayProvider extends Provider {
             byte[] expected_cmd = commands.remove(0);
             if (strict) {
                 if (!Arrays.equals(cmd, expected_cmd)) {
-                    throw new CardException("Expected " + HexUtils.bin2hex(expected_cmd) + " but got " + HexUtils.bin2hex(cmd));
+                    throw new CardException("replay: expected " + HexUtils.bin2hex(expected_cmd) + " but got " + HexUtils.bin2hex(cmd));
                 }
             }
             return responses.remove(0);
         }
 
-        // FIXME: this needs to be in Spi
-        private final class ReplayTerminals extends CardTerminals {
-            private static final String PROTOCOL = "# PROTOCOL: ";
-            private static final String ATR = "# ATR: ";
-            final Scanner script;
-            ATR atr;
-            String protocol;
+        private void parseScript(InputStream script_stream) {
+            Scanner script = new Scanner(script_stream, StandardCharsets.UTF_8.name());
+            commands = new ArrayList<>();
+            responses = new ArrayList<>();
+            boolean is_cmd = true;
+            // Parse script file and fail to initiate if it can not be parsed
+            while (script.hasNextLine()) {
+                String l = script.nextLine().trim();
+                // Skip comments
+                if (l.startsWith("#")) {
+                    if (l.startsWith(ATR)) {
+                        atr = new ATR(HexUtils.hex2bin(l.substring(ATR.length())));
+                    } else if (l.startsWith(PROTOCOL)) {
+                        protocol = l.substring(PROTOCOL.length());
+                    }
+                    continue;
+                }
+                byte[] r = HexUtils.hex2bin(l);
+                if (is_cmd) {
+                    commands.add(r);
+                } else {
+                    responses.add(r);
+                }
+                // flip
+                is_cmd = !is_cmd;
+            }
+            // Consistency check
+            if (atr == null || protocol == null || responses.size() == 0 || responses.size() != commands.size()) {
+                throw new IllegalArgumentException("Incomplete APDU dump!");
+            }
+        }
 
-            protected ReplayTerminals(InputStream script_stream) {
-                script = new Scanner(script_stream, StandardCharsets.UTF_8.name());
-                commands = new ArrayList<>();
-                responses = new ArrayList<>();
-                boolean is_cmd = true;
-                // Parse script file and fail to initiate if it can not be parsed
-                while (script.hasNextLine()) {
-                    String l = script.nextLine().trim();
-                    // Skip comments
-                    if (l.startsWith("#")) {
-                        if (l.startsWith(ATR)) {
-                            atr = new ATR(HexUtils.hex2bin(l.substring(ATR.length())));
-                        } else if (l.startsWith(PROTOCOL)) {
-                            protocol = l.substring(PROTOCOL.length());
-                        }
-                        continue;
-                    }
-                    byte[] r = HexUtils.hex2bin(l);
-                    if (is_cmd) {
-                        commands.add(r);
-                    } else {
-                        responses.add(r);
-                    }
-                    // flip
-                    is_cmd = !is_cmd;
-                }
-                // Consistency check
-                if (atr == null || protocol == null || responses.size() == 0 || responses.size() != commands.size()) {
-                    throw new IllegalArgumentException("Incomplete APDU dump!");
-                }
+        public ReplayTerminal(InputStream script, boolean strict) {
+            parseScript(script);
+            this.strict = strict;
+        }
+
+        @Override
+        public Card connect(String protocol) throws CardException {
+            return new ReplayCard();
+        }
+
+        @Override
+        public String getName() {
+            return "APDUReplay terminal 0";
+        }
+
+        @Override
+        public boolean isCardPresent() throws CardException {
+            return true;
+        }
+
+        @Override
+        public boolean waitForCardAbsent(long arg0) throws CardException {
+            return false;
+        }
+
+        @Override
+        public boolean waitForCardPresent(long arg0) throws CardException {
+            return true;
+        }
+
+        public final class ReplayCard extends Card {
+            private final CardChannel basicChannel;
+
+            ReplayCard() {
+                basicChannel = new ReplayCard.ReplayChannel(this);
             }
 
             @Override
-            public List<CardTerminal> list(State state) throws CardException {
-                ArrayList<CardTerminal> terminals = new ArrayList<CardTerminal>();
-                if (state == State.ALL || state == State.CARD_PRESENT) {
-                    terminals.add(new ReplayTerminal());
-                }
-                return terminals;
+            public void beginExclusive() throws CardException {
+
             }
 
             @Override
-            public boolean waitForChange(long arg0) throws CardException {
-                return false;
+            public void disconnect(boolean reset) throws CardException {
+
             }
 
-            private final class ReplayTerminal extends CardTerminal {
-                @Override
-                public Card connect(String protocol) throws CardException {
-                    return new ReplayCard();
+            @Override
+            public void endExclusive() throws CardException {
+
+            }
+
+            @Override
+            public ATR getATR() {
+                return atr;
+            }
+
+            @Override
+            public CardChannel getBasicChannel() {
+                return basicChannel;
+            }
+
+            @Override
+            public String getProtocol() {
+                return protocol;
+            }
+
+            @Override
+            public CardChannel openLogicalChannel() throws CardException {
+                throw new CardException("Logical channels not supported");
+            }
+
+            @Override
+            public byte[] transmitControlCommand(int arg0, byte[] arg1) throws CardException {
+                throw new RuntimeException("Control commands don't make sense");
+            }
+
+
+            public final class ReplayChannel extends CardChannel {
+                final Card card;
+
+                protected ReplayChannel(Card card) {
+                    this.card = card;
                 }
 
                 @Override
-                public String getName() {
-                    return TERMINAL_NAME;
+                public void close() throws CardException {
+                    // As only basic logical channel is supported
+                    throw new IllegalStateException("Can't close basic channel");
                 }
 
                 @Override
-                public boolean isCardPresent() throws CardException {
-                    return true;
+                public Card getCard() {
+                    return card;
                 }
 
                 @Override
-                public boolean waitForCardAbsent(long arg0) throws CardException {
-                    return false;
+                public int getChannelNumber() {
+                    return 0;
                 }
 
                 @Override
-                public boolean waitForCardPresent(long arg0) throws CardException {
-                    return true;
+                public ResponseAPDU transmit(CommandAPDU apdu) throws CardException {
+                    return new ResponseAPDU(replay_transmit(apdu.getBytes()));
                 }
 
-                public final class ReplayCard extends Card {
-                    private final CardChannel basicChannel;
-
-                    protected ReplayCard() {
-                        basicChannel = new ReplayChannel();
-                    }
-
-                    @Override
-                    public void beginExclusive() throws CardException {
-
-                    }
-
-                    @Override
-                    public void disconnect(boolean reset) throws CardException {
-
-                    }
-
-                    @Override
-                    public void endExclusive() throws CardException {
-
-                    }
-
-                    @Override
-                    public ATR getATR() {
-                        return atr;
-                    }
-
-                    @Override
-                    public CardChannel getBasicChannel() {
-                        return basicChannel;
-                    }
-
-                    @Override
-                    public String getProtocol() {
-                        return protocol;
-                    }
-
-                    @Override
-                    public CardChannel openLogicalChannel() throws CardException {
-                        throw new CardException("Logical channels not supported");
-                    }
-
-                    @Override
-                    public byte[] transmitControlCommand(int arg0, byte[] arg1) throws CardException {
-                        throw new RuntimeException("Control commands don't make sense");
-                    }
-
-
-                    public final class ReplayChannel extends CardChannel {
-
-                        @Override
-                        public void close() throws CardException {
-                            // As only basic logical channel is supported
-                            throw new IllegalStateException("Can't close basic channel");
-                        }
-
-                        @Override
-                        public Card getCard() {
-                            return ReplayCard.this;
-                        }
-
-                        @Override
-                        public int getChannelNumber() {
-                            return 0;
-                        }
-
-                        @Override
-                        public ResponseAPDU transmit(CommandAPDU apdu) throws CardException {
-                            return new ResponseAPDU(replay_transmit(apdu.getBytes()));
-                        }
-
-                        @Override
-                        public int transmit(ByteBuffer arg0, ByteBuffer arg1) throws CardException {
-                            byte[] cmd = new byte[arg0.remaining()];
-                            arg0.get(cmd);
-                            byte[] resp = replay_transmit(cmd);
-                            arg1.put(resp);
-                            return resp.length;
-                        }
-                    }
+                @Override
+                public int transmit(ByteBuffer arg0, ByteBuffer arg1) throws CardException {
+                    byte[] cmd = new byte[arg0.remaining()];
+                    arg0.get(cmd);
+                    byte[] resp = replay_transmit(cmd);
+                    arg1.put(resp);
+                    return resp.length;
                 }
             }
         }
     }
 }
-

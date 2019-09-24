@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Martin Paljak
+ * Copyright (c) 2019 Martin Paljak
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -19,17 +19,15 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package apdu4j.remote;
+package apdu4j.p;
 
-import java.io.IOException;
-import java.util.Map;
+import javax.smartcardio.CardTerminal;
+import java.util.Optional;
+
 /**
- * Interface that allows to send JSON messages over some kind of transport
- *
- * @author Martin Paljak
+ * A plugin that gives a javax.smartcardio CardTerminal based on a name
+ * Not very different from {@link javax.smartcardio.CardTerminals#getTerminal(String)}
  */
-public interface JSONMessagePipe extends AutoCloseable{
-	void send(Map<String, Object> msg) throws IOException;
-	Map<String, Object> recv() throws IOException;
-	void close();
+public interface CardTerminalProvider {
+    Optional<CardTerminal> getTerminal(String spec);
 }

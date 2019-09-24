@@ -19,28 +19,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package apdu4j;
+package apdu4j.p;
 
-// Extension on top of BIBO, not unline CardChannel, which allows
-// to transmit APDU-s back and forth over BIBO
-public class APDUBIBO implements BIBO {
-    final BIBO bibo;
+import javax.smartcardio.CardTerminal;
 
-    public APDUBIBO(BIBO bibo) {
-        this.bibo = bibo;
-    }
+public interface CardTerminalApp {
+    // To carry the preferred protocol from CLI to class
+    String PROTOCOL_PROPERTY = "apdu4j.protocol";
 
-    public ResponseAPDU transmit(CommandAPDU command) throws BIBOException {
-        return new ResponseAPDU(bibo.transceive(command.getBytes()));
-    }
-
-    @Override
-    public byte[] transceive(byte[] bytes) throws BIBOException {
-        return bibo.transceive(bytes);
-    }
-
-    @Override
-    public void close() {
-        bibo.close();
-    }
+    /**
+     * Like {@code public static void main(String[] argv)} but with a {@link CardTerminal} argument
+     *
+     * @param terminal terminal to work on
+     * @param args     command line arguments
+     * @return return code to be used for System.exit()
+     */
+    int run(CardTerminal terminal, String[] args);
 }

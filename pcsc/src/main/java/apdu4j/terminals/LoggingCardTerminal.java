@@ -48,6 +48,8 @@ public class LoggingCardTerminal extends CardTerminal {
     protected final PrintStream dump;
 
     private LoggingCardTerminal(CardTerminal term, PrintStream log, PrintStream dump) {
+        if (term == null)
+            throw new IllegalArgumentException("terminal==null");
         this.terminal = term;
         this.log = log;
         this.dump = dump;
@@ -113,13 +115,13 @@ public class LoggingCardTerminal extends CardTerminal {
             log.flush();
             try {
                 card = terminal.connect(protocol);
-                String atr = HexUtils.bin2hex(card.getATR().getBytes());
-                log.println(" -> " + card.getProtocol() + ", " + atr);
+                byte[] atr = card.getATR().getBytes();
+                log.println(" -> " + card.getProtocol() + (atr.length > 0 ? ", " + HexUtils.bin2hex(atr) : ""));
                 if (dump != null) {
                     String ts = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss Z").format(Calendar.getInstance().getTime());
                     dump.println("# Generated on " + ts + " by apdu4j/" + TerminalManager.getVersion());
                     dump.println("# Using " + terminal.getName());
-                    dump.println("# ATR: " + atr);
+                    dump.println("# ATR: " + HexUtils.bin2hex(atr));
                     dump.println("# PROTOCOL: " + card.getProtocol());
                     dump.println("#");
                 }
@@ -131,13 +133,13 @@ public class LoggingCardTerminal extends CardTerminal {
 
         @Override
         public void beginExclusive() throws CardException {
-            log.println("SCardBeginTransaction(\"" + terminal.getName() + "\")");
+            log.println(String.format("SCardBeginTransaction(\"%s\")", terminal.getName()));
             card.beginExclusive();
         }
 
         @Override
         public void disconnect(boolean arg0) throws CardException {
-            log.println("SCardDisconnect(\"" + terminal.getName() + "\", " + arg0 + ") tx:" + outBytes + "/rx:" + inBytes);
+            log.println(String.format("SCardDisconnect(\"%s\", %s) tx:%d/rx:%d", terminal.getName(), arg0, outBytes, inBytes));
             inBytes = outBytes = 0;
             if (dump != null) {
                 dump.close();
@@ -147,7 +149,7 @@ public class LoggingCardTerminal extends CardTerminal {
 
         @Override
         public void endExclusive() throws CardException {
-            log.println("SCardEndTransaction(\"" + terminal.getName() + "\")");
+            log.println(String.format("SCardEndTransaction(\"%s\")", terminal.getName()));
             card.endExclusive();
         }
 
@@ -173,20 +175,20 @@ public class LoggingCardTerminal extends CardTerminal {
 
         @Override
         public byte[] transmitControlCommand(int arg0, byte[] arg1) throws CardException {
-            log.print("SCardControl(\"" + terminal.getName() + "\", " + Integer.toString(arg0, 16) + ", " + HexUtils.bin2hex(arg1) + ")");
+            log.print(String.format("SCardControl(\"%s\", 0x%08X, %s)", terminal.getName(), arg0, (arg1 == null || arg1.length == 0) ? "null" : HexUtils.bin2hex(arg1)));
             final byte[] result;
             try {
                 result = card.transmitControlCommand(arg0, arg1);
             } catch (CardException e) {
                 String err = TerminalManager.getExceptionMessage(e);
                 if (err != null) {
-                    log.println("-> " + err);
+                    log.println(" -> " + err);
                 } else {
-                    log.println("-> Exception");
+                    log.println(" -> Exception");
                 }
                 throw e;
             }
-            log.println("-> " + HexUtils.bin2hex(result));
+            log.println(" -> " + HexUtils.bin2hex(result));
             return result;
         }
 
@@ -218,8 +220,8 @@ public class LoggingCardTerminal extends CardTerminal {
             public javax.smartcardio.ResponseAPDU transmit(javax.smartcardio.CommandAPDU apdu) throws CardException {
                 byte[] cb = apdu.getBytes();
                 int len_end = apdu.getData().length > 255 ? 7 : 5;
-                log.print("A>> " + card.getProtocol() + " (4+" + String.format("%04d", apdu.getData().length) + ")");
-                log.print(" " + HexUtils.bin2hex(Arrays.copyOfRange(cb, 0, 4)));
+                String header = HexUtils.bin2hex(Arrays.copyOfRange(cb, 0, 4));
+                log.print(String.format("A>> %s (4+%04d) %s", card.getProtocol(), apdu.getData().length, header));
 
                 // Only if Case 2, 3 or 4 APDU
                 if (cb.length > 4) {
@@ -257,9 +259,9 @@ public class LoggingCardTerminal extends CardTerminal {
                     String err = TerminalManager.getExceptionMessage(e);
                     String time = time(System.currentTimeMillis() - t);
                     if (err != null)
-                        System.out.println("<< (" + time + ") " + err);
+                        log.println("<< (" + time + ") " + err);
                     else
-                        System.out.println("<< Exception");
+                        log.println("<< Exception (" + time + ")");
                     throw e;
                 }
 
@@ -267,7 +269,7 @@ public class LoggingCardTerminal extends CardTerminal {
 
                 byte[] rb = response.getBytes();
                 inBytes += rb.length;
-                System.out.print("A<< (" + String.format("%04d", response.getData().length) + "+2) (" + time + ")");
+                log.print(String.format("A<< (%04d+2) (%s)", response.getData().length, time));
                 if (rb.length > 2) {
                     log.print(" " + HexUtils.bin2hex(Arrays.copyOfRange(rb, 0, rb.length - 2)));
                 }

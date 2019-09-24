@@ -8,18 +8,20 @@
     <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
   </Match>
   <Match>
-    <Class name="apdu4j.TerminalManager"/>
-    <Method name="loadTerminalFactory"/>
-    <Bug pattern="DP_CREATE_CLASSLOADER_INSIDE_DO_PRIVILEGED"/>
+    <Bug pattern="DM_EXIT"/>
   </Match>
   <Match>
     <Class name="apdu4j.TerminalManager"/>
-    <Method name="fixPlatformPaths"/>
+    <Method name="_detectLibraryPath"/>
     <Bug pattern="DMI_HARDCODED_ABSOLUTE_FILENAME"/>
   </Match>
   <Match>
     <Class name="apdu4j.ATRList"/>
     <Method name="locate"/>
     <Bug pattern="DMI_HARDCODED_ABSOLUTE_FILENAME"/>
+  </Match>
+  <Match>
+    <Class name="apdu4j.providers.EmulatedTerminalProvider"/>
+    <Bug pattern="ST_WRITE_TO_STATIC_FROM_INSTANCE_METHOD"/>
   </Match>
 </FindBugsFilter>

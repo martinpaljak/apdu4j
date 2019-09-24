@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Martin Paljak
+ * Copyright (c) 2019-2020 Martin Paljak
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -19,28 +19,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package apdu4j;
+package apdu4j.i;
 
-// Extension on top of BIBO, not unline CardChannel, which allows
-// to transmit APDU-s back and forth over BIBO
-public class APDUBIBO implements BIBO {
-    final BIBO bibo;
+import apdu4j.BIBO;
 
-    public APDUBIBO(BIBO bibo) {
-        this.bibo = bibo;
-    }
-
-    public ResponseAPDU transmit(CommandAPDU command) throws BIBOException {
-        return new ResponseAPDU(bibo.transceive(command.getBytes()));
-    }
-
-    @Override
-    public byte[] transceive(byte[] bytes) throws BIBOException {
-        return bibo.transceive(bytes);
-    }
-
-    @Override
-    public void close() {
-        bibo.close();
-    }
+public interface SmartCardApp {
+    /**
+     * Runs the smart card application
+     *
+     * Like {@code public static void main(String[] args)}.
+     * https://docs.oracle.com/javase/tutorial/getStarted/application/index.html#MAIN
+     *
+     * @param bibo {@link BIBO} to use for smart card communication
+     * @param args command line arguments
+     * @return exit code for {@link System#exit(int)}
+     */
+    int run(BIBO bibo, String[] args);
 }

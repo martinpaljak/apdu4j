@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Martin Paljak
+ * Copyright (c) 2019-2020 Martin Paljak
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,14 +21,12 @@
  */
 package apdu4j;
 
-import java.io.IOException;
-
-public interface BIBO {
+public interface BIBO extends AutoCloseable {
     /**
-     * Transceives a bunch of bytes to a secure element.
-     *
+     * Transceives a bunch of bytes to a secure element, synchronously.
+     * <p>
      * Comparable to:
-     *
+     * <p>
      * IsoDep.transceive() in Android
      * SCardTransmit() in PC/SC
      * CardChannel.transmit(ByteBuffer, ByteBuffer) in javax.smartcardio
@@ -36,8 +34,10 @@ public interface BIBO {
      *
      * @param bytes payload
      * @return the bytes returned from the SE. The size should always be &gt;= 2 bytes
-     *
-     * @throws IOException when transmit failed
+     * @throws BIBOException when transceive fails
      */
-    byte[] transceive(byte[] bytes) throws IOException;
+    byte[] transceive(byte[] bytes) throws BIBOException;
+
+    @Override
+    void close();
 }

@@ -21,26 +21,29 @@
  */
 package apdu4j;
 
-// Extension on top of BIBO, not unline CardChannel, which allows
-// to transmit APDU-s back and forth over BIBO
-public class APDUBIBO implements BIBO {
-    final BIBO bibo;
+public class RetryWithRightLengthWrapper implements BIBO {
+    BIBO wrapped;
 
-    public APDUBIBO(BIBO bibo) {
-        this.bibo = bibo;
+    public static RetryWithRightLengthWrapper wrap(BIBO bibo) {
+        return new RetryWithRightLengthWrapper(bibo);
     }
 
-    public ResponseAPDU transmit(CommandAPDU command) throws BIBOException {
-        return new ResponseAPDU(bibo.transceive(command.getBytes()));
+    private RetryWithRightLengthWrapper(BIBO bibo) {
+        this.wrapped = bibo;
     }
 
     @Override
-    public byte[] transceive(byte[] bytes) throws BIBOException {
-        return bibo.transceive(bytes);
+    public byte[] transceive(byte[] command) throws BIBOException {
+        byte[] r = wrapped.transceive(command);
+        ResponseAPDU res = new ResponseAPDU(r);
+        if (res.getSW1() == 0x6C) {
+            r = wrapped.transceive(new CommandAPDU(command[0], command[1], command[2], command[3], res.getSW2()).getBytes());
+        }
+        return r;
     }
 
     @Override
     public void close() {
-        bibo.close();
+        wrapped.close();
     }
 }

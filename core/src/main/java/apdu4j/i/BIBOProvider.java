@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Martin Paljak
+ * Copyright (c) 2019-2020 Martin Paljak
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -19,28 +19,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package apdu4j;
+package apdu4j.i;
 
-// Extension on top of BIBO, not unline CardChannel, which allows
-// to transmit APDU-s back and forth over BIBO
-public class APDUBIBO implements BIBO {
-    final BIBO bibo;
+import apdu4j.BIBO;
 
-    public APDUBIBO(BIBO bibo) {
-        this.bibo = bibo;
-    }
+import java.util.Optional;
 
-    public ResponseAPDU transmit(CommandAPDU command) throws BIBOException {
-        return new ResponseAPDU(bibo.transceive(command.getBytes()));
-    }
+public interface BIBOProvider {
 
-    @Override
-    public byte[] transceive(byte[] bytes) throws BIBOException {
-        return bibo.transceive(bytes);
-    }
-
-    @Override
-    public void close() {
-        bibo.close();
-    }
+    Optional<BIBO> getBIBO(String spec);
 }

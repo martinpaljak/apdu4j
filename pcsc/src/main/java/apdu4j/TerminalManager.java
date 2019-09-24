@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2017 Martin Paljak
+ * Copyright (c) 2014-2019 Martin Paljak
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,6 +21,7 @@
  */
 package apdu4j;
 
+import jnasmartcardio.Smartcardio;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,17 +32,8 @@ import javax.security.auth.callback.UnsupportedCallbackException;
 import javax.smartcardio.*;
 import javax.smartcardio.CardTerminals.State;
 import java.io.*;
-import java.lang.reflect.InvocationTargetException;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLClassLoader;
-import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
-import java.security.Provider;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -54,8 +46,6 @@ import java.util.stream.Collectors;
  * Facilitates working with javax.smartcardio
  */
 public final class TerminalManager {
-    static final String SUN_CLASS = "sun.security.smartcardio.SunPCSC";
-    static final String JNA_CLASS = "jnasmartcardio.Smartcardio";
     static final String LIB_PROP = "sun.security.smartcardio.library";
     private static final Logger logger = LoggerFactory.getLogger(TerminalManager.class);
     private static final String debian64_path = "/usr/lib/x86_64-linux-gnu/libpcsclite.so.1";
@@ -66,141 +56,75 @@ public final class TerminalManager {
     private static final String fedora64_path = "/usr/lib64/libpcsclite.so.1";
     private static final String raspbian_path = "/usr/lib/arm-linux-gnueabihf/libpcsclite.so.1";
 
+    private final List<CardTerminal> terminals;
+
+    static String _detectLibraryPath() {
+        // Set necessary parameters for seamless PC/SC access.
+        // http://ludovicrousseau.blogspot.com.es/2013/03/oracle-javaxsmartcardio-failures.html
+        if (System.getProperty("os.name").equalsIgnoreCase("Linux")) {
+            // Only try loading 64b paths if JVM can use them.
+            if (System.getProperty("os.arch").contains("64")) {
+                if (new File(debian64_path).exists()) {
+                    return debian64_path;
+                } else if (new File(fedora64_path).exists()) {
+                    return fedora64_path;
+                } else if (new File(ubuntu64_path).exists()) {
+                    return ubuntu64_path;
+                }
+            } else if (new File(ubuntu_path).exists()) {
+                return ubuntu_path;
+            } else if (new File(ubuntu32_path).exists()) {
+                return ubuntu32_path;
+            } else if (new File(raspbian_path).exists()) {
+                return raspbian_path;
+            } else {
+                // XXX: dlopen() works properly on Debian OpenJDK 7
+                // System.err.println("Hint: pcsc-lite probably missing.");
+            }
+        } else if (System.getProperty("os.name").equalsIgnoreCase("FreeBSD")) {
+            if (new File(freebsd_path).exists()) {
+                return freebsd_path;
+            } else {
+                System.err.println("Hint: pcsc-lite is missing. pkg install devel/libccid");
+            }
+        }
+        return null;
+    }
+
+    public static Optional<String> detectLibraryPath() {
+        return Optional.ofNullable(_detectLibraryPath());
+    }
+
     /**
      * Locates PC/SC shared library on the system and automagically sets system properties so that SunPCSC
      * could find the smart card service. Call this before acquiring your TerminalFactory.
      */
     public static void fixPlatformPaths() {
-        if (System.getProperty(LIB_PROP) == null) {
-            // Set necessary parameters for seamless PC/SC access.
-            // http://ludovicrousseau.blogspot.com.es/2013/03/oracle-javaxsmartcardio-failures.html
-            if (System.getProperty("os.name").equalsIgnoreCase("Linux")) {
-                // Only try loading 64b paths if JVM can use them.
-                if (System.getProperty("os.arch").contains("64")) {
-                    if (new File(debian64_path).exists()) {
-                        System.setProperty(LIB_PROP, debian64_path);
-                    } else if (new File(fedora64_path).exists()) {
-                        System.setProperty(LIB_PROP, fedora64_path);
-                    } else if (new File(ubuntu64_path).exists()) {
-                        System.setProperty(LIB_PROP, ubuntu64_path);
-                    }
-                } else if (new File(ubuntu_path).exists()) {
-                    System.setProperty(LIB_PROP, ubuntu_path);
-                } else if (new File(ubuntu32_path).exists()) {
-                    System.setProperty(LIB_PROP, ubuntu32_path);
-                } else if (new File(raspbian_path).exists()) {
-                    System.setProperty(LIB_PROP, raspbian_path);
-                } else {
-                    // XXX: dlopen() works properly on Debian OpenJDK 7
-                    // System.err.println("Hint: pcsc-lite probably missing.");
-                }
-            } else if (System.getProperty("os.name").equalsIgnoreCase("FreeBSD")) {
-                if (new File(freebsd_path).exists()) {
-                    System.setProperty(LIB_PROP, freebsd_path);
-                } else {
-                    System.err.println("Hint: pcsc-lite is missing. pkg install devel/libccid");
-                }
-            }
-        } else {
-            // TODO: display some helpful information?
+        Optional<String> lib = detectLibraryPath();
+        if (System.getProperty(LIB_PROP) == null && lib.isPresent()) {
+            System.setProperty(LIB_PROP, lib.get());
         }
     }
 
-    /*
-     * Load the TerminalFactory, possibly from a JAR and with arguments
-     */
-    // TODO: clarify and use service loader instead
-    public static TerminalFactory loadTerminalFactory(String jar, String classname, String type, String arg) throws NoSuchAlgorithmException {
-        try {
-            // To support things like host:port pairs, urldecode the arguments component if provided
-            if (arg != null) {
-                arg = URLDecoder.decode(arg, "UTF-8");
-            }
-            final TerminalFactory tf;
-            final Class<?> cls; // XXX: stricter type
-            if (jar != null) {
-                // Specify class loader
-                URLClassLoader loader = new URLClassLoader(new URL[]{new File(jar).toURI().toURL()}, TerminalManager.class.getClassLoader());
-                // Load custom provider
-                cls = Class.forName(classname, true, loader);
-            } else {
-                // Load provider
-                cls = Class.forName(classname);
-            }
-            Provider p = (Provider) cls.getConstructor().newInstance();
-            tf = TerminalFactory.getInstance(type == null ? "PC/SC" : type, arg, p);
-            return tf;
-        } catch (UnsupportedEncodingException | MalformedURLException | ClassNotFoundException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException | NoSuchMethodException | SecurityException e) {
-            throw new NoSuchAlgorithmException("Could not load " + classname + ": " + e.getMessage());
-        } catch (NoSuchAlgorithmException e) {
-            if (e.getCause() != null) {
-                Class<?> cause = e.getCause().getClass();
-                if (cause.equals(java.lang.UnsupportedOperationException.class)) {
-                    throw new NoSuchAlgorithmException(e.getCause().getMessage());
-                }
-                if (cause.equals(java.lang.UnsatisfiedLinkError.class)) {
-                    throw new NoSuchAlgorithmException(e.getCause().getMessage());
-                }
-            }
-            throw e;
-        }
-    }
-
-
-    /*
-     * Given a specification for a TerminalFactory, returns a TerminalFactory instance.
-     * <p>
-     * The format is: jar:class:args, some heuristics is made to make the function DWIM.
-     *
-     * @param spec provider specification
-     * @return properly loaded TerminalFactory from the provider
-     * @throws NoSuchAlgorithmException if the provider can not be loaded for some reason
-     */
-    // FIXME: use ServiceLoader
-    public static TerminalFactory getTerminalFactory(String spec) throws NoSuchAlgorithmException {
-        // Default to bundled JNA by default.
-        if (spec == null) {
-            spec = JNA_CLASS;
-        }
-        // Always set the right path to pcsc
-        fixPlatformPaths();
-
-        // Split by colon marks
-        String[] args = spec.split(":");
-        if (args.length == 1) {
-            // Assumed to be just the class
-            return loadTerminalFactory(null, args[0], null, null);
-        } else if (args.length == 2) {
-            Path jarfile = Paths.get(args[0]);
-            // If the first component is a valid file, assume provider!class
-            if (Files.exists(jarfile)) {
-                return loadTerminalFactory(args[0], args[1], null, null);
-            } else {
-                // Assume the first part is class and the second part is parameter
-                return loadTerminalFactory(null, args[0], null, args[1]);
-            }
-        } else if (args.length == 3) {
-            // jar:class:args
-            return loadTerminalFactory(args[0], args[1], null, args[2]);
-        } else {
-            throw new IllegalArgumentException("Could not parse (too many components): " + spec);
-        }
-    }
-
-
-    static boolean ignoreReader(String ignore, String name) {
+    // Returns true if the reader contains fragments to ignore (given as semicolon separated string)
+    static boolean ignoreReader(String ignore, String reader) {
         if (ignore != null) {
             String[] names = ignore.toLowerCase().split(";");
-            for (String n : names) {
-                if (name.toLowerCase().contains(n)) {
-                    return true;
-                }
-            }
+            return Arrays.stream(names).anyMatch(e -> reader.toLowerCase().contains(e));
         }
         return false;
     }
 
+    // Utility function to return a "Good terminal factory" (JNA)
+    public static TerminalFactory getTerminalFactory() {
+        try {
+            return TerminalFactory.getInstance("PC/SC", null, new Smartcardio());
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("jnasmartcardio not bundled");
+        }
+    }
 
+    // Utility function that lists known readers
     public static void listReaders(String ignore, List<CardTerminal> terminals, PrintStream to, boolean pinpad) {
         try {
             for (CardTerminal t : terminals) {
@@ -272,43 +196,40 @@ public final class TerminalManager {
         }
     }
 
-    public static Optional<CardTerminal> getTheReader(String arg, String ignore, Collection<byte[]> atrs, long wait) throws CardException, NoSuchAlgorithmException {
-        TerminalFactory tf = TerminalFactory.getInstance("PC/SC", null, new jnasmartcardio.Smartcardio());
-        CardTerminals ts = tf.terminals();
+    public static TerminalManager getInstance(CardTerminals terminals) throws CardException {
+        return getInstance(terminals.list());
+    }
 
-        List<CardTerminal> terminals = ts.list();
+    public static TerminalManager getInstance(List<CardTerminal> terminals) {
+        return new TerminalManager(terminals);
+    }
 
-        // DWIM: wait for a reader if none present
-        if (terminals.size() == 0 && wait > 0) {
-            if (ts.waitForChange(wait)) {
-                ts = tf.terminals();
-                terminals = ts.list();
-                if (terminals.size() == 1) {
-                    return Optional.of(terminals.get(0));
-                }
-            } else {
-                logger.warn("Timeout waiting for a NFC reader");
-                return Optional.empty();
-            }
-        }
+    private TerminalManager(List<CardTerminal> terminals) {
+        this.terminals = terminals;
+    }
 
+    // Do some DWIM to get a reader out of many
+    public Optional<CardTerminal> dwim(String arg, String ignore, Collection<byte[]> atrs) {
         if (arg != null) {
             // DWIM 1: specify reader by human index, 1..9
-            try {
-                int n = Integer.parseInt(arg);
+            if (arg.length() == 1 && Character.isDigit(arg.charAt(0))) {
+                int n = Character.getNumericValue(arg.charAt(0));
                 if (n > 0 && n < 10 && n <= terminals.size()) {
-                    return Optional.of(terminals.get(n - 1));
+                    CardTerminal t = terminals.get(n - 1);
+                    logger.debug("Matched {} based on index {}", t.getName(), n);
+                    return Optional.of(t);
                 } else {
                     logger.error(n + ": only have " + terminals.size() + " readers.");
                     listReaders(ignore, terminals, System.err, false);
                 }
-            } catch (NumberFormatException e) {
-                // ignore
             }
 
-            // DWIM 2: portion of the name
-            List<CardTerminal> matchingName = terminals.stream().filter(t -> t.getName().toLowerCase().contains(arg)).collect(Collectors.toList());
+            // DWIM 2: portion of the name or alias
+            final ReaderAliases alias = ReaderAliases.getDefault();
+            final String q = arg.toLowerCase();
+            List<CardTerminal> matchingName = terminals.stream().filter(t -> t.getName().toLowerCase().contains(q) || alias.translate(t.getName()).toLowerCase().contains(q)).collect(Collectors.toList());
             if (matchingName.size() == 1) {
+                logger.debug("Matched {}", matchingName.get(0));
                 return Optional.of(matchingName.get(0));
             } else if (matchingName.size() == 0) {
                 logger.error(String.format("No reader matches '%s'", arg));
@@ -318,29 +239,42 @@ public final class TerminalManager {
                 listReaders(ignore, terminals, System.err, false);
             }
         } else {
-            // If just one reader, simple
+            // No reader indicated. Try to figure one out automagically
+            // No readers
             if (terminals.size() == 0) {
                 logger.error("No smart card readers available");
                 return Optional.empty();
-            } else if (terminals.size() == 1) {
-                return Optional.of(terminals.get(0));
-            } else {
-                // Multiple readers.
-                // DWIM 1: Only one has card
-                List<CardTerminal> withCard = ts.list(State.CARD_PRESENT);
-                if (withCard.size() == 1) {
-                    return Optional.of(withCard.get(0));
-                }
-
-                // DWIM 2: Only one matches ATR hints
-                List<CardTerminal> withAtr = byATR(ts.list(State.CARD_PRESENT), atrs);
-                if (withAtr.size() == 1) {
-                    return Optional.of(withAtr.get(0));
-                }
-                // DWIM 3: TODO: no cards in any, wait for insertion
-                System.err.println("Multiple readers, must choose one:");
-                listReaders(ignore, terminals, System.err, false);
             }
+
+            // One reader
+            if (terminals.size() == 1) {
+                return Optional.of(terminals.get(0));
+            }
+
+            // Multiple readers.
+            // DWIM 1: Only one has card
+            List<CardTerminal> withCard = terminals.stream().filter(e -> {
+                try {
+                    return e.isCardPresent();
+                } catch (CardException ex) {
+                    return false;
+                }
+            }).collect(Collectors.toList());
+            if (withCard.size() == 1) {
+                logger.debug("Selected the only reader with a card");
+                return Optional.of(withCard.get(0));
+            }
+
+            // DWIM 2: Only one matches ATR hints
+            List<CardTerminal> withAtr = byATR(terminals, atrs);
+            if (withAtr.size() == 1) {
+                logger.debug("Selected the only reader with a matching ATR");
+                return Optional.of(withAtr.get(0));
+            }
+            // DWIM 3: TODO: no cards in any, wait for insertion
+            System.err.println("Multiple readers, must choose one:");
+            listReaders(ignore, terminals, System.err, false);
+
         }
         return Optional.empty();
     }
@@ -351,7 +285,7 @@ public final class TerminalManager {
      * The reader might be unusable (in use in exclusive mode).
      *
      * @param terminals List of CardTerminal-s to use
-     * @param atrs Collection of ATR-s to match
+     * @param atrs      Collection of ATR-s to match
      * @return list of CardTerminal-s
      */
     public static List<CardTerminal> byATR(List<CardTerminal> terminals, Collection<byte[]> atrs) {
@@ -366,7 +300,7 @@ public final class TerminalManager {
                     return false;
                 }
             } catch (CardException e) {
-                logger.warn("Failed to get ATR: " + e.getMessage(), e);
+                logger.debug("Failed to get ATR: " + e.getMessage(), e);
                 return false;
             }
         }).collect(Collectors.toList());
@@ -385,7 +319,8 @@ public final class TerminalManager {
 
 
     // Locate a terminal by AID
-    public static List<CardTerminal> byAID(List<CardTerminal> terminals, Collection<byte[]> aids) throws CardException {
+    public static List<CardTerminal> byAID(List<CardTerminal> terminals, Collection<byte[]> aids) throws
+            CardException {
         return terminals.stream().filter(t -> {
             try {
                 if (t.isCardPresent()) {
@@ -422,60 +357,6 @@ public final class TerminalManager {
         return byAID(ts.list(), aids);
     }
 
-
-    CallbackHandler getCallbackHandler() {
-        return new CallbackHandler() {
-            @Override
-            public void handle(Callback[] callbacks) throws IOException, UnsupportedCallbackException {
-                for (Callback c : callbacks) {
-                    if (c instanceof TextOutputCallback) {
-                        TextOutputCallback cb = (TextOutputCallback) c;
-
-                        final String type;
-                        switch (cb.getMessageType()) {
-                            case TextOutputCallback.INFORMATION:
-                                type = "INFORMATION";
-                                break;
-                            case TextOutputCallback.WARNING:
-                                type = "WARNING";
-                                break;
-                            case TextOutputCallback.ERROR:
-                                type = "ERROR";
-                                break;
-                            default:
-                                type = "MESSAGE";
-                        }
-
-                        System.out.println(type + ": " + cb.getMessage());
-                    }
-                }
-            }
-        };
-    }
-
-    // Connect to a card, waiting for a card if necessary
-    public static Card connect(CardTerminal terminal, String protocol, CallbackHandler cb) throws CardException {
-        try {
-            if (!terminal.isCardPresent()) {
-
-                cb.handle(new Callback[]{new TextOutputCallback(TextOutputCallback.INFORMATION, "Waiting for card ...")});
-                boolean found = false;
-                for (int i = 20; i > 0 && !found; i--) {
-                    found = terminal.waitForCardPresent(3000); // Wait for a minute in 3 second rounds
-                    System.out.print(".");
-                }
-                System.out.println();
-                if (!found) {
-                    throw new CardNotPresentException("Timeout waiting for a card!");
-                }
-            }
-        } catch (IOException | UnsupportedCallbackException e) {
-            throw new CardException("Could not connect to card: " + e.getMessage(), e);
-        }
-        return terminal.connect(protocol);
-    }
-
-
     private static String getscard(String s) {
         Pattern p = Pattern.compile("SCARD_\\w+");
         Matcher m = p.matcher(s);
@@ -501,6 +382,7 @@ public final class TerminalManager {
         return e.getMessage();
     }
 
+    // Returns CalVer+git of the utility
     public static String getVersion() {
         String version = "unknown-development";
         try (InputStream versionfile = TerminalManager.class.getResourceAsStream("pro_version.txt")) {

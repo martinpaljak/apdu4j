@@ -4,11 +4,11 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.github.martinpaljak</groupId>
-        <artifactId>javacard</artifactId>
-        <version>19.06.19</version>
+        <artifactId>metacard</artifactId>
+        <version>19.10.01</version>
     </parent>
     <artifactId>apdu4j</artifactId>
-    <version>19.05.08</version>
+    <version>20.01.01-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>apdu4j</name>
     <url>https://github.com/martinpaljak/apdu4j</url>
@@ -33,7 +33,6 @@
         <module>core</module>
         <module>pcsc</module>
         <module>tool</module>
-        <module>json-remote-emv</module>
         <module>testing</module>
     </modules>
 
@@ -42,26 +41,36 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>1.7.25</version>
+            <version>1.7.30</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
-            <version>1.7.25</version>
+            <version>1.7.30</version>
             <scope>test</scope>
         </dependency>
         <!-- Testing -->
         <dependency>
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
-            <version>6.14.3</version>
+            <version>7.1.0</version>
             <scope>test</scope>
+        </dependency>
+        <!-- lazy plugins -->
+        <dependency>
+            <groupId>com.google.auto.service</groupId>
+            <artifactId>auto-service</artifactId>
+            <version>1.0-rc6</version>
+            <optional>true</optional>
         </dependency>
     </dependencies>
     <build>
         <resources>
             <resource>
                 <directory>target/generated-resources</directory>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
             </resource>
         </resources>
         <plugins>
@@ -70,14 +79,6 @@
                 <artifactId>spotbugs-maven-plugin</artifactId>
                 <configuration>
                     <excludeFilterFile>spotbugs.xml</excludeFilterFile>
-                </configuration>
-            </plugin>
-            <!-- TODO: move to metacard -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-javadoc-plugin</artifactId>
-                <configuration>
-                    <source>8</source>
                 </configuration>
             </plugin>
             <!-- GitTagCalVer -->

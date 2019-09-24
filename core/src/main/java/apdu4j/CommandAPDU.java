@@ -23,8 +23,10 @@
  * questions.
  */
 package apdu4j;
-import java.util.Arrays;
+
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+
 /**
  * A command APDU following the structure defined in ISO/IEC 7816-4.
  * It consists of a four byte header and a conditional body of variable length.
@@ -50,16 +52,17 @@ import java.nio.ByteBuffer;
  * <p>Instances of this class are immutable. Where data is passed in or out
  * via byte arrays, defensive cloning is performed.
  *
+ * @author Andreas Sterbenz
+ * @author JSR 268 Expert Group
  * @see ResponseAPDU
- *
- * @since   1.6
- * @author  Andreas Sterbenz
- * @author  JSR 268 Expert Group
+ * @since 1.6
  */
 public final class CommandAPDU {
-    private static final long serialVersionUID = 398698301286670877L;
+    public static final long serialVersionUID = 398698301286670877L;
     private static final int MAX_APDU_SIZE = 65544;
-    /** @serial */
+    /**
+     * @serial
+     */
     private byte[] apdu;
     // value of nc
     private transient int nc;
@@ -67,6 +70,11 @@ public final class CommandAPDU {
     private transient int ne;
     // index of start of data within the apdu array
     private transient int dataOffset;
+
+    public CommandAPDU(String apdu) {
+        this(HexUtils.hex2bin(apdu));
+    }
+
     /**
      * Constructs a CommandAPDU from a byte array containing the complete
      * APDU contents (header and body).
@@ -75,15 +83,15 @@ public final class CommandAPDU {
      * subsequent modification.
      *
      * @param apdu the complete command APDU
-     *
-     * @throws NullPointerException if apdu is null
+     * @throws NullPointerException     if apdu is null
      * @throws IllegalArgumentException if apdu does not contain a valid
-     *   command APDU
+     *                                  command APDU
      */
     public CommandAPDU(byte[] apdu) {
         this.apdu = apdu.clone();
         parse();
     }
+
     /**
      * Constructs a CommandAPDU from a byte array containing the complete
      * APDU contents (header and body). The APDU starts at the index
@@ -93,15 +101,14 @@ public final class CommandAPDU {
      * <p>Note that the apdu bytes are copied to protect against
      * subsequent modification.
      *
-     * @param apdu the complete command APDU
+     * @param apdu       the complete command APDU
      * @param apduOffset the offset in the byte array at which the apdu
-     *   data begins
+     *                   data begins
      * @param apduLength the length of the APDU
-     *
-     * @throws NullPointerException if apdu is null
+     * @throws NullPointerException     if apdu is null
      * @throws IllegalArgumentException if apduOffset or apduLength are
-     *   negative or if apduOffset + apduLength are greater than apdu.length,
-     *   or if the specified bytes are not a valid APDU
+     *                                  negative or if apduOffset + apduLength are greater than apdu.length,
+     *                                  or if the specified bytes are not a valid APDU
      */
     public CommandAPDU(byte[] apdu, int apduOffset, int apduLength) {
         checkArrayBounds(apdu, apduOffset, apduLength);
@@ -109,6 +116,7 @@ public final class CommandAPDU {
         System.arraycopy(apdu, apduOffset, this.apdu, 0, apduLength);
         parse();
     }
+
     private void checkArrayBounds(byte[] b, int ofs, int len) {
         if ((ofs < 0) || (len < 0)) {
             throw new IllegalArgumentException
@@ -126,6 +134,7 @@ public final class CommandAPDU {
             }
         }
     }
+
     /**
      * Creates a CommandAPDU from the ByteBuffer containing the complete APDU
      * contents (header and body).
@@ -137,28 +146,29 @@ public final class CommandAPDU {
      * subsequent modification.
      *
      * @param apdu the ByteBuffer containing the complete APDU
-     *
-     * @throws NullPointerException if apdu is null
+     * @throws NullPointerException     if apdu is null
      * @throws IllegalArgumentException if apdu does not contain a valid
-     *   command APDU
+     *                                  command APDU
      */
     public CommandAPDU(ByteBuffer apdu) {
         this.apdu = new byte[apdu.remaining()];
         apdu.get(this.apdu);
         parse();
     }
+
     /**
      * Constructs a CommandAPDU from the four header bytes. This is case 1
      * in ISO 7816, no command body.
      *
      * @param cla the class byte CLA
      * @param ins the instruction byte INS
-     * @param p1 the parameter byte P1
-     * @param p2 the parameter byte P2
+     * @param p1  the parameter byte P1
+     * @param p2  the parameter byte P2
      */
     public CommandAPDU(int cla, int ins, int p1, int p2) {
         this(cla, ins, p1, p2, null, 0, 0, 0);
     }
+
     /**
      * Constructs a CommandAPDU from the four header bytes and the expected
      * response data length. This is case 2 in ISO 7816, empty command data
@@ -167,16 +177,16 @@ public final class CommandAPDU {
      *
      * @param cla the class byte CLA
      * @param ins the instruction byte INS
-     * @param p1 the parameter byte P1
-     * @param p2 the parameter byte P2
-     * @param ne the maximum number of expected data bytes in a response APDU
-     *
+     * @param p1  the parameter byte P1
+     * @param p2  the parameter byte P2
+     * @param ne  the maximum number of expected data bytes in a response APDU
      * @throws IllegalArgumentException if ne is negative or greater than
-     *   65536
+     *                                  65536
      */
     public CommandAPDU(int cla, int ins, int p1, int p2, int ne) {
         this(cla, ins, p1, p2, null, 0, 0, ne);
     }
+
     /**
      * Constructs a CommandAPDU from the four header bytes and command data.
      * This is case 3 in ISO 7816, command data present and Ne absent. The
@@ -186,17 +196,17 @@ public final class CommandAPDU {
      * <p>Note that the data bytes are copied to protect against
      * subsequent modification.
      *
-     * @param cla the class byte CLA
-     * @param ins the instruction byte INS
-     * @param p1 the parameter byte P1
-     * @param p2 the parameter byte P2
+     * @param cla  the class byte CLA
+     * @param ins  the instruction byte INS
+     * @param p1   the parameter byte P1
+     * @param p2   the parameter byte P2
      * @param data the byte array containing the data bytes of the command body
-     *
      * @throws IllegalArgumentException if data.length is greater than 65535
      */
     public CommandAPDU(int cla, int ins, int p1, int p2, byte[] data) {
         this(cla, ins, p1, p2, data, 0, arrayLength(data), 0);
     }
+
     /**
      * Constructs a CommandAPDU from the four header bytes and command data.
      * This is case 3 in ISO 7816, command data present and Ne absent. The
@@ -206,24 +216,24 @@ public final class CommandAPDU {
      * <p>Note that the data bytes are copied to protect against
      * subsequent modification.
      *
-     * @param cla the class byte CLA
-     * @param ins the instruction byte INS
-     * @param p1 the parameter byte P1
-     * @param p2 the parameter byte P2
-     * @param data the byte array containing the data bytes of the command body
+     * @param cla        the class byte CLA
+     * @param ins        the instruction byte INS
+     * @param p1         the parameter byte P1
+     * @param p2         the parameter byte P2
+     * @param data       the byte array containing the data bytes of the command body
      * @param dataOffset the offset in the byte array at which the data
-     *   bytes of the command body begin
+     *                   bytes of the command body begin
      * @param dataLength the number of the data bytes in the command body
-     *
-     * @throws NullPointerException if data is null and dataLength is not 0
+     * @throws NullPointerException     if data is null and dataLength is not 0
      * @throws IllegalArgumentException if dataOffset or dataLength are
-     *   negative or if dataOffset + dataLength are greater than data.length
-     *   or if dataLength is greater than 65535
+     *                                  negative or if dataOffset + dataLength are greater than data.length
+     *                                  or if dataLength is greater than 65535
      */
     public CommandAPDU(int cla, int ins, int p1, int p2, byte[] data,
                        int dataOffset, int dataLength) {
         this(cla, ins, p1, p2, data, dataOffset, dataLength, 0);
     }
+
     /**
      * Constructs a CommandAPDU from the four header bytes, command data,
      * and expected response data length. This is case 4 in ISO 7816,
@@ -234,25 +244,26 @@ public final class CommandAPDU {
      * <p>Note that the data bytes are copied to protect against
      * subsequent modification.
      *
-     * @param cla the class byte CLA
-     * @param ins the instruction byte INS
-     * @param p1 the parameter byte P1
-     * @param p2 the parameter byte P2
+     * @param cla  the class byte CLA
+     * @param ins  the instruction byte INS
+     * @param p1   the parameter byte P1
+     * @param p2   the parameter byte P2
      * @param data the byte array containing the data bytes of the command body
-     * @param ne the maximum number of expected data bytes in a response APDU
-     *
+     * @param ne   the maximum number of expected data bytes in a response APDU
      * @throws IllegalArgumentException if data.length is greater than 65535
-     *   or if ne is negative or greater than 65536
+     *                                  or if ne is negative or greater than 65536
      */
     public CommandAPDU(int cla, int ins, int p1, int p2, byte[] data, int ne) {
         this(cla, ins, p1, p2, data, 0, arrayLength(data), ne);
     }
+
     private static int arrayLength(byte[] b) {
         return (b != null) ? b.length : 0;
     }
+
     /**
      * Command APDU encoding options:
-     *
+     * <p>
      * case 1:  |CLA|INS|P1 |P2 |                                 len = 4
      * case 2s: |CLA|INS|P1 |P2 |LE |                             len = 5
      * case 3s: |CLA|INS|P1 |P2 |LC |...BODY...|                  len = 6..260
@@ -260,7 +271,7 @@ public final class CommandAPDU {
      * case 2e: |CLA|INS|P1 |P2 |00 |LE1|LE2|                     len = 7
      * case 3e: |CLA|INS|P1 |P2 |00 |LC1|LC2|...BODY...|          len = 8..65542
      * case 4e: |CLA|INS|P1 |P2 |00 |LC1|LC2|...BODY...|LE1|LE2|  len =10..65544
-     *
+     * <p>
      * LE, LE1, LE2 may be 0x00.
      * LC must not be 0x00 and LC1|LC2 must not be 0x00|0x00
      */
@@ -327,6 +338,7 @@ public final class CommandAPDU {
                     + apdu.length + ", b1=" + l1 + ", b2||b3=" + l2);
         }
     }
+
     /**
      * Constructs a CommandAPDU from the four header bytes, command data,
      * and expected response data length. This is case 4 in ISO 7816,
@@ -338,21 +350,20 @@ public final class CommandAPDU {
      * <p>Note that the data bytes are copied to protect against
      * subsequent modification.
      *
-     * @param cla the class byte CLA
-     * @param ins the instruction byte INS
-     * @param p1 the parameter byte P1
-     * @param p2 the parameter byte P2
-     * @param data the byte array containing the data bytes of the command body
+     * @param cla        the class byte CLA
+     * @param ins        the instruction byte INS
+     * @param p1         the parameter byte P1
+     * @param p2         the parameter byte P2
+     * @param data       the byte array containing the data bytes of the command body
      * @param dataOffset the offset in the byte array at which the data
-     *   bytes of the command body begin
+     *                   bytes of the command body begin
      * @param dataLength the number of the data bytes in the command body
-     * @param ne the maximum number of expected data bytes in a response APDU
-     *
-     * @throws NullPointerException if data is null and dataLength is not 0
+     * @param ne         the maximum number of expected data bytes in a response APDU
+     * @throws NullPointerException     if data is null and dataLength is not 0
      * @throws IllegalArgumentException if dataOffset or dataLength are
-     *   negative or if dataOffset + dataLength are greater than data.length,
-     *   or if ne is negative or greater than 65536,
-     *   or if dataLength is greater than 65535
+     *                                  negative or if dataOffset + dataLength are greater than data.length,
+     *                                  or if ne is negative or greater than 65536,
+     *                                  or if dataLength is greater than 65535
      */
     public CommandAPDU(int cla, int ins, int p1, int p2, byte[] data,
                        int dataOffset, int dataLength, int ne) {
@@ -378,7 +389,7 @@ public final class CommandAPDU {
                 if (ne <= 256) {
                     // case 2s
                     // 256 is encoded as 0x00
-                    byte len = (ne != 256) ? (byte)ne : 0;
+                    byte len = (ne != 256) ? (byte) ne : 0;
                     this.apdu = new byte[5];
                     setHeader(cla, ins, p1, p2);
                     this.apdu[4] = len;
@@ -390,8 +401,8 @@ public final class CommandAPDU {
                         l1 = 0;
                         l2 = 0;
                     } else {
-                        l1 = (byte)(ne >> 8);
-                        l2 = (byte)ne;
+                        l1 = (byte) (ne >> 8);
+                        l2 = (byte) ne;
                     }
                     this.apdu = new byte[7];
                     setHeader(cla, ins, p1, p2);
@@ -406,7 +417,7 @@ public final class CommandAPDU {
                     // case 3s
                     apdu = new byte[4 + 1 + dataLength];
                     setHeader(cla, ins, p1, p2);
-                    apdu[4] = (byte)dataLength;
+                    apdu[4] = (byte) dataLength;
                     this.dataOffset = 5;
                     System.arraycopy(data, dataOffset, apdu, 5, dataLength);
                 } else {
@@ -414,8 +425,8 @@ public final class CommandAPDU {
                     apdu = new byte[4 + 3 + dataLength];
                     setHeader(cla, ins, p1, p2);
                     apdu[4] = 0;
-                    apdu[5] = (byte)(dataLength >> 8);
-                    apdu[6] = (byte)dataLength;
+                    apdu[5] = (byte) (dataLength >> 8);
+                    apdu[6] = (byte) dataLength;
                     this.dataOffset = 7;
                     System.arraycopy(data, dataOffset, apdu, 7, dataLength);
                 }
@@ -425,34 +436,36 @@ public final class CommandAPDU {
                     // case 4s
                     apdu = new byte[4 + 2 + dataLength];
                     setHeader(cla, ins, p1, p2);
-                    apdu[4] = (byte)dataLength;
+                    apdu[4] = (byte) dataLength;
                     this.dataOffset = 5;
                     System.arraycopy(data, dataOffset, apdu, 5, dataLength);
-                    apdu[apdu.length - 1] = (ne != 256) ? (byte)ne : 0;
+                    apdu[apdu.length - 1] = (ne != 256) ? (byte) ne : 0;
                 } else {
                     // case 4e
                     apdu = new byte[4 + 5 + dataLength];
                     setHeader(cla, ins, p1, p2);
                     apdu[4] = 0;
-                    apdu[5] = (byte)(dataLength >> 8);
-                    apdu[6] = (byte)dataLength;
+                    apdu[5] = (byte) (dataLength >> 8);
+                    apdu[6] = (byte) dataLength;
                     this.dataOffset = 7;
                     System.arraycopy(data, dataOffset, apdu, 7, dataLength);
                     if (ne != 65536) {
                         int leOfs = apdu.length - 2;
-                        apdu[leOfs] = (byte)(ne >> 8);
-                        apdu[leOfs + 1] = (byte)ne;
+                        apdu[leOfs] = (byte) (ne >> 8);
+                        apdu[leOfs + 1] = (byte) ne;
                     } // else le == 65536: no need to fill in, encoded as 0
                 }
             }
         }
     }
+
     private void setHeader(int cla, int ins, int p1, int p2) {
-        apdu[0] = (byte)cla;
-        apdu[1] = (byte)ins;
-        apdu[2] = (byte)p1;
-        apdu[3] = (byte)p2;
+        apdu[0] = (byte) cla;
+        apdu[1] = (byte) ins;
+        apdu[2] = (byte) p1;
+        apdu[3] = (byte) p2;
     }
+
     /**
      * Returns the value of the class byte CLA.
      *
@@ -461,6 +474,7 @@ public final class CommandAPDU {
     public int getCLA() {
         return apdu[0] & 0xff;
     }
+
     /**
      * Returns the value of the instruction byte INS.
      *
@@ -469,6 +483,7 @@ public final class CommandAPDU {
     public int getINS() {
         return apdu[1] & 0xff;
     }
+
     /**
      * Returns the value of the parameter byte P1.
      *
@@ -477,6 +492,7 @@ public final class CommandAPDU {
     public int getP1() {
         return apdu[2] & 0xff;
     }
+
     /**
      * Returns the value of the parameter byte P2.
      *
@@ -485,6 +501,7 @@ public final class CommandAPDU {
     public int getP2() {
         return apdu[3] & 0xff;
     }
+
     /**
      * Returns the number of data bytes in the command body (Nc) or 0 if this
      * APDU has no body. This call is equivalent to
@@ -496,18 +513,20 @@ public final class CommandAPDU {
     public int getNc() {
         return nc;
     }
+
     /**
      * Returns a copy of the data bytes in the command body. If this APDU as
      * no body, this method returns a byte array with length zero.
      *
      * @return a copy of the data bytes in the command body or the empty
-     *    byte array if this APDU has no body.
+     * byte array if this APDU has no body.
      */
     public byte[] getData() {
         byte[] data = new byte[nc];
         System.arraycopy(apdu, dataOffset, data, 0, nc);
         return data;
     }
+
     /**
      * Returns the maximum number of expected data bytes in a response
      * APDU (Ne).
@@ -517,6 +536,7 @@ public final class CommandAPDU {
     public int getNe() {
         return ne;
     }
+
     /**
      * Returns a copy of the bytes in this APDU.
      *
@@ -525,6 +545,7 @@ public final class CommandAPDU {
     public byte[] getBytes() {
         return apdu.clone();
     }
+
     /**
      * Returns a string representation of this command APDU.
      *
@@ -533,6 +554,7 @@ public final class CommandAPDU {
     public String toString() {
         return "CommmandAPDU: " + apdu.length + " bytes, nc=" + nc + ", ne=" + ne;
     }
+
     /**
      * Compares the specified object with this command APDU for equality.
      * Returns true if the given object is also a CommandAPDU and its bytes are
@@ -548,9 +570,10 @@ public final class CommandAPDU {
         if (obj instanceof CommandAPDU == false) {
             return false;
         }
-        CommandAPDU other = (CommandAPDU)obj;
+        CommandAPDU other = (CommandAPDU) obj;
         return Arrays.equals(this.apdu, other.apdu);
     }
+
     /**
      * Returns the hash code value for this command APDU.
      *
@@ -559,9 +582,10 @@ public final class CommandAPDU {
     public int hashCode() {
         return Arrays.hashCode(apdu);
     }
+
     private void readObject(java.io.ObjectInputStream in)
             throws java.io.IOException, ClassNotFoundException {
-        apdu = (byte[])in.readUnshared();
+        apdu = (byte[]) in.readUnshared();
         // initialize transient fields
         parse();
     }

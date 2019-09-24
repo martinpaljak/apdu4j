@@ -5,24 +5,24 @@
     <parent>
         <artifactId>apdu4j</artifactId>
         <groupId>com.github.martinpaljak</groupId>
-        <version>19.05.08</version>
+        <version>20.01.01-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>apdu4j-testing</artifactId>
-    <version>19.05.08</version>
+    <version>20.01.01-SNAPSHOT</version>
 
     <dependencies>
         <dependency>
             <groupId>com.github.martinpaljak</groupId>
             <artifactId>apdu4j-pcsc</artifactId>
-            <version>19.05.08</version>
+            <version>20.01.01-SNAPSHOT</version>
         </dependency>
         <!-- For abstract base class -->
         <dependency>
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
-            <version>6.14.3</version>
+            <version>7.1.0</version>
         </dependency>
     </dependencies>
 </project>

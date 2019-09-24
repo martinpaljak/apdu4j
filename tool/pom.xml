@@ -5,7 +5,7 @@
     <parent>
         <artifactId>apdu4j</artifactId>
         <groupId>com.github.martinpaljak</groupId>
-        <version>19.05.08</version>
+        <version>20.01.01-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -15,37 +15,55 @@
         <dependency>
             <groupId>com.github.martinpaljak</groupId>
             <artifactId>apdu4j-pcsc</artifactId>
-            <version>19.05.08</version>
+            <version>20.01.01-SNAPSHOT</version>
         </dependency>
         <!-- cmdline -->
         <dependency>
-            <groupId>net.sf.jopt-simple</groupId>
-            <artifactId>jopt-simple</artifactId>
-            <version>5.0.4</version>
+            <groupId>info.picocli</groupId>
+            <artifactId>picocli</artifactId>
+            <version>4.1.4</version>
+            <optional>true</optional>
         </dependency>
-        <!-- Fancy terminal chooser -->
+        <!-- FancyChooser terminal chooser -->
         <dependency>
             <groupId>com.googlecode.lanterna</groupId>
             <artifactId>lanterna</artifactId>
-            <version>3.0.1</version>
+            <version>3.0.2</version>
             <optional>true</optional>
         </dependency>
         <!-- logging for cmdline -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
-            <version>1.7.25</version>
+            <version>1.7.30</version>
             <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>com.github.martinpaljak</groupId>
-            <artifactId>json-remote-emv</artifactId>
-            <version>19.05.08</version>
         </dependency>
     </dependencies>
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>com.google.auto.service</groupId>
+                            <artifactId>auto-service</artifactId>
+                            <version>1.0-rc6</version>
+                        </path>
+                        <path>
+                            <groupId>info.picocli</groupId>
+                            <artifactId>picocli-codegen</artifactId>
+                            <version>4.1.4</version>
+                        </path>
+                    </annotationProcessorPaths>
+                    <compilerArgs>
+                        <arg>-Xlint:all</arg>
+                        <arg>-Xlint:-processing</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
             <!-- CLI -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -53,6 +71,7 @@
                 <version>3.2.1</version>
                 <executions>
                     <execution>
+                        <id>default-shade</id>
                         <phase>package</phase>
                         <goals>
                             <goal>shade</goal>
@@ -64,6 +83,8 @@
                                         implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>apdu4j.SCTool</mainClass>
                                 </transformer>
+                                <transformer
+                                        implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                             </transformers>
                             <filters>
                                 <filter>
