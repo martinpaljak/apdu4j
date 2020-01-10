@@ -7,19 +7,19 @@
     <parent>
         <groupId>com.github.martinpaljak</groupId>
         <artifactId>apdu4j</artifactId>
-        <version>20.01.01-SNAPSHOT</version>
+        <version>20.01.01</version>
     </parent>
 
     <groupId>com.github.martinpaljak</groupId>
     <artifactId>apdu4j-pcsc</artifactId>
-    <version>20.01.01-SNAPSHOT</version>
+    <version>20.01.01</version>
 
     <dependencies>
         <!-- Core -->
         <dependency>
             <groupId>com.github.martinpaljak</groupId>
             <artifactId>apdu4j-core</artifactId>
-            <version>2020-SNAPSHOT</version>
+            <version>2020b1</version>
         </dependency>
         <!-- PC/SC access -->
         <dependency>

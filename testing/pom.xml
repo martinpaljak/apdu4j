@@ -5,18 +5,18 @@
     <parent>
         <artifactId>apdu4j</artifactId>
         <groupId>com.github.martinpaljak</groupId>
-        <version>20.01.01-SNAPSHOT</version>
+        <version>20.01.01</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>apdu4j-testing</artifactId>
-    <version>20.01.01-SNAPSHOT</version>
+    <version>20.01.01</version>
 
     <dependencies>
         <dependency>
             <groupId>com.github.martinpaljak</groupId>
             <artifactId>apdu4j-pcsc</artifactId>
-            <version>20.01.01-SNAPSHOT</version>
+            <version>20.01.01</version>
         </dependency>
         <!-- For abstract base class -->
         <dependency>
