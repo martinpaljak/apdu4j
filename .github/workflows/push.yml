@@ -1,5 +1,5 @@
-on: [push, pull_request]
-name: Push check
+on: pull_request
+name: PR check
 jobs:
   mvn-java-11:
     runs-on: ubuntu-latest
@@ -9,7 +9,7 @@ jobs:
       uses: docker://maven:3.6.3-jdk-11
       with:
         entrypoint: mvn
-        args: -U -B package
+        args: -U -B verify
   mvn-java-8:
     runs-on: ubuntu-latest
     steps:
@@ -18,4 +18,4 @@ jobs:
       uses: docker://maven:3.6.3-jdk-8
       with:
         entrypoint: mvn
-        args: -T4 -U -B package
+        args: -T4 -U -B verify

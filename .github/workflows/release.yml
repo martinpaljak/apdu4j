@@ -16,7 +16,7 @@ jobs:
         uses: docker://maven:3.6.3-jdk-8
         with:
           entrypoint: mvn
-          args: -T4 -U -B package
+          args: -U -B verify
       - name: Release
         id: create_release
         uses: actions/create-release@v1.0.0
@@ -26,7 +26,7 @@ jobs:
           tag_name: ${{ github.ref }}
           release_name: Release ${{ github.ref }}
           draft: false
-          prerelease: true # Manually promoted to last release
+          prerelease: true # Manually promoted to latest release
       - name: Upload JAR
         id: jar
         uses: actions/upload-release-asset@v1.0.1
