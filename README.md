@@ -182,18 +182,7 @@ reader = LoggingCardTerminal.getInstance(reader, o);
 00001248950019F738700103002421796B41BB3B7014659BFC8A54B2479000
 ```
  
-#### APDUReplayProvider
-This is a [TerminalFactory][TerminalFactory] that presents a single reader that will reply to commands from a session stored with [LoggingCardTerminal](#loggingcardterminal). This allows to test certain code in a way that doesn't require physical readers or tokens.
-
-```java
-import apdu4j.providers.APDUReplayProvider2;
-
-FileInputStream f = new FileInputStream(new File("card.dump"));
-TerminalFactory tf = TerminalFactory.getInstance("PC/SC", f, new APDUReplayProvider());
-// Now use javax.smartcardio as you normally do
-// There is only one terminal exposed
-```
-
+NEW release
 ### Similar and related projects
  * SCUBA (LGPL) - http://scuba.sourceforge.net/
    * :| written in Java 

@@ -106,6 +106,44 @@
                 <groupId>io.github.zlika</groupId>
                 <artifactId>reproducible-build-maven-plugin</artifactId>
             </plugin>
+            <!-- Package for Windows -->
+            <plugin>
+                <groupId>com.akathist.maven.plugins.launch4j</groupId>
+                <artifactId>launch4j-maven-plugin</artifactId>
+                <version>1.7.25</version>
+                <executions>
+                    <execution>
+                        <id>apdu4j-exe</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>launch4j</goal>
+                        </goals>
+                        <configuration>
+                            <headerType>console</headerType>
+                            <outfile>target/apdu4j.exe</outfile>
+                            <jar>target/apdu4j.jar</jar>
+                            <errTitle>apdu4j</errTitle>
+                            <classPath>
+                                <mainClass>apdu4j.SCTool</mainClass>
+                            </classPath>
+                            <jre>
+                                <minVersion>1.8.0</minVersion>
+                            </jre>
+                            <versionInfo>
+                                <fileVersion>${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.incrementalVersion}.${parsedVersion.buildNumber}</fileVersion>
+                                <txtFileVersion>${project.version}</txtFileVersion>
+                                <fileDescription>apdu4j</fileDescription>
+                                <copyright>(C) 2015 - 2020 Martin Paljak and contributors (LGPL+MIT)</copyright>
+                                <productVersion>${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.incrementalVersion}.${parsedVersion.buildNumber}</productVersion>
+                                <txtProductVersion>${project.version}</txtProductVersion>
+                                <productName>apdu4j</productName>
+                                <internalName>apdu4j</internalName>
+                                <originalFilename>apdu4j.exe</originalFilename>
+                            </versionInfo>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 </project>
