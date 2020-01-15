@@ -221,7 +221,7 @@ public final class Plug {
                 return Optional.empty();
             }
         }
-        logger.warn("Could not get plugin for {} via {}", c.getCanonicalName(), spec);
+        logger.trace("Could not get plugin for {} via {}", c.getCanonicalName(), spec);
         return Optional.empty();
     }
 }

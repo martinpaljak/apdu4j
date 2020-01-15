@@ -204,9 +204,6 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
     @Command(name = "run", description = "Run specified smart card application")
     public int runApp(@Parameters(paramLabel = "<app>", index = "0") String app, @Parameters(index = "1..*") String[] args) {
         try {
-            System.out.println("running app: " + app);
-            System.out.println("running with args: " + Arrays.toString(args));
-
             // Resolve the app
             if (args == null)
                 args = new String[0];
@@ -262,10 +259,9 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
                 }
             }
         } catch (CardException e) {
-            logger.error("Card failed: " + e.getMessage(), e);
-            System.err.println("Failed: " + e.getMessage());
+            System.err.println("Failed: " + TerminalManager.getExceptionMessage(e));
         } catch (RuntimeException e) {
-            logger.error("App failed: " + e.getMessage(), e);
+            System.err.println("App failed: " + e.getMessage());
         }
         return 66;
     }
@@ -568,7 +564,7 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
             }
             // if no match, see if -r is a URL, then load plugin from there
         }
-        result.ifPresent((t) -> System.out.println("# Using " + t.getName()));
+        result.ifPresent((t) -> verbose("Using " + t.getName()));
         return result.map(t -> debug ? LoggingCardTerminal.getInstance(t) : t);
     }
 
