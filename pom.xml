@@ -5,18 +5,25 @@
     <parent>
         <groupId>com.github.martinpaljak</groupId>
         <artifactId>metacard</artifactId>
-        <version>20.01.14</version>
+        <version>20.02.19</version>
     </parent>
     <artifactId>apdu4j</artifactId>
     <version>20.01.01</version>
     <packaging>pom</packaging>
     <name>apdu4j</name>
     <url>https://github.com/martinpaljak/apdu4j</url>
-    <description>Working with smart card readers? Everything related to javax.smartcardio</description>
+    <description>Working with smart card readers? This is for you.</description>
     <scm>
         <url>https://github.com/martinpaljak/apdu4j</url>
         <developerConnection>scm:git:git@github.com:martinpaljak/apdu4j.git</developerConnection>
     </scm>
+    <repositories>
+        <repository>
+            <id>javacard-pro</id>
+            <name>javacard.pro</name>
+            <url>https://javacard.pro/maven/</url>
+        </repository>
+    </repositories>
     <licenses>
         <license>
             <name>MIT</name>
