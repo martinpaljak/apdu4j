@@ -21,12 +21,14 @@
  */
 package apdu4j;
 
+// Random SCard interface constants.
 public final class SCard {
     public static final String SCARD_E_SHARING_VIOLATION = "SCARD_E_SHARING_VIOLATION";
     public static final String SCARD_E_NO_READERS_AVAILABLE = "SCARD_E_NO_READERS_AVAILABLE";
     public static final String SCARD_E_NOT_TRANSACTED = "SCARD_E_NOT_TRANSACTED";
     public static final String SCARD_E_NO_SMARTCARD = "SCARD_E_NO_SMARTCARD";
     public static final String SCARD_W_UNPOWERED_CARD = "SCARD_W_UNPOWERED_CARD";
+    public static final String SCARD_E_UNSUPPORTED_FEATURE = "SCARD_E_UNSUPPORTED_FEATURE";
 
     public static int CARD_CTL_CODE(int c) {
         String os = System.getProperty("os.name", "unknown").toLowerCase();

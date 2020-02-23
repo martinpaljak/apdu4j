@@ -25,10 +25,6 @@ import jnasmartcardio.Smartcardio;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.security.auth.callback.Callback;
-import javax.security.auth.callback.CallbackHandler;
-import javax.security.auth.callback.TextOutputCallback;
-import javax.security.auth.callback.UnsupportedCallbackException;
 import javax.smartcardio.*;
 import javax.smartcardio.CardTerminals.State;
 import java.io.*;
@@ -357,29 +353,31 @@ public final class TerminalManager {
         return byAID(ts.list(), aids);
     }
 
-    private static String getscard(String s) {
+    private static Optional<String> getscard(String s) {
+        if (s == null)
+            return Optional.empty();
         Pattern p = Pattern.compile("SCARD_\\w+");
         Matcher m = p.matcher(s);
         if (m.find()) {
-            return m.group();
+            return Optional.ofNullable(m.group());
         }
-        return null;
+        return Optional.empty();
     }
 
     // Given an instance of some Exception from a PC/SC system,
     // return a meaningful PC/SC error name.
     public static String getExceptionMessage(Exception e) {
-        if (e.getCause() != null && e.getCause().getMessage() != null) {
-            String s = getscard(e.getCause().getMessage());
-            if (s != null)
-                return s;
+        return getPCSCError(e).orElse(e.getMessage());
+    }
+
+    public static Optional<String> getPCSCError(Throwable e) {
+        while (e != null) {
+            Optional<String> m = getscard(e.getMessage());
+            if (m.isPresent())
+                return m;
+            e = e.getCause();
         }
-        if (e.getMessage() != null) {
-            String s = getscard(e.getMessage());
-            if (s != null)
-                return s;
-        }
-        return e.getMessage();
+        return Optional.empty();
     }
 
     // Returns CalVer+git of the utility
