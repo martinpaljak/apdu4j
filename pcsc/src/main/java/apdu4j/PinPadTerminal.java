@@ -67,7 +67,7 @@ public final class PinPadTerminal implements AutoCloseable {
     }
 
     private static void parse_tlv_properties(byte[] tlv) {
-        for (int i = 0; i < tlv.length; ) {
+        for (int i = 0; i + 2 < tlv.length; ) {
             int t = tlv[i + 0] & 0xFF;
             int l = tlv[i + 1] & 0xFF;
             byte[] v = Arrays.copyOfRange(tlv, i + 2, i + 2 + l);
@@ -104,6 +104,9 @@ public final class PinPadTerminal implements AutoCloseable {
         // probe() only makes sense when applied to terminal
         if (t != null && c == null) {
             c = t.connect("DIRECT");
+        }
+        if (c == null) {
+            throw new RuntimeException("No card");
         }
 
         // Probe for features.
