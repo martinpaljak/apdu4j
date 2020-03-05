@@ -34,6 +34,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -278,7 +279,7 @@ public final class TerminalManager {
 
     /**
      * Return a list of CardTerminal-s that contain a card with one of the specified ATR-s.
-     * The reader might be unusable (in use in exclusive mode).
+     * The returned reader might be unusable (in use in exclusive mode).
      *
      * @param terminals List of CardTerminal-s to use
      * @param atrs      Collection of ATR-s to match
@@ -303,54 +304,62 @@ public final class TerminalManager {
     }
 
     public static List<CardTerminal> byATR(CardTerminals terminals, Collection<byte[]> atrs) throws CardException {
-        List<CardTerminal> tl = terminals.list(State.ALL);
+        List<CardTerminal> tl = terminals.list(State.ALL); // FIXME: ALL was required for a while on OSX due to bugs. Safe to replace with PRESENT?
         return byATR(tl, atrs);
     }
 
+    // Return a list of terminals, filtered by interesting ATR-s
     public static List<CardTerminal> byATR(Collection<byte[]> atrs) throws NoSuchAlgorithmException, CardException {
         TerminalFactory tf = TerminalFactory.getInstance("PC/SC", null, new jnasmartcardio.Smartcardio());
         CardTerminals terminals = tf.terminals();
         return byATR(terminals, atrs);
     }
 
-
-    // Locate a terminal by AID
-    public static List<CardTerminal> byAID(List<CardTerminal> terminals, Collection<byte[]> aids) throws
-            CardException {
+    public static List<CardTerminal> byFilter(List<CardTerminal> terminals, Function<BIBO, Boolean> f) {
         return terminals.stream().filter(t -> {
             try {
                 if (t.isCardPresent()) {
-                    Card c = null;
-                    try {
-                        c = t.connect("*");
-                        for (byte[] aid : aids) {
-                            // Try to select the AID
-                            javax.smartcardio.CommandAPDU s = new javax.smartcardio.CommandAPDU(0x00, 0xA4, 0x04, 0x00, aid, 256);
-                            javax.smartcardio.ResponseAPDU r = c.getBasicChannel().transmit(s);
-                            if (r.getSW() == 0x9000) {
-                                logger.debug("{} matched for AID {}", t.getName(), HexUtils.bin2hex(aid));
-                                return true;
-                            }
-                        }
-                    } catch (CardException e) {
-                        logger.trace("Could not connect or select AID", e);
-                    } finally {
-                        if (c != null)
-                            c.disconnect(false);
+                    try (BIBO b = CardBIBO.wrap(t.connect("*"))) {
+                        return f.apply(b);
                     }
+                } else {
+                    return false;
                 }
             } catch (CardException e) {
-                logger.warn("Failed to get AID: " + e.getMessage(), e);
+                // FIXME: handle exclusive mode
+                logger.debug("Failed to detect card: " + e.getMessage(), e);
+                return false;
             }
-            return false;
         }).collect(Collectors.toList());
     }
 
 
-    public static List<CardTerminal> byAID(Collection<byte[]> aids) throws NoSuchAlgorithmException, CardException {
+    // Useful function for byFilter
+    public static Function<BIBO, Boolean> hasAID(Collection<byte[]> aidlist) {
+        return bibo -> {
+            APDUBIBO b = new APDUBIBO(bibo);
+            for (byte[] aid : aidlist) {
+                // Try to select the AID
+                CommandAPDU s = new CommandAPDU(0x00, 0xA4, 0x04, 0x00, aid, 256);
+                ResponseAPDU r = b.transmit(s);
+                if (r.getSW() == 0x9000) {
+                    logger.debug("matched for AID {}", HexUtils.bin2hex(aid));
+                    return true;
+                }
+            }
+            return false;
+        };
+    }
+
+    // Locate a terminal by AID
+    public static List<CardTerminal> byAID(List<CardTerminal> terminals, Collection<byte[]> aidlist) {
+        return byFilter(terminals, hasAID(aidlist));
+    }
+
+    public static List<CardTerminal> byAID(Collection<byte[]> aidlist) throws NoSuchAlgorithmException, CardException {
         TerminalFactory tf = TerminalFactory.getInstance("PC/SC", null, new jnasmartcardio.Smartcardio());
         CardTerminals ts = tf.terminals();
-        return byAID(ts.list(), aids);
+        return byAID(ts.list(), aidlist);
     }
 
     private static Optional<String> getscard(String s) {
