@@ -311,7 +311,7 @@ public class LoggingCardTerminal extends CardTerminal {
                 int position = buffer.position();
                 boolean needsFlip = position != offset;
                 int dataLength = needsFlip
-                        ? buffer.position() - offset
+                        ? position - offset
                         : buffer.limit() - offset;
                 return Arrays.copyOfRange(buffer.array(), offset, dataLength);
             }
