@@ -291,23 +291,29 @@ public class LoggingCardTerminal extends CardTerminal {
 
             @Override
             public int transmit(ByteBuffer cmd, ByteBuffer rsp) throws CardException {
-                byte[] commandBytes = new byte[cmd.remaining()];
-                cmd.get(commandBytes);
-                cmd.position(0);
-
+                byte[] commandBytes = getBytesByRetainingState(cmd);
                 log.println("B>> " + card.getProtocol() + " (" + commandBytes.length + ") " + HexUtils.bin2hex(commandBytes));
+
                 int response = channel.transmit(cmd, rsp);
                 outBytes += commandBytes.length;
-                byte[] responseBytes = new byte[response];
+                byte[] responseBytes = getBytesByRetainingState(rsp);
                 inBytes += responseBytes.length;
-                rsp.get(responseBytes);
-                rsp.position(0);
                 log.println("B<< (" + responseBytes.length + ") " + HexUtils.bin2hex(responseBytes));
                 if (dump != null) {
                     dump.println("# Sent\n" + HexUtils.bin2hex(commandBytes));
                     dump.println("# Received\n" + HexUtils.bin2hex(responseBytes));
                 }
                 return response;
+            }
+
+            private byte[] getBytesByRetainingState(ByteBuffer buffer) {
+                int offset = buffer.arrayOffset();
+                int position = buffer.position();
+                boolean needsFlip = position != offset;
+                int dataLength = needsFlip
+                        ? buffer.position() - offset
+                        : buffer.limit() - offset;
+                return Arrays.copyOfRange(buffer.array(), offset, dataLength);
             }
         }
     }
