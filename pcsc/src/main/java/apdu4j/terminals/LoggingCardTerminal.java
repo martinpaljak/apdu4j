@@ -290,24 +290,28 @@ public class LoggingCardTerminal extends CardTerminal {
             }
 
             @Override
-            public int transmit(ByteBuffer cmd, ByteBuffer rsp) throws CardException {
-                byte[] commandBytes = new byte[cmd.remaining()];
-                cmd.get(commandBytes);
-                cmd.position(0);
-
+            public int transmit(ByteBuffer command, ByteBuffer response) throws CardException {
+                ByteBuffer commandCopy = command.asReadOnlyBuffer();
+                byte[] commandBytes = new byte[commandCopy.remaining()];
+                commandCopy.get(commandBytes);
                 log.println("B>> " + card.getProtocol() + " (" + commandBytes.length + ") " + HexUtils.bin2hex(commandBytes));
-                int response = channel.transmit(cmd, rsp);
+
+                ByteBuffer responseCopy = response.asReadOnlyBuffer();
+                responseCopy.mark();
+                int resplen = channel.transmit(command, response);
                 outBytes += commandBytes.length;
-                byte[] responseBytes = new byte[response];
+
+                byte[] responseBytes = new byte[resplen];
+                responseCopy.reset();
+                responseCopy.get(responseBytes);
                 inBytes += responseBytes.length;
-                rsp.get(responseBytes);
-                rsp.position(0);
                 log.println("B<< (" + responseBytes.length + ") " + HexUtils.bin2hex(responseBytes));
+
                 if (dump != null) {
                     dump.println("# Sent\n" + HexUtils.bin2hex(commandBytes));
                     dump.println("# Received\n" + HexUtils.bin2hex(responseBytes));
                 }
-                return response;
+                return resplen;
             }
         }
     }
