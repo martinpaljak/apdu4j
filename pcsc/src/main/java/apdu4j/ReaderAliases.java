@@ -21,42 +21,21 @@
  */
 package apdu4j;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.yaml.snakeyaml.Yaml;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.stream.Collectors;
 
 public class ReaderAliases extends HashMap<String, String> {
     private static final long serialVersionUID = -2039373752191750500L;
     private static transient final Logger logger = LoggerFactory.getLogger(ReaderAliases.class);
-    private static transient final ObjectMapper mapper = new ObjectMapper(new YAMLFactory().disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER));
-
-    public static class AliasEntry {
-        public final String match;
-        public final String alias;
-
-        @JsonCreator
-        public AliasEntry(@JsonProperty("match") String match, @JsonProperty("alias") String alias) {
-            this.match = match;
-            this.alias = alias;
-        }
-    }
 
     public List<String> translate(List<String> readerNames) {
         return readerNames.stream().map(this::translate).collect(Collectors.toList());
@@ -98,32 +77,25 @@ public class ReaderAliases extends HashMap<String, String> {
         return true;
     }
 
-    @SuppressWarnings("unchecked")
     public static ReaderAliases load(Path p) throws IOException {
         ReaderAliases aliases = new ReaderAliases();
         if (!Files.exists(p))
             return aliases;
-        ArrayList<AliasEntry> entries = new ArrayList<>();
-        try (InputStream out = Files.newInputStream(p)) {
-            entries = mapper.readValue(out, new TypeReference<ArrayList<AliasEntry>>() {
-            });
-        } catch (JsonParseException | JsonMappingException e) {
+
+        try (InputStream in = Files.newInputStream(p)) {
+            ArrayList<Map<String, String>> content = new Yaml().load(in);
+            for (Map<String, String> e: content) {
+                aliases.put(e.get("match"), e.get("alias"));
+            }
+        } catch (IOException e) {
             logger.error("Could not parse reader name aliases: " + e.getMessage(), e);
         }
-        entries.stream().forEach(e -> aliases.put(e.match, e.alias));
         if (!aliases.verify())
             throw new IOException("Matches or aliases are not uniq!");
         logger.info("Loaded aliases: {}", aliases);
         return aliases;
     }
 
-    public void save(Path p) throws IOException {
-        List<AliasEntry> entries = new ArrayList<>();
-        entrySet().stream().forEach(e -> entries.add(new AliasEntry(e.getKey(), e.getValue())));
-        try (OutputStream out = Files.newOutputStream(p, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE)) {
-            mapper.writeValue(out, entries);
-        }
-    }
 
     public static ReaderAliases getDefault() {
         try {
