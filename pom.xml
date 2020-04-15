@@ -69,49 +69,16 @@
             <artifactId>auto-service</artifactId>
             <version>1.0-rc6</version>
             <optional>true</optional>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
     <build>
-        <resources>
-            <resource>
-                <directory>target/generated-resources</directory>
-            </resource>
-            <resource>
-                <directory>src/main/resources</directory>
-            </resource>
-        </resources>
         <plugins>
             <plugin>
                 <groupId>com.github.spotbugs</groupId>
                 <artifactId>spotbugs-maven-plugin</artifactId>
                 <configuration>
                     <excludeFilterFile>spotbugs.xml</excludeFilterFile>
-                </configuration>
-            </plugin>
-            <!-- GitTagCalVer -->
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <version>1.6.0</version>
-                <executions>
-                    <execution>
-                        <id>git-version</id>
-                        <phase>generate-resources</phase>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <executable>git</executable>
-                    <outputFile>target/generated-resources/apdu4j/pro_version.txt</outputFile>
-                    <arguments>
-                        <argument>describe</argument>
-                        <argument>--tags</argument>
-                        <argument>--always</argument>
-                        <argument>--long</argument>
-                        <argument>--dirty</argument>
-                    </arguments>
                 </configuration>
             </plugin>
             <!-- Reproducible -->

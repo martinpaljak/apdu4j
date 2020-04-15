@@ -35,11 +35,7 @@ import picocli.CommandLine;
 import picocli.CommandLine.*;
 
 import javax.smartcardio.*;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.security.Provider;
 import java.security.Security;
 import java.util.*;
@@ -569,17 +565,7 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
     }
 
     public String[] getVersion() {
-        String version = "unknown-development";
-        try (InputStream versionfile = SCTool.class.getResourceAsStream("pro_version.txt")) {
-            if (versionfile != null) {
-                try (BufferedReader vinfo = new BufferedReader(new InputStreamReader(versionfile, StandardCharsets.UTF_8))) {
-                    version = vinfo.readLine();
-                }
-            }
-        } catch (IOException e) {
-            version = "unknown-error";
-        }
-        return new String[]{version};
+        return new String[]{TerminalManager.getVersion()};
     }
 
     private static void fail(String message) {
