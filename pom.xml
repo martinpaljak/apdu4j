@@ -63,14 +63,6 @@
             <version>7.1.0</version>
             <scope>test</scope>
         </dependency>
-        <!-- lazy plugins -->
-        <dependency>
-            <groupId>com.google.auto.service</groupId>
-            <artifactId>auto-service</artifactId>
-            <version>1.0-rc6</version>
-            <optional>true</optional>
-            <scope>provided</scope>
-        </dependency>
     </dependencies>
     <build>
         <plugins>
