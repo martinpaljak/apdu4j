@@ -269,11 +269,8 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
 
     @Command(name = "apdu", description = "Send raw APDU-s (Bytes Out)")
     public int sendAPDU(@Parameters(paramLabel = "<hex>", arity = "1..*") List<byte[]> apdus) {
-        // Prepend the -a ones
-        List<byte[]> toCard = new ArrayList<>(Arrays.asList(apdu));
-        toCard.addAll(apdus);
         try (APDUBIBO b = new APDUBIBO(getBIBO(getTheTerminal(reader)))) {
-            for (byte[] s : toCard) {
+            for (byte[] s : apdus) {
                 ResponseAPDU r = b.transmit(new CommandAPDU(s));
                 if (r.getSW() != 0x9000 && !force) {
                     fail("Card returned " + String.format("%04X", r.getSW()) + ", exiting!");
