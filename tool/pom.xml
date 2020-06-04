@@ -38,6 +38,12 @@
             <version>1.7.30</version>
             <optional>true</optional>
         </dependency>
+        <!-- Lazy service -->
+        <dependency>
+           <groupId>com.google.auto.service</groupId>
+           <artifactId>auto-service-annotations</artifactId>
+           <version>1.0-rc7</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -50,12 +56,7 @@
                         <path>
                             <groupId>com.google.auto.service</groupId>
                             <artifactId>auto-service</artifactId>
-                            <version>1.0-rc6</version>
-                        </path>
-                        <path>
-                            <groupId>info.picocli</groupId>
-                            <artifactId>picocli-codegen</artifactId>
-                            <version>4.3.2</version>
+                            <version>1.0-rc7</version>
                         </path>
                     </annotationProcessorPaths>
                     <compilerArgs>
