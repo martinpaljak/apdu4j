@@ -64,7 +64,7 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
     @Option(names = {"-r", "--reader"}, arity = "0..1", description = "Use reader", paramLabel = "<reader>", fallbackValue = "")
     String reader;
     @Option(names = {"-a", "--apdu"}, description = "Send APDU-s", paramLabel = "<HEX>")
-    byte[][] apdu = {};
+    byte[][] apdus = {};
 
     @Parameters
     String[] params = {};
@@ -240,8 +240,8 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
                 try (BIBO bibo = getBIBO(rdr)) {
                     APDUBIBO ar = new APDUBIBO(bibo);
                     // This allows to send "initialization" APDU-s before an app
-                    if (apdu != null) {
-                        for (byte[] s : apdu) {
+                    if (apdus != null) {
+                        for (byte[] s : apdus) {
                             CommandAPDU a = new CommandAPDU(s);
                             ResponseAPDU r = ar.transmit(a);
                             if (r.getSW() != 0x9000 && !force) {
@@ -270,7 +270,8 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
     @Command(name = "apdu", description = "Send raw APDU-s (Bytes Out)")
     public int sendAPDU(@Parameters(paramLabel = "<hex>", arity = "1..*") List<byte[]> apdus) {
         // Prepend the -a ones
-        List<byte[]> toCard = new ArrayList<>(Arrays.asList(apdu));
+        List<byte[]> toCard = new ArrayList<>(Arrays.asList(this.apdus));
+        // Then explicit apdu-s
         toCard.addAll(apdus);
         try (APDUBIBO b = new APDUBIBO(getBIBO(getTheTerminal(reader)))) {
             for (byte[] s : toCard) {
@@ -369,8 +370,8 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
             return listPlugins();
         if (list)
             return listReaders(verbose);
-        if (apdu.length > 0) {
-            return sendAPDU(Arrays.asList(apdu));
+        if (apdus.length > 0) {
+            return sendAPDU(Collections.emptyList()); // XXX: to support mixing -a and apdu subcommand
         }
         // Default is to run apps
         if (params.length > 0) {
