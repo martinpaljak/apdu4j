@@ -245,6 +245,10 @@ public final class TerminalManager {
 
             // One reader
             if (terminals.size() == 1) {
+                if (ignoreReader(ignore, terminals.get(0).getName())) {
+                    logger.warn("Only one reader, but ignoring it!");
+                    return Optional.empty();
+                }
                 return Optional.of(terminals.get(0));
             }
 
@@ -252,7 +256,7 @@ public final class TerminalManager {
             // DWIM 1: Only one has card
             List<CardTerminal> withCard = terminals.stream().filter(e -> {
                 try {
-                    return e.isCardPresent();
+                    return e.isCardPresent() && !ignoreReader(ignore, e.getName());
                 } catch (CardException ex) {
                     return false;
                 }
@@ -271,7 +275,6 @@ public final class TerminalManager {
             // DWIM 3: TODO: no cards in any, wait for insertion
             System.err.println("Multiple readers, must choose one:");
             listReaders(ignore, terminals, System.err, false);
-
         }
         return Optional.empty();
     }
