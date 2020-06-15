@@ -25,8 +25,7 @@ Command line tool and library of useful Java classes for working with smart card
 ```shell
 git clone https://github.com/martinpaljak/apdu4j
 cd apdu4j
-mvn package
-ant
+./mvnw package
 ```
 
 ### Usage from command line

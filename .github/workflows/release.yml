@@ -23,7 +23,7 @@ jobs:
       - name: Add known host key
         run: ssh-keyscan javacard.pro >> ~/.ssh/known_hosts
       - name: Package
-        run: mvn -B verify
+        run: ./mvnw -B verify
       - name: Release
         id: create_release
         uses: actions/create-release@v1.0.0
@@ -55,4 +55,4 @@ jobs:
           asset_name: apdu4j.exe
           asset_content_type: application/x-msdownload
       - name: Deploy package
-        run: mvn -B deploy
+        run: ./mvnw -B deploy
