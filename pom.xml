@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.github.martinpaljak</groupId>
         <artifactId>metacard</artifactId>
-        <version>20.06.04</version>
+        <version>20.08.07</version>
     </parent>
     <artifactId>apdu4j</artifactId>
     <version>20.06.16-SNAPSHOT</version>
@@ -60,7 +60,7 @@
         <dependency>
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
-            <version>7.1.0</version>
+            <version>7.3.0</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
