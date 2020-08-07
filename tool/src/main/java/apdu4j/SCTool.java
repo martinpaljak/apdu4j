@@ -36,12 +36,14 @@ import picocli.CommandLine.*;
 
 import javax.smartcardio.*;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.Provider;
 import java.security.Security;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @Command(name = "apdu4j", versionProvider = SCTool.class, mixinStandardHelpOptions = true, subcommands = {HelpCommand.class})
 public class SCTool implements Callable<Integer>, IVersionProvider {
@@ -55,8 +57,6 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
     boolean force;
     @Option(names = {"-l", "--list"}, description = "List readers")
     boolean list;
-    @Option(names = {"-P", "--plugins"}, description = "List plugins")
-    boolean listPlugins;
     @Option(names = {"-W", "--no-wait"}, description = "Don't wait for card before running app")
     boolean noWait;
     @Option(names = {"-B", "--bare-bibo"}, description = "Don't handle 61XX/6CXX")
@@ -99,10 +99,11 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
         final ReaderAliases aliases = ReaderAliases.getDefault();
         try {
             List<CardTerminal> terms = getTerminalFactory().terminals().list();
-            verbose(String.format("Found %d reader%s", terms.size(), terms.size() == 1 ? "" : "s"));
             if (terms.size() == 0) {
                 fail("No readers found");
             }
+            verbose(String.format("Found %d reader%s", terms.size(), terms.size() == 1 ? "" : "s"));
+
             // TODO: consolidate connects, so that logging would not interleave listing
             for (CardTerminal t : terms) {
                 if (debug)
@@ -185,7 +186,6 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
                     System.out.println(filler + thirdline);
             }
         } catch (CardException | IOException e) {
-            fail("Failed: " + e.getMessage());
             // Address Windows with SunPCSC
             String em = TerminalManager.getExceptionMessage(e);
             if (em.equals(SCard.SCARD_E_NO_READERS_AVAILABLE)) {
@@ -200,13 +200,16 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
     @Command(name = "run", description = "Run specified smart card application")
     public int runApp(@Parameters(paramLabel = "<app>", index = "0") String app, @Parameters(index = "1..*") String[] args) {
         try {
-            // Resolve the app
             if (args == null)
                 args = new String[0];
-            if (!resolveApp(app)) {
+
+            Optional<Path> appFile = resolveApp(app);
+            // Resolve the app
+            if (!appFile.isPresent()) {
                 System.err.println("App not found: " + app);
                 return 66;
             }
+
             Optional<CardTerminal> rdr = getTheTerminal(reader);
             if (!rdr.isPresent()) {
                 fail("Specify valid reader to use with -r");
@@ -221,21 +224,21 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
 
             // TODO: reverse order and resolve apps before running, to avoid plugin lookup warnings
             // First a CardTerminalApp
-            Optional<CardTerminalApp> terminalApp = Plug.getRemotePluginIfNotLocal(app, CardTerminalApp.class);
+            Optional<CardTerminalApp> terminalApp = Plug.loadPlugin(appFile.get(), CardTerminalApp.class);
             if (terminalApp.isPresent()) {
                 exiter();
                 return terminalApp.get().run(reader, args);
             }
 
             // Then TouchTerminalApp
-            Optional<TouchTerminalApp> touchApp = Plug.getRemotePluginIfNotLocal(app, TouchTerminalApp.class);
+            Optional<TouchTerminalApp> touchApp = Plug.loadPlugin(appFile.get(), TouchTerminalApp.class);
             if (touchApp.isPresent()) {
                 exiter();
                 return TouchTerminalRunner.run(reader, touchApp.get(), args);
             }
 
             // Then SmartCardApp
-            Optional<SmartCardApp> biboApp = Plug.getRemotePluginIfNotLocal(app, SmartCardApp.class);
+            Optional<SmartCardApp> biboApp = Plug.loadPlugin(appFile.get(), SmartCardApp.class);
             if (biboApp.isPresent()) {
                 try (BIBO bibo = getBIBO(rdr)) {
                     APDUBIBO ar = new APDUBIBO(bibo);
@@ -308,15 +311,35 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
             System.out.printf("Plugins for %s%n", p.getCanonicalName());
             Plug.listPlugins(p);
         }
-
-        // List all apps
-        for (Class<?> p : Arrays.asList(SmartCardApp.class, TouchTerminalApp.class, CardTerminalApp.class)) {
-            System.out.printf("Apps for %s%n", p.getCanonicalName());
-            Plug.listPlugins(p);
-        }
-        return 1;
+        return 0;
     }
 
+    Map<Class, Class> enumeratePlugins(Path p) {
+        HashMap<Class, Class> result = new HashMap<>();
+
+        Optional<CardTerminalApp> cta = Plug.loadPlugin(p, CardTerminalApp.class);
+        if (cta.isPresent())
+            result.put(CardTerminalApp.class, cta.get().getClass());
+        Optional<TouchTerminalApp> tta = Plug.loadPlugin(p, TouchTerminalApp.class);
+        if (tta.isPresent())
+            result.put(TouchTerminalApp.class, tta.get().getClass());
+        Optional<SmartCardApp> sca = Plug.loadPlugin(p, SmartCardApp.class);
+        if (sca.isPresent())
+            result.put(SmartCardApp.class, sca.get().getClass());
+        return result;
+    }
+
+    @Command(name = "apps", description = "List available apps.")
+    public int listApps() {
+        // List all apps
+        for (Path p : Plug.jars(appsFolder)) {
+            System.out.println(p);
+            Map<Class, Class> types = enumeratePlugins(p);
+            if (types.size() > 0)
+                System.out.println("    " + types.entrySet().stream().map(e -> e.getKey().getSimpleName() + ": " + e.getValue().getCanonicalName()).collect(Collectors.joining("\n    ")));
+        }
+        return 0;
+    }
 
     static void configureLogging() {
         // Set up slf4j simple in a way that pleases us
@@ -366,8 +389,6 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
     @Override
     public Integer call() {
         // Old style shorthands
-        if (listPlugins)
-            return listPlugins();
         if (list)
             return listReaders(verbose);
         if (apdus.length > 0) {
@@ -375,7 +396,9 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
         }
         // Default is to run apps
         if (params.length > 0) {
-            if (resolveApp(params[0])) {
+            Optional<Path> app = resolveApp(params[0]);
+
+            if (app.isPresent()) {
                 return runApp(params[0], Arrays.copyOfRange(params, 1, params.length));
             } else {
                 System.err.println("Unknown app: " + params[0]);
@@ -429,15 +452,18 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
         }
     }
 
+    // Allow overriding apps folder
+    static Path appsFolder = Paths.get(System.getenv().getOrDefault("APDU4J_APPS", Paths.get(System.getProperty("user.home", ""), ".apdu4j", "apps").toString()));
 
-    boolean weHaveApp(String spec) {
-        return Stream.concat(Plug.pluginStream(SmartCardApp.class), Plug.pluginStream(CardTerminalApp.class)).anyMatch(e -> Plug.identifies(spec, e.getClass()));
-    }
-
-    boolean resolveApp(String spec) {
-        return Plug.getRemotePluginIfNotLocal(spec, SmartCardApp.class).isPresent()
-                || Plug.getRemotePluginIfNotLocal(spec, CardTerminalApp.class).isPresent()
-                || Plug.getRemotePluginIfNotLocal(spec, TouchTerminalApp.class).isPresent();
+    Optional<Path> resolveApp(String name) {
+        // Any jar
+        Path app = Paths.get(name);
+        if (app.toString().endsWith(".jar") && Files.exists(app)) {
+            return Optional.of(app);
+        }
+        // One from apps folder
+        String needle = name.toLowerCase();
+        return Plug.jars(appsFolder).stream().filter(e -> e.getFileName().toString().toLowerCase().startsWith(needle)).findFirst();
     }
 
     private String getProtocol() {
@@ -464,6 +490,9 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
         return protocol;
     }
 
+
+    // Returns the value of $VAR. If the value of $VAR is $FOO, return the value of $FOO
+    // Returns null if value not present
     private String envOrMeta(String n1) {
         if (System.getenv().containsKey(n1)) {
             String v1 = System.getenv(n1);

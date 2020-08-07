@@ -25,11 +25,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.MalformedURLException;
-import java.net.URI;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -53,9 +52,19 @@ public final class Plug {
         }
     }
 
+    static List<Path> jars(Path folder) {
+        try (Stream<Path> entries = Files.list(folder)) {
+            return entries
+                    .filter(Files::isReadable)
+                    .filter(Files::isRegularFile)
+                    .filter(p -> p.toString().endsWith(".jar"))
+                    .collect(Collectors.toList());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     // Make a classloader of .jar files in a given folder.
-    // FIXME: false positive?
-    @edu.umd.cs.findbugs.annotations.SuppressFBWarnings("NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE")
     static ClassLoader pluginFolderClassLoader(Path folder) throws IOException {
         if (!Files.isDirectory(folder)) {
             logger.trace("Can't load plugins from " + folder + " defaulting to current classloader");
@@ -63,22 +72,23 @@ public final class Plug {
         }
 
         logger.debug("Plugins loaded from {}", folder);
-        try (DirectoryStream<Path> entries = Files.newDirectoryStream(folder)) {
-            ArrayList<URL> plugins = new ArrayList<>();
-            for (Path p : entries) {
-                if (Files.isRegularFile(p)
-                        && p.getFileName() != null
-                        && p.getFileName().toString().endsWith(".jar")) {
-                    plugins.add(p.toUri().toURL());
-                    logger.trace("Loading: " + p);
-                } else {
-                    logger.trace("Ignoring: " + p);
-                }
-            }
-            return AccessController.doPrivileged(
-                    (PrivilegedAction<URLClassLoader>) () -> new URLClassLoader(plugins.toArray(new URL[plugins.size()]))
-            );
-        }
+        List<URL> plugins = jars(folder).stream()
+                .map(p -> {
+                    try {
+                        return p.toUri().toURL();
+                    } catch (MalformedURLException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                })
+                .collect(Collectors.toList());
+
+        return AccessController.doPrivileged(
+                (PrivilegedAction<URLClassLoader>) () -> new URLClassLoader(plugins.toArray(new URL[plugins.size()]))
+        );
+    }
+
+    static <T> Optional<T> loadPlugin(String name, Class<T> c) {
+        return loadPlugin(bundledLoader, name, c);
     }
 
     // Loads a plugin by name from classloader
@@ -111,7 +121,6 @@ public final class Plug {
             URL[] plugin = new URL[]{u};
             logger.debug("Loading plugin from " + plugin[0]);
 
-            // FIXME: make it so that files would not be downloaded twice.
             final URLClassLoader ucl = AccessController.doPrivileged(
                     (PrivilegedAction<URLClassLoader>) () -> new URLClassLoader(plugin)
             );
@@ -120,7 +129,7 @@ public final class Plug {
             sl.iterator().forEachRemaining(list::add);
 
             if (list.size() != 1) {
-                logger.error("Could not load plugin, found " + list.size() + " services for " + t.getCanonicalName() + " in plugin:\n" + list.stream().map(e -> e.getClass().getCanonicalName()).collect(Collectors.joining("\n")));
+                logger.debug("Could not load plugin, found {} services for {}", list.size(), t.getCanonicalName());
                 return Optional.empty();
             }
             logger.debug("Loaded " + list.get(0).getClass().getCanonicalName() + " from " + u);
@@ -130,7 +139,6 @@ public final class Plug {
             return Optional.empty();
         }
     }
-
 
     // Gets the jarfile of the plugin for display purposes
     static String pluginfile(Object c) {
@@ -144,11 +152,6 @@ public final class Plug {
         return l.toExternalForm();
     }
 
-    // Returns true if the spec matches a class in classloader for a service
-    static <T> boolean identifiesPlugin(String spec, Class<T> service) {
-        return pluginStream(service).anyMatch(e -> identifies(spec, e.getClass()));
-    }
-
     // Print plugins for service in stdout
     static <T> void listPlugins(Class<T> service) {
         pluginStream(service).forEach(e -> System.out.println(String.format("- %s from %s", e.getClass().getCanonicalName(), pluginfile(e))));
@@ -159,7 +162,7 @@ public final class Plug {
         // Override from environment
         if (System.getenv().containsKey(env)) {
             Path plugins = Paths.get(System.getenv(env));
-            logger.debug("Using plugins from ${}}: {}", env, plugins);
+            logger.debug("Using plugins from ${}: {}", env, plugins);
             return pluginFolderClassLoader(plugins);
         }
         logger.debug("Using plugins from {}", p);
@@ -192,36 +195,7 @@ public final class Plug {
         return list;
     }
 
-    static <T> Stream<T> pluginStream(Class<T> t, ClassLoader loader) {
-        return plugins(t, loader).stream();
-    }
-
     static <T> Stream<T> pluginStream(Class<T> t) {
         return plugins(t, bundledLoader).stream();
-    }
-
-
-    // This is used for fetching apps
-    static <T> Optional<T> getRemotePluginIfNotLocal(String spec, Class<T> c) {
-        // prefer builtin plugins
-        if (identifiesPlugin(spec, c)) {
-            return loadPlugin(bundledLoader, spec, c);
-        }
-
-        // Then local paths
-        if (Files.isRegularFile(Paths.get(spec))) {
-            return loadPlugin(Paths.get(spec), c);
-        }
-        // then remote ones
-        if (spec.startsWith("https://")) {
-            try {
-                return loadPlugin(URI.create(spec).toURL(), c);
-            } catch (MalformedURLException e) {
-                logger.error("Invalid URL: " + spec);
-                return Optional.empty();
-            }
-        }
-        logger.trace("Could not get plugin for {} via {}", c.getCanonicalName(), spec);
-        return Optional.empty();
     }
 }

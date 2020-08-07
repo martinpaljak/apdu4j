@@ -27,26 +27,19 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class ATRList {
     private final Map<String, String> map;
 
-
     public static ATRList from(InputStream in) throws IOException {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
-
             Map<String, String> entries = new HashMap<>();
-
             List<String> lines = reader.lines().collect(Collectors.toList());
             String name = null;
             String desc = null;
             for (String line : lines) {
-
                 if (line.length() == 0) {
                     if (name != null && desc != null) {
                         entries.put(name.replace(" ", ""), desc.trim().replace('\t', '\n'));
@@ -93,11 +86,6 @@ public class ATRList {
                 Paths.get("/usr/share/pcsc/smartcard_list.txt"),
                 Paths.get("/usr/local/share/pcsc/smartcard_list.txt")};
 
-        for (Path p : paths) {
-            if (Files.exists(p))
-                return Optional.of(p.toString());
-        }
-
-        return Optional.empty();
+        return Arrays.stream(paths).filter(Files::exists).findFirst().map(Path::toString);
     }
 }
