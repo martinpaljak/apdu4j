@@ -30,6 +30,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.AccessController;
@@ -59,6 +60,9 @@ public final class Plug {
                     .filter(Files::isRegularFile)
                     .filter(p -> p.toString().endsWith(".jar"))
                     .collect(Collectors.toList());
+        } catch (NoSuchFileException e) {
+            logger.debug("No such directory: " + folder);
+            return Collections.emptyList();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
