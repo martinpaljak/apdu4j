@@ -8,7 +8,7 @@
         <version>20.08.07</version>
     </parent>
     <artifactId>apdu4j</artifactId>
-    <version>20.08.12</version>
+    <version>20.08.13-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>apdu4j</name>
     <url>https://github.com/martinpaljak/apdu4j</url>
