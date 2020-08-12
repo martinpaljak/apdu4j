@@ -100,7 +100,7 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
         try {
             List<CardTerminal> terms = getTerminalFactory().terminals().list();
             if (terms.size() == 0) {
-                fail("No readers found");
+                return fail("No readers found");
             }
             verbose(String.format("Found %d reader%s", terms.size(), terms.size() == 1 ? "" : "s"));
 
@@ -189,9 +189,9 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
             // Address Windows with SunPCSC
             String em = TerminalManager.getExceptionMessage(e);
             if (em.equals(SCard.SCARD_E_NO_READERS_AVAILABLE)) {
-                fail("No reader with a card found!");
+                return fail("No reader with a card found!");
             } else {
-                fail("Could not list readers: " + em);
+                return fail("Could not list readers: " + em);
             }
         }
         return 0;
@@ -212,7 +212,7 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
 
             Optional<CardTerminal> rdr = getTheTerminal(reader);
             if (!rdr.isPresent()) {
-                fail("Specify valid reader to use with -r");
+                return fail("Specify valid reader to use with -r");
             } else {
                 logger.info("Using " + rdr.get());
             }
@@ -248,7 +248,7 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
                             CommandAPDU a = new CommandAPDU(s);
                             ResponseAPDU r = ar.transmit(a);
                             if (r.getSW() != 0x9000 && !force) {
-                                fail("Card returned " + String.format("%04X", r.getSW()) + ", exiting!");
+                                return fail("Card returned " + String.format("%04X", r.getSW()) + ", exiting!");
                             }
                         }
                     }
@@ -280,15 +280,13 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
             for (byte[] s : toCard) {
                 ResponseAPDU r = b.transmit(new CommandAPDU(s));
                 if (r.getSW() != 0x9000 && !force) {
-                    fail("Card returned " + String.format("%04X", r.getSW()) + ", exiting!");
+                    return fail("Card returned " + String.format("%04X", r.getSW()) + ", exiting!");
                 }
             }
         } catch (CardException e) {
-            logger.error("Could not connect: " + e.getMessage(), e);
-            return 1;
+            return fail("Could not connect: " + e.getMessage());
         } catch (BIBOException e) {
-            logger.error("Failed: " + e.getMessage(), e);
-            return 1;
+            return fail("Failed: " + e.getMessage());
         }
         return 0;
     }
@@ -329,10 +327,21 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
         return result;
     }
 
+    // Allow overriding apps folder
+    static Path appsFolder = Paths.get(System.getenv().getOrDefault("APDU4J_APPS", Paths.get(System.getProperty("user.home", ""), ".apdu4j", "apps").toString()));
+
     @Command(name = "apps", description = "List available apps.")
     public int listApps() {
+        if (!Files.isDirectory(appsFolder)) {
+            return fail("Create " + appsFolder + " and place there all your app jar-s");
+        }
+        List<Path> jars = Plug.jars(appsFolder);
+
+        if (jars.size() == 0) {
+            return fail("No apps found in " + appsFolder);
+        }
         // List all apps
-        for (Path p : Plug.jars(appsFolder)) {
+        for (Path p : jars) {
             System.out.println(p);
             Map<Class, Class> types = enumeratePlugins(p);
             if (types.size() > 0)
@@ -381,7 +390,7 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
             // Run program
             cli.execute(args);
         } catch (RuntimeException e) {
-            fail("Error: " + e.getMessage());
+            System.exit(fail("Error: " + e.getMessage()));
         }
     }
 
@@ -448,12 +457,9 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
         } catch (Smartcardio.EstablishContextException e) {
             String msg = TerminalManager.getExceptionMessage(e);
             fail("No readers: " + msg);
-            return null; // sugar.
+            return null; // FIXME sugar.
         }
     }
-
-    // Allow overriding apps folder
-    static Path appsFolder = Paths.get(System.getenv().getOrDefault("APDU4J_APPS", Paths.get(System.getProperty("user.home", ""), ".apdu4j", "apps").toString()));
 
     Optional<Path> resolveApp(String name) {
         // Any jar
@@ -510,7 +516,7 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
     // Return a BIBO or fail
     private BIBO getBIBO(Optional<CardTerminal> rdr) throws CardException {
         if (!rdr.isPresent()) {
-            fail("Specify valid reader to use with -r");
+            exit("Specify valid reader to use with -r");
         } else {
             logger.info("Using " + rdr.get());
         }
@@ -518,7 +524,7 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
         if (!noWait && !reader.isCardPresent()) {
             boolean present = TouchTerminalRunner.waitForCard(reader, 60);
             if (!present) {
-                fail("No card in reader. Quit.");
+                exit("No card in reader. Quit.");
             }
         }
         Card c = reader.connect(getProtocol());
@@ -598,8 +604,13 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
         return new String[]{TerminalManager.getVersion()};
     }
 
-    private static void fail(String message) {
+    private static int fail(String message) {
         System.err.println(message);
-        System.exit(1);
+        return 1;
     }
+
+    private static void exit(String message) {
+        System.exit(fail(message));
+    }
+
 }
