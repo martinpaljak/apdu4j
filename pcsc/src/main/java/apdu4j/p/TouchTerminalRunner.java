@@ -21,10 +21,7 @@
  */
 package apdu4j.p;
 
-import apdu4j.CardBIBO;
-import apdu4j.SCard;
-import apdu4j.TagRemovedException;
-import apdu4j.TerminalManager;
+import apdu4j.*;
 import apdu4j.i.TouchTerminalApp;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -100,7 +97,7 @@ public final class TouchTerminalRunner {
         final int dot = 3;
         final int n = seconds / dot;
         boolean found = false;
-        System.err.print("\nWaiting for card ...");
+        System.err.format("%n[%s] Waiting for card ...", ReaderAliases.getDefault().translate(t.getName()));
         for (int i = 0; i < n && !found && !Thread.currentThread().isInterrupted(); i++) {
             found = t.waitForCardPresent(dot * 1000);
             System.err.print(".");

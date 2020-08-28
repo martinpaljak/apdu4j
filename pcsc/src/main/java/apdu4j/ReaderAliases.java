@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
 public class ReaderAliases extends HashMap<String, String> {
     private static final long serialVersionUID = -2039373752191750500L;
     private static transient final Logger logger = LoggerFactory.getLogger(ReaderAliases.class);
+    private static transient volatile ReaderAliases INSTANCE;
 
     public List<String> translate(List<String> readerNames) {
         return readerNames.stream().map(this::translate).collect(Collectors.toList());
@@ -64,14 +65,14 @@ public class ReaderAliases extends HashMap<String, String> {
         // Matches must be uniq
         Set<String> matches = keySet().stream().map(String::toLowerCase).collect(Collectors.toSet());
         if (matches.size() != keySet().size()) {
-            logger.error("Matches are not uniq");
+            logger.error("Matches are not unique");
             return false;
         }
 
         // Aliases must be uniq
         Set<String> aliases = values().stream().map(String::toLowerCase).collect(Collectors.toSet());
         if (values().size() != aliases.size()) {
-            logger.error("Aliases are not uniq");
+            logger.error("Aliases are not unique");
             return false;
         }
         return true;
@@ -84,7 +85,7 @@ public class ReaderAliases extends HashMap<String, String> {
 
         try (InputStream in = Files.newInputStream(p)) {
             ArrayList<Map<String, String>> content = new Yaml().load(in);
-            for (Map<String, String> e: content) {
+            for (Map<String, String> e : content) {
                 aliases.put(e.get("match"), e.get("alias"));
             }
         } catch (IOException e) {
@@ -98,15 +99,18 @@ public class ReaderAliases extends HashMap<String, String> {
 
 
     public static ReaderAliases getDefault() {
-        try {
-            if (System.getenv().containsKey("APDU4J_ALIASES")) {
-                return load(Paths.get(System.getenv("APDU4J_ALIASES")));
-            } else {
-                return load(Paths.get(System.getProperty("user.home"), ".apdu4j", "aliases.yaml"));
+        if (INSTANCE == null) {
+            try {
+                if (System.getenv().containsKey("APDU4J_ALIASES")) {
+                    INSTANCE = load(Paths.get(System.getenv("APDU4J_ALIASES")));
+                } else {
+                    INSTANCE = load(Paths.get(System.getProperty("user.home"), ".apdu4j", "aliases.yaml"));
+                }
+            } catch (IOException e) {
+                logger.error("Could not load reader aliases: " + e.getMessage(), e);
+                INSTANCE = new ReaderAliases();
             }
-        } catch (IOException e) {
-            logger.error("Could not load reader aliases: " + e.getMessage(), e);
         }
-        return new ReaderAliases();
+        return INSTANCE;
     }
 }
