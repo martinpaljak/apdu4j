@@ -122,6 +122,7 @@
                         <configuration>
                             <headerType>console</headerType>
                             <outfile>target/apdu4j.exe</outfile>
+                            <downloadUrl>https://adoptopenjdk.net</downloadUrl>
                             <jar>target/apdu4j.jar</jar>
                             <errTitle>apdu4j</errTitle>
                             <classPath>
