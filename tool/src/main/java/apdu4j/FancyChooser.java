@@ -268,12 +268,19 @@ public class FancyChooser implements Callable<Optional<CardTerminal>> {
         @Override
         public void run() {
             while (!isInterrupted()) {
+                boolean changed = true;
                 try {
-                    // To be able to interrupt this thread, we poll often
-                    boolean changed = terms.waitForChange(1000);
-                    List<CardTerminal> l = terms.list();
+                    // Removing on Linux results in timeout error, adding resutls in true
+                    changed = terms.waitForChange(3000);
+                } catch (CardException e) {
+                    if (TerminalManager.getPCSCError(e).equals(Optional.of("SCARD_E_TIMEOUT")))
+                        changed = true;
+                    else
+                        logger.error("Failed: " + e.getMessage());
+                }
+                try {
                     if (changed) {
-                        setSelection(l);
+                        setSelection(terms.list());
                     }
                 } catch (CardException e) {
                     logger.error("Failed: " + e.getMessage());
