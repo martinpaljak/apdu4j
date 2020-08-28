@@ -78,6 +78,14 @@ public class FancyChooser implements Callable<Optional<CardTerminal>> {
             System.setProperty("java.awt.headless", "true");
     }
 
+    // TODO: have a simple fallback chooser with a list and "enter 1..N"
+    static class EmptyChooser implements Callable<Optional<CardTerminal>> {
+        @Override
+        public Optional<CardTerminal> call() {
+            return Optional.empty();
+        }
+    }
+
     private FancyChooser(Terminal terminal, Screen screen, CardTerminals monitorObject, List<CardTerminal> terminals) {
         if (monitorObject != null)
             monitor = new MonitorThread(monitorObject);
@@ -106,7 +114,9 @@ public class FancyChooser implements Callable<Optional<CardTerminal>> {
     }
 
 
-    public static FancyChooser forTerminals(CardTerminals terminals) throws IOException, CardException {
+    public static Callable<Optional<CardTerminal>> forTerminals(CardTerminals terminals) throws IOException, CardException {
+        if (isWindows())
+            return new EmptyChooser();
         List<CardTerminal> terminalList = terminals.list();
         Terminal terminal = new DefaultTerminalFactory().createTerminal();
         Screen screen = new TerminalScreen(terminal);
@@ -114,7 +124,7 @@ public class FancyChooser implements Callable<Optional<CardTerminal>> {
     }
 
 
-    public static FancyChooser forTerminals(List<CardTerminal> terminals) throws IOException {
+    public static Callable<Optional<CardTerminal>> forTerminals(List<CardTerminal> terminals) throws IOException {
         Terminal terminal = new DefaultTerminalFactory().createTerminal();
         Screen screen = new TerminalScreen(terminal);
         return new FancyChooser(terminal, screen, null, terminals);
@@ -270,10 +280,10 @@ public class FancyChooser implements Callable<Optional<CardTerminal>> {
             while (!isInterrupted()) {
                 boolean changed = true;
                 try {
-                    // Removing on Linux results in timeout error, adding resutls in true
                     changed = terms.waitForChange(3000);
                 } catch (CardException e) {
-                    if (TerminalManager.getPCSCError(e).equals(Optional.of("SCARD_E_TIMEOUT")))
+                    // Removing on Linux results in timeout error, adding results in true
+                    if (TerminalManager.getPCSCError(e).equals(Optional.of(SCard.SCARD_E_TIMEOUT)))
                         changed = true;
                     else
                         logger.error("Failed: " + e.getMessage());
@@ -291,5 +301,9 @@ public class FancyChooser implements Callable<Optional<CardTerminal>> {
 
     static boolean isMacOS() {
         return System.getProperty("os.name").equalsIgnoreCase("mac os x");
+    }
+
+    static boolean isWindows() {
+        return System.getProperty("os.name").toLowerCase().startsWith("windows");
     }
 }

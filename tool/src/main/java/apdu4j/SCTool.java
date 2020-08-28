@@ -571,7 +571,7 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
                         // if more than on reader - use fancy chooser (possibly graying out exclude ones)
                         result = FancyChooser.forTerminals(getTerminalFactory().terminals()).call();
                     }
-                } catch (CardException | IOException e) {
+                } catch (Exception e) {
                     logger.error("Failed to list/choose readers: " + e.getMessage());
                 }
             }
@@ -581,7 +581,7 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
             if (reader.length() == 0) {
                 try {
                     result = FancyChooser.forTerminals(getTerminalFactory().terminals()).call();
-                } catch (IOException | CardException e) {
+                } catch (Exception e) {
                     logger.error("Could not choose terminal: " + e.getMessage(), e);
                 }
             } else {
