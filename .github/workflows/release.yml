@@ -15,9 +15,9 @@ jobs:
       - name: Setup Java
         uses: actions/setup-java@master
         with:
-          java-version: 1.8
+          java-version: 11
       - name: Set SSH key
-        uses: webfactory/ssh-agent@v0.2.0
+        uses: webfactory/ssh-agent@v0.4.0
         with:
           ssh-private-key: ${{ secrets.SSH_KEY }}
       - name: Add known host key
@@ -26,7 +26,7 @@ jobs:
         run: ./mvnw -B verify
       - name: Release
         id: create_release
-        uses: actions/create-release@v1.0.0
+        uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -36,7 +36,7 @@ jobs:
           prerelease: true # Manually promoted to latest release
       - name: Upload JAR
         id: jar
-        uses: actions/upload-release-asset@v1.0.1
+        uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -46,7 +46,7 @@ jobs:
           asset_content_type: application/zip
       - name: Upload EXE
         id: exe
-        uses: actions/upload-release-asset@v1.0.1
+        uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
