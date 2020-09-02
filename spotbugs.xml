@@ -11,17 +11,17 @@
     <Bug pattern="DM_EXIT"/>
   </Match>
   <Match>
-    <Class name="apdu4j.TerminalManager"/>
+    <Class name="apdu4j.pcsc.TerminalManager"/>
     <Method name="_detectLibraryPath"/>
     <Bug pattern="DMI_HARDCODED_ABSOLUTE_FILENAME"/>
   </Match>
   <Match>
-    <Class name="apdu4j.ATRList"/>
+    <Class name="apdu4j.tool.ATRList"/>
     <Method name="locate"/>
     <Bug pattern="DMI_HARDCODED_ABSOLUTE_FILENAME"/>
   </Match>
   <Match>
-    <Class name="apdu4j.providers.EmulatedTerminalProvider"/>
+    <Class name="apdu4j.pcsc.providers.EmulatedTerminalProvider"/>
     <Bug pattern="ST_WRITE_TO_STATIC_FROM_INSTANCE_METHOD"/>
   </Match>
 </FindBugsFilter>

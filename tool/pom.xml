@@ -28,7 +28,7 @@
         <dependency>
             <groupId>com.googlecode.lanterna</groupId>
             <artifactId>lanterna</artifactId>
-            <version>3.0.3</version>
+            <version>3.1.0-beta2</version>
             <optional>true</optional>
         </dependency>
         <!-- logging for cmdline -->
@@ -48,24 +48,7 @@
 
     <build>
         <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <annotationProcessorPaths>
-                        <path>
-                            <groupId>com.google.auto.service</groupId>
-                            <artifactId>auto-service</artifactId>
-                            <version>1.0-rc7</version>
-                        </path>
-                    </annotationProcessorPaths>
-                    <compilerArgs>
-                        <arg>-Xlint:all</arg>
-                        <arg>-Xlint:-processing</arg>
-                    </compilerArgs>
-                </configuration>
-            </plugin>
-            <!-- CLI -->
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -81,7 +64,7 @@
                             <finalName>apdu4j</finalName>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>apdu4j.SCTool</mainClass>
+                                    <mainClass>apdu4j.tool.SCTool</mainClass>
                                 </transformer>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                             </transformers>
@@ -126,7 +109,7 @@
                             <jar>target/apdu4j.jar</jar>
                             <errTitle>apdu4j</errTitle>
                             <classPath>
-                                <mainClass>apdu4j.SCTool</mainClass>
+                                <mainClass>apdu4j.tool.SCTool</mainClass>
                             </classPath>
                             <jre>
                                 <minVersion>1.8.0</minVersion>
