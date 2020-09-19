@@ -48,7 +48,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 
-public class FancyChooser implements Callable<Optional<CardTerminal>> {
+public final class FancyChooser implements Callable<Optional<CardTerminal>> {
     private static final Logger logger = LoggerFactory.getLogger(FancyChooser.class);
     // Nice names
     static final String PRESENT = "*";
@@ -257,14 +257,15 @@ public class FancyChooser implements Callable<Optional<CardTerminal>> {
             screen.stopScreen();
             terminal.close();
 
-            if (monitor != null) {
-                monitor.interrupt();
-            }
             // on OSX at least this prevents the print from last column
             System.out.println();
             return Optional.ofNullable(chosenOne);
         } catch (IOException e) {
             logger.error("Could not run: " + e.getMessage());
+        } finally {
+            if (monitor != null) {
+                monitor.interrupt();
+            }
         }
         return Optional.empty();
     }

@@ -21,11 +21,8 @@
  */
 package apdu4j.core;
 
-import apdu4j.core.BIBO;
-
 import java.util.Optional;
 
 public interface BIBOProvider {
-
     Optional<BIBO> getBIBO(String spec);
 }

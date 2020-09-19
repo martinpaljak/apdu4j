@@ -7,19 +7,19 @@
     <parent>
         <groupId>com.github.martinpaljak</groupId>
         <artifactId>apdu4j</artifactId>
-        <version>20.08.13-SNAPSHOT</version>
+        <version>20.08.14-SNAPSHOT</version>
     </parent>
 
     <groupId>com.github.martinpaljak</groupId>
     <artifactId>apdu4j-pcsc</artifactId>
-    <version>20.08.13-SNAPSHOT</version>
+    <version>20.08.14-SNAPSHOT</version>
 
     <dependencies>
         <!-- Core -->
         <dependency>
             <groupId>com.github.martinpaljak</groupId>
             <artifactId>apdu4j-core</artifactId>
-            <version>2020b2</version>
+            <version>2020b3-SNAPSHOT</version>
         </dependency>
         <!-- PC/SC access -->
         <dependency>
@@ -31,7 +31,7 @@
         <dependency>
             <groupId>org.yaml</groupId>
             <artifactId>snakeyaml</artifactId>
-            <version>1.26</version>
+            <version>1.27</version>
         </dependency>
         <!-- lazy plugins -->
         <dependency>

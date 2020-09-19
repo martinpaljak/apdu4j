@@ -22,7 +22,7 @@
 package apdu4j.core;
 
 /**
- * Thrown if the device has been removed from RF fields in mid-execution
+ * Thrown if the device has been removed from RF fields in mid-transmit
  */
 public class TagRemovedException extends BIBOException {
 

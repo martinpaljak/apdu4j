@@ -41,8 +41,9 @@ import java.util.Calendar;
  *
  * @author Martin Paljak
  */
-public class LoggingCardTerminal extends CardTerminal {
+public final class LoggingCardTerminal extends CardTerminal {
     // The actual terminal
+    //protected long startTime; // TODO
     protected final CardTerminal terminal;
     protected final PrintStream log;
     protected final PrintStream dump;

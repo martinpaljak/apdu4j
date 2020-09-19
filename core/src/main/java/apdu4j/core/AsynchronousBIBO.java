@@ -36,7 +36,10 @@ public interface AsynchronousBIBO {
      *
      * @param bytes payload
      * @return the bytes returned from the SE. The size should always be &gt;= 2 bytes
-     * @throws BIBOException when transceive fails
      */
-    CompletableFuture<byte[]> transmit(byte[] bytes) throws BIBOException;
+    CompletableFuture<byte[]> transmit(byte[] bytes);
+
+    // Not really a nice thing
+    default void close() {
+    }
 }

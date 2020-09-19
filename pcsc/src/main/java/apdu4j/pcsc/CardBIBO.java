@@ -21,10 +21,7 @@
  */
 package apdu4j.pcsc;
 
-import apdu4j.core.BIBO;
-import apdu4j.core.BIBOException;
-import apdu4j.core.HexUtils;
-import apdu4j.core.TagRemovedException;
+import apdu4j.core.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,11 +31,12 @@ import javax.smartcardio.CardException;
 import javax.smartcardio.CommandAPDU;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.concurrent.CompletableFuture;
 
 /**
- * This "flattens" a javax.smartcardio card with logical channels API into a simple BIBO stream.
+ * This "flattens" a javax.smartcardio.Card with logical channels API into a simple BIBO stream.
  */
-public class CardBIBO implements BIBO {
+public class CardBIBO implements BIBO, AsynchronousBIBO {
     private static final Logger logger = LoggerFactory.getLogger(CardBIBO.class);
     public static final String APDU4J_PSEUDOAPDU = "apdu4j.pseudoapdu";
     protected final Card card;
@@ -78,6 +76,7 @@ public class CardBIBO implements BIBO {
                 channels.put(l.getChannelNumber(), l);
                 return new byte[]{(byte) l.getChannelNumber(), (byte) 0x90, 0x00};
             }
+
             // intercept CLOSE CHANNEL
             if (bytes.length == 4 && bytes[1] == 0x70 && bytes[2] == (byte) 0x80 && bytes[3] == 0x00) {
                 channels.get(channel).close();
@@ -132,5 +131,11 @@ public class CardBIBO implements BIBO {
         } catch (CardException e) {
             logger.warn("disconnect() failed: " + e.getMessage(), e);
         }
+    }
+
+    @Override
+    public CompletableFuture<byte[]> transmit(byte[] command) {
+        // FIXME: do not execute this in common pool
+        return CompletableFuture.supplyAsync(() -> transceive(command));
     }
 }

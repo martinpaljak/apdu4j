@@ -21,51 +21,36 @@
  */
 package apdu4j.core;
 
-public class GetMoreDataWrapper implements BIBO {
-    BIBO wrapped;
+import java.util.concurrent.CompletableFuture;
 
-    public static GetMoreDataWrapper wrap(BIBO bibo) {
+import static apdu4j.core.GetResponseWrapper.concatenate;
+
+public final class GetMoreDataWrapper implements AsynchronousBIBO {
+    final AsynchronousBIBO wrapped;
+
+    public static GetMoreDataWrapper wrap(AsynchronousBIBO bibo) {
         return new GetMoreDataWrapper(bibo);
     }
 
-    public GetMoreDataWrapper(BIBO bibo) {
+    public GetMoreDataWrapper(AsynchronousBIBO bibo) {
         this.wrapped = bibo;
     }
 
     @Override
-    public byte[] transceive(byte[] command) throws BIBOException {
-        byte[] response = new byte[0];
-        // No open loops
-        for (int i = 0; i < 32; i++) {
-            byte[] r = wrapped.transceive(command);
-            ResponseAPDU res = new ResponseAPDU(r);
-            response = concatenate(response, res.getData());
+    public CompletableFuture<byte[]> transmit(final byte[] command) {
+        return transmitCombining(new byte[0], wrapped, command);
+    }
+
+    static CompletableFuture<byte[]> transmitCombining(final byte[] current, final AsynchronousBIBO bibo, final byte[] command) {
+        return bibo.transmit(command).thenComposeAsync((response) -> {
+            ResponseAPDU res = new ResponseAPDU(response);
             if (res.getSW1() == 0x9F) {
                 // XXX: dependence on CommandAPDU for 256
-                command = new CommandAPDU(command[0], 0xC0, 0x00, 0x00, res.getSW2() == 0x00 ? 256 : res.getSW2()).getBytes();
+                final byte[] cmd = new CommandAPDU(command[0], 0xC0, 0x00, 0x00, res.getSW2() == 0x00 ? 256 : res.getSW2()).getBytes();
+                return transmitCombining(concatenate(current, res.getData()), bibo, cmd);
             } else {
-                response = concatenate(response, new byte[]{(byte) res.getSW1(), (byte) res.getSW2()});
-                break;
+                return CompletableFuture.completedFuture(concatenate(current, response, res.getSWBytes()));
             }
-        }
-        return response;
-    }
-
-    static byte[] concatenate(byte[]... args) {
-        int length = 0, pos = 0;
-        for (byte[] arg : args) {
-            length += arg.length;
-        }
-        byte[] result = new byte[length];
-        for (byte[] arg : args) {
-            System.arraycopy(arg, 0, result, pos, arg.length);
-            pos += arg.length;
-        }
-        return result;
-    }
-
-    @Override
-    public void close() {
-        wrapped.close();
+        });
     }
 }

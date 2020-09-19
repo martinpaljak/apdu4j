@@ -5,7 +5,7 @@
     <parent>
         <artifactId>apdu4j</artifactId>
         <groupId>com.github.martinpaljak</groupId>
-        <version>20.08.13-SNAPSHOT</version>
+        <version>20.08.14-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -15,20 +15,20 @@
         <dependency>
             <groupId>com.github.martinpaljak</groupId>
             <artifactId>apdu4j-pcsc</artifactId>
-            <version>20.08.13-SNAPSHOT</version>
+            <version>20.08.14-SNAPSHOT</version>
         </dependency>
         <!-- cmdline -->
         <dependency>
             <groupId>info.picocli</groupId>
             <artifactId>picocli</artifactId>
-            <version>4.5.1</version>
+            <version>4.5.2</version>
             <optional>true</optional>
         </dependency>
         <!-- FancyChooser terminal chooser -->
         <dependency>
             <groupId>com.googlecode.lanterna</groupId>
             <artifactId>lanterna</artifactId>
-            <version>3.1.0-beta2</version>
+            <version>3.2.0-alpha1</version>
             <optional>true</optional>
         </dependency>
         <!-- logging for cmdline -->

@@ -7,11 +7,11 @@
     <parent>
         <groupId>com.github.martinpaljak</groupId>
         <artifactId>apdu4j</artifactId>
-        <version>20.08.13-SNAPSHOT</version>
+        <version>20.08.14-SNAPSHOT</version>
     </parent>
 
     <groupId>com.github.martinpaljak</groupId>
     <artifactId>apdu4j-core</artifactId>
-    <version>2020b2</version>
+    <version>2020b3-SNAPSHOT</version>
 
 </project>

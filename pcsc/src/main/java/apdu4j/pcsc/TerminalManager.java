@@ -49,7 +49,9 @@ import java.util.stream.Collectors;
  * Facilitates working with javax.smartcardio
  */
 public final class TerminalManager {
+    public static final String PROTOCOL_PROPERTY = "apdu4j.protocol";
     public static final String LIB_PROP = "sun.security.smartcardio.library";
+
     private static final Logger logger = LoggerFactory.getLogger(TerminalManager.class);
     private static final String debian64_path = "/usr/lib/x86_64-linux-gnu/libpcsclite.so.1";
     private static final String ubuntu_path = "/lib/libpcsclite.so.1";

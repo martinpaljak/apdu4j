@@ -21,29 +21,27 @@
  */
 package apdu4j.core;
 
-public class RetryWithRightLengthWrapper implements BIBO {
-    BIBO wrapped;
+import java.util.concurrent.CompletableFuture;
 
-    public static RetryWithRightLengthWrapper wrap(BIBO bibo) {
+public final class RetryWithRightLengthWrapper implements AsynchronousBIBO {
+    AsynchronousBIBO wrapped;
+
+    public static RetryWithRightLengthWrapper wrap(AsynchronousBIBO bibo) {
         return new RetryWithRightLengthWrapper(bibo);
     }
 
-    private RetryWithRightLengthWrapper(BIBO bibo) {
+    public RetryWithRightLengthWrapper(AsynchronousBIBO bibo) {
         this.wrapped = bibo;
     }
 
     @Override
-    public byte[] transceive(byte[] command) throws BIBOException {
-        byte[] r = wrapped.transceive(command);
-        ResponseAPDU res = new ResponseAPDU(r);
-        if (res.getSW1() == 0x6C) {
-            r = wrapped.transceive(new CommandAPDU(command[0], command[1], command[2], command[3], res.getSW2()).getBytes());
-        }
-        return r;
-    }
-
-    @Override
-    public void close() {
-        wrapped.close();
+    public CompletableFuture<byte[]> transmit(byte[] command) throws BIBOException {
+        return wrapped.transmit(command).thenComposeAsync((response) -> {
+            ResponseAPDU res = new ResponseAPDU(response);
+            if (res.getSW1() == 0x6C) {
+                return wrapped.transmit(new CommandAPDU(command[0], command[1], command[2], command[3], res.getSW2()).getBytes());
+            } else
+                return CompletableFuture.completedFuture(response);
+        });
     }
 }

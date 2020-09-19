@@ -31,12 +31,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
-public class ReaderAliases extends HashMap<String, String> {
-    private static final long serialVersionUID = -2039373752191750500L;
+public final class ReaderAliases {
     private static transient final Logger logger = LoggerFactory.getLogger(ReaderAliases.class);
     private static transient volatile ReaderAliases INSTANCE;
+    private static transient final HashMap<String, String> aliases = new HashMap<>();
 
     public List<String> translate(List<String> readerNames) {
         return readerNames.stream().map(this::translate).collect(Collectors.toList());
@@ -44,12 +45,12 @@ public class ReaderAliases extends HashMap<String, String> {
 
     // Translates full name to alias name, if it matches any
     public String translate(String name) {
-        return entrySet().stream().filter(e -> matches(name, e.getKey())).findFirst().map(Entry::getValue).orElse(name);
+        return aliases.entrySet().stream().filter(e -> matches(name, e.getKey())).findFirst().map(Entry::getValue).orElse(name);
     }
 
     // Return the alias for name
     public Optional<String> alias(String name) {
-        return entrySet().stream().filter(e -> matches(name, e.getKey())).findFirst().map(Entry::getValue);
+        return aliases.entrySet().stream().filter(e -> matches(name, e.getKey())).findFirst().map(Entry::getValue);
     }
 
     // Returns the alias, if it matches
@@ -62,16 +63,16 @@ public class ReaderAliases extends HashMap<String, String> {
     }
 
     boolean verify() {
-        // Matches must be uniq
-        Set<String> matches = keySet().stream().map(String::toLowerCase).collect(Collectors.toSet());
-        if (matches.size() != keySet().size()) {
+        // Matches must be unique
+        Set<String> matches = aliases.keySet().stream().map(String::toLowerCase).collect(Collectors.toSet());
+        if (matches.size() != aliases.keySet().size()) {
             logger.error("Matches are not unique");
             return false;
         }
 
-        // Aliases must be uniq
-        Set<String> aliases = values().stream().map(String::toLowerCase).collect(Collectors.toSet());
-        if (values().size() != aliases.size()) {
+        // Aliases must be unique
+        Set<String> all = aliases.values().stream().map(String::toLowerCase).collect(Collectors.toSet());
+        if (aliases.values().size() != all.size()) {
             logger.error("Aliases are not unique");
             return false;
         }
@@ -79,26 +80,26 @@ public class ReaderAliases extends HashMap<String, String> {
     }
 
     public static ReaderAliases load(Path p) throws IOException {
-        ReaderAliases aliases = new ReaderAliases();
+        ReaderAliases result = new ReaderAliases();
         if (!Files.exists(p))
-            return aliases;
+            return result;
 
         try (InputStream in = Files.newInputStream(p)) {
             ArrayList<Map<String, String>> content = new Yaml().load(in);
             for (Map<String, String> e : content) {
-                aliases.put(e.get("match"), e.get("alias"));
+                result.aliases.put(e.get("match"), e.get("alias"));
             }
         } catch (IOException e) {
             logger.error("Could not parse reader name aliases: " + e.getMessage(), e);
         }
-        if (!aliases.verify())
+        if (!result.verify())
             throw new IOException("Matches or aliases are not uniq!");
-        logger.info("Loaded aliases: {}", aliases);
-        return aliases;
+        logger.info("Loaded aliases: {}", result);
+        return result;
     }
 
 
-    public static ReaderAliases getDefault() {
+    public synchronized static ReaderAliases getDefault() {
         if (INSTANCE == null) {
             try {
                 if (System.getenv().containsKey("APDU4J_ALIASES")) {
