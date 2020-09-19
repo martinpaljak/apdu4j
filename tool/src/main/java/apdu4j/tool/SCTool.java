@@ -25,11 +25,7 @@ import apdu4j.core.*;
 import apdu4j.core.CommandAPDU;
 import apdu4j.core.ResponseAPDU;
 import apdu4j.core.BIBOProvider;
-import apdu4j.core.SmartCardApp;
-import apdu4j.core.TouchTerminalApp;
-import apdu4j.pcsc.CardTerminalApp;
-import apdu4j.pcsc.CardTerminalProvider;
-import apdu4j.pcsc.TouchTerminalRunner;
+import apdu4j.core.SimpleSmartCardApp;
 import apdu4j.pcsc.*;
 import apdu4j.pcsc.terminals.LoggingCardTerminal;
 import jnasmartcardio.Smartcardio;
@@ -209,40 +205,25 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
 
             Optional<Path> appFile = resolveApp(app);
             // Resolve the app
-            if (!appFile.isPresent()) {
+            if (appFile.isEmpty()) {
                 System.err.println("App not found: " + app);
                 return 66;
             }
 
             Optional<CardTerminal> rdr = getTheTerminal(reader);
-            if (!rdr.isPresent()) {
+            if (rdr.isEmpty()) {
                 return fail("Specify valid reader to use with -r");
             } else {
                 logger.info("Using " + rdr.get());
             }
 
-            CardTerminal reader = rdr.get();
+            //CardTerminal reader = rdr.get();
 
             // This sets the protocol property, also for CardTerminalApp and TouchTerminalApp
             getProtocol();
 
-            // TODO: reverse order and resolve apps before running, to avoid plugin lookup warnings
-            // First a CardTerminalApp
-            Optional<CardTerminalApp> terminalApp = Plug.loadPlugin(appFile.get(), CardTerminalApp.class);
-            if (terminalApp.isPresent()) {
-                exiter();
-                return terminalApp.get().run(reader, args);
-            }
-
-            // Then TouchTerminalApp
-            Optional<TouchTerminalApp> touchApp = Plug.loadPlugin(appFile.get(), TouchTerminalApp.class);
-            if (touchApp.isPresent()) {
-                exiter();
-                return TouchTerminalRunner.run(reader, touchApp.get(), args);
-            }
-
-            // Then SmartCardApp
-            Optional<SmartCardApp> biboApp = Plug.loadPlugin(appFile.get(), SmartCardApp.class);
+            // Then SimpleSmartCardApp
+            Optional<SimpleSmartCardApp> biboApp = Plug.loadPlugin(appFile.get(), SimpleSmartCardApp.class);
             if (biboApp.isPresent()) {
                 try (BIBO bibo = getBIBO(rdr)) {
                     APDUBIBO ar = new APDUBIBO(bibo);
@@ -280,9 +261,9 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
         List<byte[]> toCard = new ArrayList<>(Arrays.asList(this.apdus));
         // Then explicit apdu-s
         toCard.addAll(apdus);
-        try (APDUBIBO b = new APDUBIBO(getBIBO(getTheTerminal(reader)))) {
+        try (BIBO b = getBIBO(getTheTerminal(reader))) {
             for (byte[] s : toCard) {
-                ResponseAPDU r = b.transmit(new CommandAPDU(s));
+                ResponseAPDU r = new ResponseAPDU(b.transceive(s));
                 if (r.getSW() != 0x9000 && !force) {
                     return fail("Card returned " + String.format("%04X", r.getSW()) + ", exiting!");
                 }
@@ -301,7 +282,7 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
     // Provider.getVersion()
     public int listPlugins() {
         // List TerminalFactory providers
-        Provider providers[] = Security.getProviders("TerminalFactory.PC/SC");
+        Provider[] providers = Security.getProviders("TerminalFactory.PC/SC");
         System.out.println("Existing TerminalFactory providers:");
         if (providers != null) {
             for (Provider p : providers) {
@@ -309,7 +290,7 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
             }
         }
         // List all plugins
-        for (Class<?> p : Arrays.asList(BIBOProvider.class, CardTerminalProvider.class)) {
+        for (Class<?> p : Arrays.asList(BIBOProvider.class)) {
             System.out.printf("Plugins for %s%n", p.getCanonicalName());
             Plug.listPlugins(p);
         }
@@ -319,15 +300,9 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
     Map<Class, Class> enumeratePlugins(Path p) {
         HashMap<Class, Class> result = new HashMap<>();
 
-        Optional<CardTerminalApp> cta = Plug.loadPlugin(p, CardTerminalApp.class);
-        if (cta.isPresent())
-            result.put(CardTerminalApp.class, cta.get().getClass());
-        Optional<TouchTerminalApp> tta = Plug.loadPlugin(p, TouchTerminalApp.class);
-        if (tta.isPresent())
-            result.put(TouchTerminalApp.class, tta.get().getClass());
-        Optional<SmartCardApp> sca = Plug.loadPlugin(p, SmartCardApp.class);
+        Optional<SimpleSmartCardApp> sca = Plug.loadPlugin(p, SimpleSmartCardApp.class);
         if (sca.isPresent())
-            result.put(SmartCardApp.class, sca.get().getClass());
+            result.put(SimpleSmartCardApp.class, sca.get().getClass());
         return result;
     }
 
@@ -380,7 +355,7 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
             cli.setUnmatchedOptionsArePositionalParams(true);
             //cli.setStopAtUnmatched(true);
             cli.setStopAtPositional(true);
-            cli.registerConverter(byte[].class, s -> HexUtils.stringToBin(s));
+            cli.registerConverter(byte[].class, HexUtils::stringToBin);
             try {
                 cli.parseArgs(args);
                 if (tool.debug)
@@ -496,7 +471,6 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
             if (System.getProperty("os.name").toLowerCase().contains("windows") || lowlevel.exclusive)
                 protocol = "EXCLUSIVE;" + protocol;
         }
-        System.setProperty(CardTerminalApp.PROTOCOL_PROPERTY, protocol);
         return protocol;
     }
 
@@ -519,26 +493,29 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
 
     // Return a BIBO or fail
     private BIBO getBIBO(Optional<CardTerminal> rdr) throws CardException {
-        if (!rdr.isPresent()) {
+        if (rdr.isEmpty()) {
             exit("Specify valid reader to use with -r");
         } else {
             logger.info("Using " + rdr.get());
         }
         CardTerminal reader = rdr.get();
         if (!noWait && !reader.isCardPresent()) {
-            boolean present = TouchTerminalRunner.waitForCard(reader, 60);
-            if (!present) {
-                exit("No card in reader. Quit.");
-            }
+            // FIXME:
+            //boolean present = TouchTerminalRunner.waitForCard(reader, 60);
+            //if (!present) {
+            //    exit("No card in reader. Quit.");
+            //}
+            System.err.println("Missing functionality here!");
         }
         Card c = reader.connect(getProtocol());
-        final BIBO bibo;
+        final AsynchronousBIBO bibo;
         if (bareBibo) {
             bibo = CardBIBO.wrap(c);
         } else {
             bibo = GetResponseWrapper.wrap(CardBIBO.wrap(c));
         }
-        return bibo;
+        // XXX: this is ugly, sync->async->sync
+        return new BlockingBIBO(bibo);
     }
 
     // Return a terminal
@@ -555,11 +532,9 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
             // if APDU4J_READER present - use this, resolving plugins
             String APDU4J_READER = "APDU4J_READER";
             if (envOrMeta(APDU4J_READER) != null) {
-                result = Plug.pluginStream(CardTerminalProvider.class) // stream of CTP
-                        .map(e -> e.getTerminal(envOrMeta(APDU4J_READER))) // stream of optional<cardTerminal>
-                        .filter(Optional::isPresent).map(Optional::get)
-                        .findFirst();
-                if (!result.isPresent()) {
+                // TODO: but I want remote reader maybe ...
+                result = new PCSCProvider().getTerminal(envOrMeta(APDU4J_READER));
+                if (result.isEmpty()) {
                     logger.warn(String.format("$%s present but does not resolve to a reader", APDU4J_READER));
                 }
             } else {
@@ -590,11 +565,8 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
                 }
             } else {
                 // -r present with a value: match plugins
-                result = Plug.pluginStream(CardTerminalProvider.class) // stream of CTP
-                        .map(e -> e.getTerminal(reader)) // stream of optional<cardTerminal>
-                        .filter(Optional::isPresent).map(Optional::get)
-                        .findFirst();
-                if (!result.isPresent()) {
+                result = new PCSCProvider().getTerminal(reader);
+                if (result.isEmpty()) {
                     logger.warn(String.format("%s does not resolve to a reader", reader));
                 }
             }

@@ -21,7 +21,7 @@
  */
 package apdu4j.core;
 
-public class HexUtils {
+public final class HexUtils {
     // This code has been taken from Apache commons-codec 1.7 (License: Apache 2.0)
     private static final char[] UPPER_HEX = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
 

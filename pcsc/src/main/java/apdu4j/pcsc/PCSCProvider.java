@@ -32,11 +32,10 @@ import javax.smartcardio.CardException;
 import javax.smartcardio.CardTerminal;
 import java.util.Optional;
 
-@AutoService({BIBOProvider.class, CardTerminalProvider.class})
-public class PCSCProvider implements BIBOProvider, CardTerminalProvider {
+@AutoService({BIBOProvider.class})
+public class PCSCProvider implements BIBOProvider {
     private static final Logger logger = LoggerFactory.getLogger(PCSCProvider.class);
 
-    @Override
     public Optional<CardTerminal> getTerminal(String spec) {
         try {
             return TerminalManager.getInstance(TerminalManager.getTerminalFactory().terminals()).dwim(spec, null, null);
@@ -49,7 +48,7 @@ public class PCSCProvider implements BIBOProvider, CardTerminalProvider {
     @Override
     public Optional<BIBO> getBIBO(String spec) {
         try {
-            String protocol = System.getProperty(CardTerminalApp.PROTOCOL_PROPERTY, "*");
+            String protocol = System.getProperty(TerminalManager.PROTOCOL_PROPERTY, "*");
             Optional<CardTerminal> terminal = TerminalManager.getInstance(TerminalManager.getTerminalFactory().terminals()).dwim(spec, null, null);
             if (terminal.isPresent()) {
                 Card card = terminal.get().connect(protocol);

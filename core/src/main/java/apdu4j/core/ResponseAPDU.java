@@ -52,4 +52,8 @@ public class ResponseAPDU {
     public byte[] getBytes() {
         return apdu.clone();
     }
+
+    public byte[] getSWBytes() {
+        return Arrays.copyOfRange(apdu, apdu.length - 2, apdu.length);
+    }
 }

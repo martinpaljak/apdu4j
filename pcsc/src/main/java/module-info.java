@@ -1,8 +1,8 @@
 module apdu4j.pcsc {
-    requires apdu4j.core;
+    requires transitive apdu4j.core;
     requires apdu4j.jnasmartcardio;
     requires org.slf4j;
-    requires java.smartcardio;
+    requires transitive java.smartcardio;
     requires org.yaml.snakeyaml;
     requires com.google.auto.service;
 

@@ -32,7 +32,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class ATRList {
+public final class ATRList {
     private final Map<String, String> map;
 
     public static ATRList from(InputStream in) throws IOException {

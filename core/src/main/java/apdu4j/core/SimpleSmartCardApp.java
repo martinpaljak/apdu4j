@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Martin Paljak
+ * Copyright (c) 2019-2020 Martin Paljak
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -19,20 +19,18 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package apdu4j.pcsc;
+package apdu4j.core;
 
-import javax.smartcardio.CardTerminal;
-
-public interface CardTerminalApp {
-    // To carry the preferred protocol from CLI to class
-    String PROTOCOL_PROPERTY = "apdu4j.protocol";
-
+public interface SimpleSmartCardApp {
     /**
-     * Like {@code public static void main(String[] argv)} but with a {@link CardTerminal} argument
+     * Runs the smart card application
+     * <p>
+     * Like {@code public static void main(String[] args)}.
+     * https://docs.oracle.com/javase/tutorial/getStarted/application/index.html#MAIN
      *
-     * @param terminal terminal to work on
-     * @param args     command line arguments
-     * @return return code to be used for System.exit()
+     * @param bibo {@link BIBO} to use for smart card communication
+     * @param args command line arguments
+     * @return exit code for {@link System#exit(int)}
      */
-    int run(CardTerminal terminal, String[] args);
+    int run(BIBO bibo, String[] args);
 }

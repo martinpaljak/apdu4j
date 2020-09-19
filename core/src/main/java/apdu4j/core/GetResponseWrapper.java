@@ -21,34 +21,35 @@
  */
 package apdu4j.core;
 
-public class GetResponseWrapper implements BIBO {
-    private BIBO wrapped;
+import java.util.concurrent.CompletableFuture;
 
-    public static GetResponseWrapper wrap(BIBO bibo) {
-        return new GetResponseWrapper(bibo);
+public final class GetResponseWrapper implements AsynchronousBIBO {
+    private final AsynchronousBIBO wrapped;
+
+    public static GetResponseWrapper wrap(AsynchronousBIBO AsynchronousBIBO) {
+        return new GetResponseWrapper(AsynchronousBIBO);
     }
 
-    public GetResponseWrapper(BIBO bibo) {
-        this.wrapped = bibo;
+    public GetResponseWrapper(AsynchronousBIBO AsynchronousBIBO) {
+        this.wrapped = AsynchronousBIBO;
     }
 
     @Override
-    public byte[] transceive(byte[] command) throws BIBOException {
-        byte[] response = new byte[0];
-        // No open loops
-        for (int i = 0; i < 32; i++) {
-            byte[] r = wrapped.transceive(command);
-            ResponseAPDU res = new ResponseAPDU(r);
-            response = concatenate(response, res.getData());
+    public CompletableFuture<byte[]> transmit(byte[] command)  {
+        return transmitCombining(new byte[0], wrapped, command);
+    }
+
+    static CompletableFuture<byte[]> transmitCombining(final byte[] current, final AsynchronousBIBO bibo, final byte[] command) {
+        return bibo.transmit(command).thenComposeAsync((response) -> {
+            ResponseAPDU res = new ResponseAPDU(response);
             if (res.getSW1() == 0x61) {
                 // XXX: dependence on CommandAPDU for 256
-                command = new CommandAPDU(command[0], 0xC0, 0x00, 0x00, res.getSW2() == 0x00 ? 256 : res.getSW2()).getBytes();
+                final byte[] cmd = new CommandAPDU(command[0], 0xC0, 0x00, 0x00, res.getSW2() == 0x00 ? 256 : res.getSW2()).getBytes();
+                return transmitCombining(concatenate(current, res.getData()), bibo, cmd);
             } else {
-                response = concatenate(response, new byte[]{(byte) res.getSW1(), (byte) res.getSW2()});
-                break;
+                return CompletableFuture.completedFuture(concatenate(current, response, res.getSWBytes()));
             }
-        }
-        return response;
+        });
     }
 
     static byte[] concatenate(byte[]... args) {
@@ -62,10 +63,5 @@ public class GetResponseWrapper implements BIBO {
             pos += arg.length;
         }
         return result;
-    }
-
-    @Override
-    public void close() {
-        wrapped.close();
     }
 }
