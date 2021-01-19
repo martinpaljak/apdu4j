@@ -38,8 +38,6 @@
             <groupId>com.google.auto.service</groupId>
             <artifactId>auto-service-annotations</artifactId>
             <version>1.0-rc7</version>
-            <optional>true</optional>
-            <scope>provided</scope>
         </dependency>
     </dependencies>
     <build>
@@ -52,30 +50,32 @@
             </resource>
         </resources>
         <plugins>
-            <!-- GitTagCalVer -->
             <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <version>1.6.0</version>
+                <groupId>pl.project13.maven</groupId>
+                <artifactId>git-commit-id-plugin</artifactId>
+                <version>4.0.3</version>
                 <executions>
                     <execution>
-                        <id>git-version</id>
-                        <phase>generate-resources</phase>
+                        <id>store-git-info</id>
+                        <phase>validate</phase>
                         <goals>
-                            <goal>exec</goal>
+                            <goal>revision</goal>
                         </goals>
                     </execution>
                 </executions>
                 <configuration>
-                    <executable>git</executable>
-                    <outputFile>target/generated-resources/apdu4j/pro_version.txt</outputFile>
-                    <arguments>
-                        <argument>describe</argument>
-                        <argument>--tags</argument>
-                        <argument>--always</argument>
-                        <argument>--long</argument>
-                        <argument>--dirty</argument>
-                    </arguments>
+                    <runOnlyOnce>false</runOnlyOnce>
+                    <offline>true</offline>
+                    <generateGitPropertiesFile>true</generateGitPropertiesFile>
+                    <generateGitPropertiesFilename>${project.build.directory}/generated-resources/apdu4j/pcsc/git.properties</generateGitPropertiesFilename>
+                    <includeOnlyProperties>
+                        <includeOnlyProperty>^git.commit.id.describe$</includeOnlyProperty>
+                    </includeOnlyProperties>
+                    <commitIdGenerationMode>full</commitIdGenerationMode>
+                    <gitDescribe>
+                        <tags>true</tags>
+                        <always>true</always>
+                    </gitDescribe>
                 </configuration>
             </plugin>
         </plugins>

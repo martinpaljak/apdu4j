@@ -23,7 +23,7 @@ package apdu4j.core;
 
 // Extension on top of BIBO, not unline CardChannel, which allows
 // to transmit APDU-s back and forth over BIBO. Drop-in replacement for
-// code that currently has javax.smartcardio *APDU
+// code that currently uses javax.smartcardio *APDU, with a new import for *APDU
 public class APDUBIBO implements BIBO {
     final BIBO bibo;
 

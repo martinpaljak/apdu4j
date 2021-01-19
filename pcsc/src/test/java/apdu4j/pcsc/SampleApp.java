@@ -15,9 +15,9 @@ public class SampleApp extends SmartCardAppFutures {
     private final AppParameters params = new AppParameters();
 
     @Override
-    public void onStart(CompletableFuture<AppParameters> properties) {
+    public CompletableFuture<AppParameters> onStart() {
         logger.info("Application onStart()");
-        properties.complete(params);
+        return CompletableFuture.completedFuture(params);
     }
 
     @Override

@@ -21,6 +21,9 @@
  */
 package apdu4j.core;
 
+/**
+ * Simple smart card application to be run from CLI
+ */
 public interface SimpleSmartCardApp {
     /**
      * Runs the smart card application
