@@ -21,14 +21,14 @@
         <dependency>
             <groupId>info.picocli</groupId>
             <artifactId>picocli</artifactId>
-            <version>4.5.2</version>
+            <version>4.6.1</version>
             <optional>true</optional>
         </dependency>
         <!-- FancyChooser terminal chooser -->
         <dependency>
             <groupId>com.googlecode.lanterna</groupId>
             <artifactId>lanterna</artifactId>
-            <version>3.2.0-alpha1</version>
+            <version>3.1.1</version>
             <optional>true</optional>
         </dependency>
         <!-- logging for cmdline -->
@@ -52,7 +52,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>3.2.2</version>
+                <version>3.2.4</version>
                 <executions>
                     <execution>
                         <id>default-shade</id>

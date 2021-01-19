@@ -34,12 +34,14 @@ public interface AsynchronousBIBO {
      * CardChannel.transmit(ByteBuffer, ByteBuffer) in javax.smartcardio
      * Channel.transmit() in OpenMobileAPI
      *
+     * The future is completed exceptionally if a response APDU can not be retrieved.
+     *
      * @param bytes payload
      * @return the bytes returned from the SE. The size should always be &gt;= 2 bytes
      */
     CompletableFuture<byte[]> transmit(byte[] bytes);
 
-    // Not really a nice thing
+    // Not really a nice thing to provide a default
     default void close() {
     }
 }

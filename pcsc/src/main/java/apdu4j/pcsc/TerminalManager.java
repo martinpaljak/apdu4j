@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2019 Martin Paljak
+ * Copyright (c) 2014-present Martin Paljak
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,10 +36,7 @@ import javax.smartcardio.CardTerminals.State;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -402,16 +399,12 @@ public final class TerminalManager {
 
     // Returns CalVer+git of the utility
     public static String getVersion() {
-        String version = "unknown-development";
-        try (InputStream versionfile = TerminalManager.class.getResourceAsStream("pro_version.txt")) {
-            if (versionfile != null) {
-                try (BufferedReader vinfo = new BufferedReader(new InputStreamReader(versionfile, StandardCharsets.UTF_8))) {
-                    version = vinfo.readLine();
-                }
-            }
+        Properties prop = new Properties();
+        try (InputStream versionfile = TerminalManager.class.getResourceAsStream("git.properties")) {
+            prop.load(versionfile);
+            return prop.getProperty("git.commit.id.describe", "unknown-development");
         } catch (IOException e) {
-            version = "unknown-error";
+            return "unknown-error";
         }
-        return version;
     }
 }
