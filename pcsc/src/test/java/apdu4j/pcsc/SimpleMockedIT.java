@@ -50,7 +50,7 @@ public class SimpleMockedIT {
         // This is synchronous
         CardTerminal cardTerminal = new SynthesizedCardTerminal(pipe);
         Assert.assertEquals(cardTerminal.getName(), "CloudSmartCard emulated reader");
-        Assert.assertTrue(cardTerminal.waitForCardPresent(10)); // Should be enough
+        Assert.assertTrue(cardTerminal.waitForCardPresent(1000)); // Should be enough
         Card c = cardTerminal.connect("*");
         Assert.assertEquals(c.getProtocol(), "T=1");
         Assert.assertEquals(c.getATR().getBytes(), HexUtils.hex2bin("3BF91300008131FE454A434F503234325232A3"));
