@@ -15,7 +15,7 @@ public class SampleApp extends SmartCardAppFutures {
     private final AppParameters params = new AppParameters();
 
     @Override
-    public CompletableFuture<AppParameters> onStart() {
+    public CompletableFuture<AppParameters> onStart(String[] argv) {
         logger.info("Application onStart()");
         return CompletableFuture.completedFuture(params);
     }
@@ -43,5 +43,10 @@ public class SampleApp extends SmartCardAppFutures {
     private static CompletableFuture<String> checkAndLog(byte[] response) {
         logger.info("We received: {}", HexUtils.bin2hex(response));
         return CompletableFuture.completedFuture("NewThing");
+    }
+
+    @Override
+    public String getName() {
+        return "SampleApp";
     }
 }

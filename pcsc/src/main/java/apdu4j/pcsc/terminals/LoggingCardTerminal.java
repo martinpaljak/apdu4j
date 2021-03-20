@@ -22,6 +22,7 @@
 package apdu4j.pcsc.terminals;
 
 import apdu4j.core.HexUtils;
+import apdu4j.pcsc.SCard;
 import apdu4j.pcsc.TerminalManager;
 
 import javax.smartcardio.*;
@@ -41,9 +42,9 @@ import java.util.Calendar;
  *
  * @author Martin Paljak
  */
-public final class LoggingCardTerminal extends CardTerminal {
+public final class LoggingCardTerminal extends CardTerminal implements AutoCloseable {
     // The actual terminal
-    //protected long startTime; // TODO
+    protected long startTime;
     protected final CardTerminal terminal;
     protected final PrintStream log;
     protected final PrintStream dump;
@@ -75,12 +76,17 @@ public final class LoggingCardTerminal extends CardTerminal {
         return make(term, System.out, null);
     }
 
-    public static LoggingCardTerminal getInstance(CardTerminal term, OutputStream dump) {
-        return make(term, System.out, dump);
+    public static LoggingCardTerminal getInstance(CardTerminal term, OutputStream logStream) {
+        return make(term, logStream, null);
+    }
+
+    public static LoggingCardTerminal getInstance(CardTerminal term, OutputStream logStream, OutputStream dump) {
+        return make(term, logStream, dump);
     }
 
     @Override
     public Card connect(String arg0) throws CardException {
+        startTime = System.currentTimeMillis();
         return new LoggingCard(terminal, arg0);
     }
 
@@ -105,6 +111,14 @@ public final class LoggingCardTerminal extends CardTerminal {
         return terminal.waitForCardPresent(arg0);
     }
 
+    @Override
+    public void close() {
+        if (log != null)
+            log.close();
+        if (dump != null)
+            dump.close();
+    }
+
 
     public final class LoggingCard extends Card {
         private long inBytes = 0;
@@ -127,7 +141,7 @@ public final class LoggingCardTerminal extends CardTerminal {
                     dump.println("#");
                 }
             } catch (CardException e) {
-                log.println(" -> " + TerminalManager.getExceptionMessage(e));
+                log.println(" -> " + SCard.getExceptionMessage(e));
                 throw e;
             }
         }
@@ -140,7 +154,8 @@ public final class LoggingCardTerminal extends CardTerminal {
 
         @Override
         public void disconnect(boolean arg0) throws CardException {
-            log.println(String.format("SCardDisconnect(\"%s\", %s) tx:%d/rx:%d", terminal.getName(), arg0, outBytes, inBytes));
+            long duration = System.currentTimeMillis() - startTime;
+            log.println(String.format("SCardDisconnect(\"%s\", %s) tx:%d/rx:%d in %s", terminal.getName(), arg0, outBytes, inBytes, time(duration)));
             inBytes = outBytes = 0;
             if (dump != null) {
                 dump.close();
@@ -181,15 +196,10 @@ public final class LoggingCardTerminal extends CardTerminal {
             try {
                 result = card.transmitControlCommand(arg0, arg1);
             } catch (CardException e) {
-                String err = TerminalManager.getExceptionMessage(e);
-                if (err != null) {
-                    log.println(" -> " + err);
-                } else {
-                    log.println(" -> Exception");
-                }
+                log.println("-> " + SCard.getPCSCError(e).orElse("Exception"));
                 throw e;
             }
-            log.println(" -> " + HexUtils.bin2hex(result));
+            log.println(" -> " + ((result == null || result.length == 0) ? "null" : HexUtils.bin2hex(result)));
             return result;
         }
 
@@ -257,7 +267,7 @@ public final class LoggingCardTerminal extends CardTerminal {
                     response = channel.transmit(apdu);
                     outBytes += cb.length;
                 } catch (CardException e) {
-                    String err = TerminalManager.getExceptionMessage(e);
+                    String err = SCard.getExceptionMessage(e);
                     String time = time(System.currentTimeMillis() - t);
                     if (err != null)
                         log.println("<< (" + time + ") " + err);
@@ -282,13 +292,6 @@ public final class LoggingCardTerminal extends CardTerminal {
                 return response;
             }
 
-            private String time(long ms) {
-                String time = ms + "ms";
-                if (ms > 1000) {
-                    time = ms / 1000 + "s" + ms % 1000 + "ms";
-                }
-                return time;
-            }
 
             @Override
             public int transmit(ByteBuffer command, ByteBuffer response) throws CardException {
@@ -315,5 +318,13 @@ public final class LoggingCardTerminal extends CardTerminal {
                 return resplen;
             }
         }
+    }
+
+    private static String time(long ms) {
+        String time = ms + "ms";
+        if (ms > 1000) {
+            time = ms / 1000 + "s" + ms % 1000 + "ms";
+        }
+        return time;
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020 Martin Paljak
+ * Copyright (c) 2021-present Martin Paljak
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,13 @@ package apdu4j.core;
 
 import java.util.Optional;
 
-public interface BIBOProvider {
-    Optional<BIBO> getBIBO(String spec);
+// Tagging intterface for loadable apps
+public interface SmartCardApp {
+    default String getName() {
+        return getClass().getSimpleName().toLowerCase();
+    }
+
+    default Optional<String> getDescription() {
+        return Optional.empty();
+    }
 }

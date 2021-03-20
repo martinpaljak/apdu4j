@@ -24,14 +24,14 @@ package apdu4j.core;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 
-public interface SmartCardAppListener {
+public interface SmartCardAppListener extends SmartCardApp {
 
     /**
      * Complete the returned future to start application (emit onCardPresent)
      *
      * @return
      */
-    CompletableFuture<AppParameters> onStart();
+    CompletableFuture<AppParameters> onStart(String[] argv);
 
     /**
      * Called for every chip session. This means a "freshly" started chip.

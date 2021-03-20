@@ -38,10 +38,11 @@ import java.util.concurrent.CompletableFuture;
  */
 public class CardBIBO implements BIBO, AsynchronousBIBO {
     private static final Logger logger = LoggerFactory.getLogger(CardBIBO.class);
-    public static final String APDU4J_PSEUDOAPDU = "apdu4j.pseudoapdu";
+    public static final String PROP_APDU4J_PSEUDOAPDU = "apdu4j.pseudoapdu";
     protected final Card card;
+
     // set to false to disable pseudoapdu-s
-    public boolean pseudo = System.getProperty(APDU4J_PSEUDOAPDU, "true").equalsIgnoreCase("true");
+    public boolean pseudo = Boolean.getBoolean(System.getProperty(PROP_APDU4J_PSEUDOAPDU, Boolean.TRUE.toString()));
     protected HashMap<Integer, CardChannel> channels = new HashMap<>();
 
     protected CardBIBO(Card card) {
@@ -116,8 +117,9 @@ public class CardBIBO implements BIBO, AsynchronousBIBO {
                 throw new BIBOException("Channel not open: " + channel);
             return channels.get(channel).transmit(new CommandAPDU(bytes)).getBytes();
         } catch (CardException e) {
-            String r = TerminalManager.getExceptionMessage(e);
+            String r = SCard.getExceptionMessage(e);
             if (r.equals(SCard.SCARD_E_NOT_TRANSACTED) || r.equals(SCard.SCARD_E_NO_SMARTCARD)) {
+                logger.debug("Assuming tag removed, because {}", r);
                 throw new TagRemovedException(r, e);
             }
             throw new BIBOException(e.getMessage(), e);

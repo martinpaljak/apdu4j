@@ -27,10 +27,10 @@ public class SimpleMockedIT {
 
     @Test
     public void testSimpleEmulatedTerminalApp() throws Exception {
+        TerminalFactory factory = TerminalFactory.getInstance("PC/SC", SimpleMockedIT.class.getResourceAsStream("test.dump"), new APDUReplayProvider());
         long start = System.currentTimeMillis();
-        CardTerminal terminal = new APDUReplayProvider.ReplayTerminal(SimpleMockedIT.class.getResourceAsStream("test.dump"), true);
         SampleApp app = new SampleApp();
-        Thread t = new Thread(CardTerminalAppRunner.once(terminal, app));
+        Thread t = new Thread(CardTerminalAppRunner.once(factory, APDUReplayProvider.READER_NAME, app));
         t.start();
         t.join();
         long duration = System.currentTimeMillis() - start;
@@ -42,9 +42,15 @@ public class SimpleMockedIT {
     @Test
     public void testSynthesizedCardTerminal() throws Exception {
         long start = System.currentTimeMillis();
-        CardTerminal terminal = new APDUReplayProvider.ReplayTerminal(SimpleMockedIT.class.getResourceAsStream("test.dump"), true);
-        SmartCardAppFutures pipe = new SmartCardAppFutures();
-        Thread t = new Thread(CardTerminalAppRunner.once(terminal, pipe));
+        TerminalFactory factory = TerminalFactory.getInstance("PC/SC", SimpleMockedIT.class.getResourceAsStream("test.dump"), new APDUReplayProvider());
+
+        SmartCardAppFutures pipe = new SmartCardAppFutures() {
+            @Override
+            public String getName() {
+                return "test";
+            }
+        };
+        Thread t = new Thread(CardTerminalAppRunner.once(factory, APDUReplayProvider.READER_NAME, pipe));
         t.start();
 
         // This is synchronous

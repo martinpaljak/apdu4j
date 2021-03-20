@@ -36,12 +36,9 @@ import java.util.stream.Collectors;
 
 public final class ReaderAliases {
     private static transient final Logger logger = LoggerFactory.getLogger(ReaderAliases.class);
+    public static final String ENV_APDU4J_ALIASES = "APDU4J_ALIASES";
     private static transient volatile ReaderAliases INSTANCE;
-    private static transient final HashMap<String, String> aliases = new HashMap<>();
-
-    public List<String> translate(List<String> readerNames) {
-        return readerNames.stream().map(this::translate).collect(Collectors.toList());
-    }
+    private transient final HashMap<String, String> aliases;
 
     // Translates full name to alias name, if it matches any
     public String translate(String name) {
@@ -53,16 +50,20 @@ public final class ReaderAliases {
         return aliases.entrySet().stream().filter(e -> matches(name, e.getKey())).findFirst().map(Entry::getValue);
     }
 
-    // Returns the alias, if it matches
+    // Returns the alias + fullname if it matches, fullname otherwise
     public String extended(String name) {
         return alias(name).map(a -> String.format("%s (%s)", a, name)).orElse(name);
+    }
+
+    public String extended2(String name) {
+        return alias(name).map(a -> String.format("%s (%s)", name, a)).orElse(name);
     }
 
     private boolean matches(String name, String match) {
         return name.toLowerCase().contains(match.toLowerCase());
     }
 
-    boolean verify() {
+    static boolean verify(HashMap<String, String> aliases) {
         // Matches must be unique
         Set<String> matches = aliases.keySet().stream().map(String::toLowerCase).collect(Collectors.toSet());
         if (matches.size() != aliases.keySet().size()) {
@@ -79,37 +80,56 @@ public final class ReaderAliases {
         return true;
     }
 
+    private ReaderAliases(HashMap<String, String> aliases) {
+        this.aliases = aliases;
+    }
+
+    public ReaderAliases apply(Collection<String> names) {
+        // Loop aliases and see if some matches more than one, in which case
+        HashMap<String, String> uniq = new HashMap<>();
+        for (Entry<String, String> alias : aliases.entrySet()) {
+            if (names.stream().filter(e -> matches(e, alias.getKey())).count() > 1) {
+                logger.trace("{} matches more than one, disabling", alias.getKey());
+            } else {
+                uniq.put(alias.getKey(), alias.getValue());
+            }
+        }
+
+        return new ReaderAliases(uniq);
+    }
+
     public static ReaderAliases load(Path p) throws IOException {
-        ReaderAliases result = new ReaderAliases();
+        HashMap<String, String> loaded = new HashMap<>();
         if (!Files.exists(p))
-            return result;
+            return new ReaderAliases(loaded);
 
         try (InputStream in = Files.newInputStream(p)) {
             ArrayList<Map<String, String>> content = new Yaml().load(in);
             for (Map<String, String> e : content) {
-                result.aliases.put(e.get("match"), e.get("alias"));
+                loaded.put(e.get("match"), e.get("alias"));
             }
         } catch (IOException e) {
             logger.error("Could not parse reader name aliases: " + e.getMessage(), e);
         }
-        if (!result.verify())
+        if (!verify(loaded))
             throw new IOException("Matches or aliases are not uniq!");
-        logger.info("Loaded aliases: {}", result);
-        return result;
+        logger.info("Loaded aliases: {}", loaded);
+        return new ReaderAliases(loaded);
     }
 
 
-    public synchronized static ReaderAliases getDefault() {
+    public static ReaderAliases getDefault() {
         if (INSTANCE == null) {
             try {
-                if (System.getenv().containsKey("APDU4J_ALIASES")) {
-                    INSTANCE = load(Paths.get(System.getenv("APDU4J_ALIASES")));
+                if (System.getenv().containsKey(ENV_APDU4J_ALIASES)) {
+                    INSTANCE = load(Paths.get(System.getenv(ENV_APDU4J_ALIASES)));
                 } else {
+                    // TODO: Windows has appdata
                     INSTANCE = load(Paths.get(System.getProperty("user.home"), ".apdu4j", "aliases.yaml"));
                 }
             } catch (IOException e) {
                 logger.error("Could not load reader aliases: " + e.getMessage(), e);
-                INSTANCE = new ReaderAliases();
+                INSTANCE = new ReaderAliases(new HashMap<>());
             }
         }
         return INSTANCE;

@@ -23,16 +23,13 @@ package apdu4j.pcsc;
 
 import apdu4j.core.AsynchronousBIBO;
 import apdu4j.core.BIBOException;
-import apdu4j.core.HexUtils;
 import apdu4j.core.SmartCardAppListener;
 import apdu4j.core.SmartCardAppListener.AppParameters;
 import apdu4j.core.SmartCardAppListener.CardData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.smartcardio.Card;
-import javax.smartcardio.CardException;
-import javax.smartcardio.CardTerminal;
+import javax.smartcardio.*;
 import java.io.EOFException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -40,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static apdu4j.pcsc.TerminalManager.getExceptionMessage;
+import static apdu4j.pcsc.SCard.getExceptionMessage;
 
 /**
  * Runs an application on top of a CardTerminal. This is usually run in a thread.
@@ -49,7 +46,10 @@ public class CardTerminalAppRunner implements Runnable, AsynchronousBIBO {
     private static final Logger logger = LoggerFactory.getLogger(CardTerminalAppRunner.class);
     private static final long IDLE_TIMEOUT_SECONDS = 60;
 
-    final CardTerminal terminal;
+    private final String[] argv;
+
+    final String terminalName;
+    final TerminalFactory factory;
     final SmartCardAppListener app;
 
     private AtomicReference<CompletableFuture<byte[]>> incoming = new AtomicReference<>();
@@ -59,38 +59,32 @@ public class CardTerminalAppRunner implements Runnable, AsynchronousBIBO {
     boolean multisession = false;
     boolean needsTouch = true;
 
+    boolean spawnMonitor = true;
+
     // Companion thread for monitoring events
     Thread monitor;
 
-    public CardTerminalAppRunner(CardTerminal terminal, SmartCardAppListener app, String protocol, boolean multisession, boolean needsTouch) {
-        this(terminal, app);
-        this.multisession = multisession;
-        this.needsTouch = needsTouch;
-        this.protocol = protocol;
-    }
-
-    CardTerminalAppRunner(CardTerminal terminal, SmartCardAppListener app) {
-        this.terminal = terminal;
+    public CardTerminalAppRunner(TerminalFactory factory, String terminal, SmartCardAppListener app, String[] argv) {
+        this.factory = factory;
+        this.terminalName = terminal;
         this.app = app;
-        logger.info("Created connector for {} on {}", app.getClass(), terminal.getName());
+        this.argv = argv.clone();
+        logger.info("Created connector for {} on {}", app.getClass(), terminalName);
     }
 
-    public static CardTerminalAppRunner once(CardTerminal terminal, SmartCardAppListener app) {
-        CardTerminalAppRunner r = new CardTerminalAppRunner(terminal, app);
+    public static CardTerminalAppRunner once(TerminalFactory factory, String terminalName, SmartCardAppListener app) {
+        CardTerminalAppRunner r = new CardTerminalAppRunner(factory, terminalName, app, new String[0]);
         r.multisession = false;
         r.needsTouch = false;
         return r;
     }
 
-    public static CardTerminalAppRunner forever(CardTerminal terminal, SmartCardAppListener app) {
-        CardTerminalAppRunner r = new CardTerminalAppRunner(terminal, app);
-        r.multisession = true;
-        r.needsTouch = true;
-        return r;
-    }
-
     @Override
     public void run() {
+        // Make sure we have our own (per-thread) PC/SC context on Linux
+        CardTerminals terminals = factory.terminals();
+        CardTerminal terminal = terminals.getTerminal(terminalName);
+
         // Only set if not main thread
         if (!Thread.currentThread().getName().equals("main"))
             Thread.currentThread().setName(terminal.getName());
@@ -101,7 +95,7 @@ public class CardTerminalAppRunner implements Runnable, AsynchronousBIBO {
         CardBIBO trunk = null;
 
         // wait for card, connect, send onCardPresent, spawn monitor, wait for apdu, transmit,
-        CompletableFuture<AppParameters> start = app.onStart();
+        CompletableFuture<AppParameters> start = app.onStart(argv);
         try {
             // This blocks until available
             AppParameters appProperties = start.join();
@@ -124,13 +118,13 @@ public class CardTerminalAppRunner implements Runnable, AsynchronousBIBO {
                     try {
                         card = terminal.connect(protocol);
 
-                        if (monitor == null) {
-                            monitor = new MonitorThread(this, app);
+                        if (monitor == null && spawnMonitor) {
+                            monitor = new CardTerminalMonitorThread(this, app);
                             monitor.start();
                         }
                         logger.debug("Connected card, protocol {}", card.getProtocol());
                     } catch (CardException e) {
-                        logger.error(e.getMessage());
+                        logger.error("Could not connect: {}", e.getMessage());
                         if (getExceptionMessage(e).equals(SCard.SCARD_W_UNPOWERED_CARD)) {
                             // Contact card not yet powered up
                             Thread.sleep(100);
@@ -150,11 +144,12 @@ public class CardTerminalAppRunner implements Runnable, AsynchronousBIBO {
                     trunk = CardBIBO.wrap(card);
 
                     CardData props = new CardData();
-                    props.put("atr", HexUtils.bin2hex(card.getATR().getBytes()));
-                    props.put("protocol", card.getProtocol());
+                    props.put(CardData.ATR_BYTES, card.getATR().getBytes());
+                    props.put(CardData.PROTOCOL_STRING, card.getProtocol());
                     props.put("reader", terminal.getName());
 
                     incoming.set(new CompletableFuture<>());
+                    // This makes sure that the initial thread for async tasks would NOT be the reader thread
                     CompletableFuture.runAsync(() -> app.onCardPresent(this, props));
 
                     while (!Thread.currentThread().isInterrupted()) {
@@ -166,26 +161,39 @@ public class CardTerminalAppRunner implements Runnable, AsynchronousBIBO {
                             outgoing.get().complete(response);
                             exceptioned = false;
                         } catch (BIBOException e) {
+                            String err = SCard.getExceptionMessage(e);
                             logger.info("Transmit failed: " + e.getCause());
+                            // Trigger card removed event
+                            app.onCardRemoved();
+                            // And complete outstanding transmit exceptionally
                             outgoing.get().completeExceptionally(e);
                         } catch (TimeoutException e) {
                             logger.error("App timed out and did not send anything within {} seconds", IDLE_TIMEOUT_SECONDS);
-                            CompletableFuture.runAsync(() -> app.onError(e));
+                            app.onError(e);
+                            //Thread.currentThread().interrupt(); // FIXME: we bail out? what to do when multisession?
                             return;
                         } catch (ExecutionException e) {
                             logger.info("incoming.get() exceptioned: " + e.getCause());
                             // XXX: the exception thingy here is super hacky
                             if (e.getCause() instanceof EOFException) {
                                 card.disconnect(true);
+                                if (multisession) {
+                                    waitForCardAbsent(terminal);
+                                    app.onCardRemoved();
+                                }
                             } else {
                                 e.printStackTrace();
                             }
                         } finally {
                             if (exceptioned) {
-                                if (multisession)
+                                logger.debug("Transceive exceptioned");
+                                if (multisession) {
+                                    logger.debug("Continuing multisession app");
                                     continue freshcard;
-                                else
+                                } else {
+                                    logger.debug("We are done");
                                     return;
+                                }
                             }
                         }
                     }
@@ -214,13 +222,12 @@ public class CardTerminalAppRunner implements Runnable, AsynchronousBIBO {
         logger.info("DONE; releasing reader");
     }
 
-    // Thread that waits for card removal,
-    // to emit removal event even if no APDU communication is in place.
-    static class MonitorThread extends Thread {
+    // Thread that waits for card removal, to emit removal event even if no APDU communication is in place.
+    static class CardTerminalMonitorThread extends Thread {
         final CardTerminalAppRunner t;
         final SmartCardAppListener app;
 
-        MonitorThread(CardTerminalAppRunner t, SmartCardAppListener app) {
+        CardTerminalMonitorThread(CardTerminalAppRunner t, SmartCardAppListener app) {
             this.t = t;
             this.app = app;
             setDaemon(true);
@@ -228,12 +235,16 @@ public class CardTerminalAppRunner implements Runnable, AsynchronousBIBO {
 
         @Override
         public void run() {
-            setName("monitor: " + t.terminal.getName());
+            setName("monitor: " + t.terminalName);
             logger.info("Monitor thread starting");
+            final CardTerminal terminal;
+            CardTerminals terminals = t.factory.terminals();
+            terminal = terminals.getTerminal(t.terminalName);
+
             while (!isInterrupted()) {
                 try {
                     // Wait for card removal
-                    boolean found = t.terminal.waitForCardAbsent(3000);
+                    boolean found = terminal.waitForCardAbsent(0);
                     if (found) {
                         logger.info("Card removed!");
                         // Do not call from monitor thread
@@ -241,30 +252,40 @@ public class CardTerminalAppRunner implements Runnable, AsynchronousBIBO {
                         if (!t.multisession)
                             break;
                         else {
-                            t.terminal.waitForCardPresent(0);
+                            terminal.waitForCardPresent(0);
                         }
                     }
                 } catch (CardException e) {
-                    logger.warn("Failed: " + e.getMessage(), e);
+                    // Errors means no event, but not fatal/relevant for app. Don't report error
+                    logger.warn("Failed to wait: {}", SCard.getExceptionMessage(e), e);
                 }
             }
             logger.info("Monitor thread done");
         }
+
     }
 
 
-    public static void waitForCard(CardTerminal t) throws CardException {
-        logger.trace("Waiting for card...");
-        while (!Thread.currentThread().isInterrupted()) {
-            if (t.waitForCardPresent(1000))
+    public static void waitForCard(CardTerminal t) throws CardException, InterruptedException {
+        logger.debug("Waiting for card...");
+        while (true) {
+            boolean result = t.waitForCardPresent(1000);
+            logger.debug("result: {}", result);
+            if (Thread.interrupted())
+                throw new InterruptedException("interrupted");
+            if (result)
                 return;
         }
     }
 
-    private static void waitForCardAbsent(CardTerminal t) throws CardException {
-        logger.trace("Waiting for card removal...");
-        while (!Thread.currentThread().isInterrupted()) {
-            if (t.waitForCardAbsent(3000))
+    public static void waitForCardAbsent(CardTerminal t) throws CardException, InterruptedException {
+        logger.debug("Waiting for card absent...");
+        while (true) {
+            boolean result = t.waitForCardAbsent(1000);
+            logger.debug("result: {}", result);
+            if (Thread.interrupted())
+                throw new InterruptedException("interrupted");
+            if (result)
                 return;
         }
     }
@@ -295,9 +316,9 @@ public class CardTerminalAppRunner implements Runnable, AsynchronousBIBO {
 
     @Override
     public void close() {
-        logger.info("close()");
+        logger.debug("close()");
         CompletableFuture ic = incoming.get();
         if (ic != null)
-            ic.completeExceptionally(new EOFException("Done"));
+            ic.completeExceptionally(new EOFException("Done with #close()"));
     }
 }

@@ -31,36 +31,35 @@ import java.security.Provider;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
 
-public abstract class EmulatedTerminalProvider extends Provider {
+public abstract class EmulatedSingleTerminalProvider extends Provider {
     static final long serialVersionUID = -1813264769968105172L;
 
-    static transient volatile Function<Object, CardTerminal> provider;
-    static transient volatile CardTerminal instance;
-
-    private transient static final String PROVIDER_NAME = "Emulated";
-
     @SuppressWarnings("deprecation") // 11 would prefer String, String, String super
-    public EmulatedTerminalProvider(Function<Object, CardTerminal> provider) {
-        super(PROVIDER_NAME, 0.1d, "EmulatedTerminalProvider from apdu4j/" + TerminalManager.getVersion());
-        EmulatedTerminalProvider.provider = provider;
-        put("TerminalFactory.PC/SC", EmulatedTerminalProviderSpi.class.getName());
+    public EmulatedSingleTerminalProvider(Class<? extends EmulatedTerminalFactorySpi> clazz) {
+        super(String.format("Emulated %s", clazz.getSimpleName()), 0.1d, "EmulatedTerminalProvider from apdu4j/" + TerminalManager.getVersion());
+        put("TerminalFactory.PC/SC", clazz.getName());
     }
 
-    public static class EmulatedTerminalProviderSpi extends TerminalFactorySpi {
+    public static class EmulatedTerminalFactorySpi extends TerminalFactorySpi {
+        transient volatile CardTerminal instance;
+
         Object parameter;
 
-        public EmulatedTerminalProviderSpi(Object parameter) {
+        public EmulatedTerminalFactorySpi(Object parameter) {
             this.parameter = parameter;
         }
 
         @Override
         public CardTerminals engineTerminals() {
             if (instance == null) {
-                instance = provider.apply(parameter);
+                instance = getTheTerminal();
             }
             return new EmulatedCardTerminals(Collections.unmodifiableList(Arrays.asList(instance)));
+        }
+
+        protected CardTerminal getTheTerminal() {
+            throw new IllegalStateException("getTheTerminal() must be implemented!");
         }
     }
 
@@ -74,11 +73,18 @@ public abstract class EmulatedTerminalProvider extends Provider {
 
         @Override
         public List<CardTerminal> list(State state) {
-            return terminals; // FIXME: state ?
+            switch (state) {
+                case ALL:
+                case CARD_PRESENT:
+                case CARD_INSERTION:
+                    return terminals;
+            }
+            return Collections.emptyList();
         }
 
         @Override
         public boolean waitForChange(long l) throws CardException {
+            // Do nothing
             try {
                 Thread.sleep(l);
                 return false;

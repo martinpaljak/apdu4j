@@ -21,35 +21,36 @@
  */
 package apdu4j.pcsc;
 
-import apdu4j.core.APDUBIBO;
-import apdu4j.core.BIBO;
-import apdu4j.core.HexUtils;
 import apdu4j.core.CommandAPDU;
 import apdu4j.core.ResponseAPDU;
-
+import apdu4j.core.*;
+import apdu4j.pcsc.terminals.LoggingCardTerminal;
 import jnasmartcardio.Smartcardio;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.smartcardio.*;
 import javax.smartcardio.CardTerminals.State;
-import java.io.*;
-import java.nio.charset.StandardCharsets;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.function.Function;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
- * Facilitates working with javax.smartcardio
+ * Facilitates working with javax.smartcardio TerminalFactory/CardTerminals
+ * <p>
+ * Also knows about an alternative implementation, jnasmartcardio
  */
 public final class TerminalManager {
-    public static final String PROTOCOL_PROPERTY = "apdu4j.protocol";
+    private static final Logger logger = LoggerFactory.getLogger(TerminalManager.class);
+
     public static final String LIB_PROP = "sun.security.smartcardio.library";
 
-    private static final Logger logger = LoggerFactory.getLogger(TerminalManager.class);
     private static final String debian64_path = "/usr/lib/x86_64-linux-gnu/libpcsclite.so.1";
     private static final String ubuntu_path = "/lib/libpcsclite.so.1";
     private static final String ubuntu32_path = "/lib/i386-linux-gnu/libpcsclite.so.1";
@@ -60,10 +61,13 @@ public final class TerminalManager {
 
     private final List<CardTerminal> terminals;
 
-    static String _detectLibraryPath() {
+    // SunPCSC needs to have the path to the loadable library to work, for whatever reasons.
+    public static String detectLibraryPath() {
+        // Would be nice to use Files.exists instead.
+        final String os = System.getProperty("os.name");
         // Set necessary parameters for seamless PC/SC access.
         // http://ludovicrousseau.blogspot.com.es/2013/03/oracle-javaxsmartcardio-failures.html
-        if (System.getProperty("os.name").equalsIgnoreCase("Linux")) {
+        if (os.equalsIgnoreCase("Linux")) {
             // Only try loading 64b paths if JVM can use them.
             if (System.getProperty("os.arch").contains("64")) {
                 if (new File(debian64_path).exists()) {
@@ -83,18 +87,17 @@ public final class TerminalManager {
                 // XXX: dlopen() works properly on Debian OpenJDK 7
                 // System.err.println("Hint: pcsc-lite probably missing.");
             }
-        } else if (System.getProperty("os.name").equalsIgnoreCase("FreeBSD")) {
+        } else if (os.equalsIgnoreCase("FreeBSD")) {
             if (new File(freebsd_path).exists()) {
                 return freebsd_path;
             } else {
                 System.err.println("Hint: pcsc-lite is missing. pkg install devel/libccid");
             }
+        } else if (os.equalsIgnoreCase("Mac OS X")) {
+            // XXX: research/document this
+            return "/System/Library/Frameworks/PCSC.framework/PCSC";
         }
         return null;
-    }
-
-    public static Optional<String> detectLibraryPath() {
-        return Optional.ofNullable(_detectLibraryPath());
     }
 
     /**
@@ -102,19 +105,10 @@ public final class TerminalManager {
      * could find the smart card service. Call this before acquiring your TerminalFactory.
      */
     public static void fixPlatformPaths() {
-        Optional<String> lib = detectLibraryPath();
+        Optional<String> lib = Optional.ofNullable(detectLibraryPath());
         if (System.getProperty(LIB_PROP) == null && lib.isPresent()) {
             System.setProperty(LIB_PROP, lib.get());
         }
-    }
-
-    // Returns true if the reader contains fragments to ignore (given as semicolon separated string)
-    public static boolean ignoreReader(String ignore, String reader) {
-        if (ignore != null) {
-            String[] names = ignore.toLowerCase().split(";");
-            return Arrays.stream(names).anyMatch(e -> reader.toLowerCase().contains(e));
-        }
-        return false;
     }
 
     // Utility function to return a "Good terminal factory" (JNA)
@@ -122,79 +116,7 @@ public final class TerminalManager {
         try {
             return TerminalFactory.getInstance("PC/SC", null, new Smartcardio());
         } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("jnasmartcardio not bundled");
-        }
-    }
-
-    // Utility function that lists known readers
-    public static void listReaders(String ignore, List<CardTerminal> terminals, PrintStream to, boolean pinpad) {
-        try {
-            for (CardTerminal t : terminals) {
-                String vmd = "";
-                if (pinpad) {
-                    try (PinPadTerminal pp = PinPadTerminal.getInstance(t)) {
-                        pp.probe();
-                        // Verify, Modify, Display
-                        vmd += pp.canVerify() ? "V" : " ";
-                        vmd += pp.canModify() ? "M" : " ";
-                        vmd += pp.hasDisplay() ? "D" : " ";
-                    } catch (CardException e) {
-                        String err = TerminalManager.getExceptionMessage(e);
-                        if (err.equals(SCard.SCARD_E_SHARING_VIOLATION)) {
-                            vmd = "   ";
-                        } else
-                            vmd = "EEE";
-                    }
-                    vmd = "[" + vmd + "] ";
-                }
-                String present = " ";
-                if (ignoreReader(ignore, t.getName())) {
-                    present = "I";
-                } else if (t.isCardPresent()) {
-                    present = "*";
-                }
-                String secondline = null;
-
-                if (t.isCardPresent()) {
-                    Card c = null;
-                    byte[] atr = null;
-                    // Try shared mode, to detect exclusive mode via exception
-                    try {
-                        c = t.connect("*");
-                        atr = c.getATR().getBytes();
-                    } catch (CardException e) {
-                        String err = TerminalManager.getExceptionMessage(e);
-                        // Detect exclusive mode. Hopes this always succeeds
-                        if (err.equals(SCard.SCARD_E_SHARING_VIOLATION)) {
-                            present = "X";
-                            try {
-                                c = t.connect("DIRECT");
-                                atr = c.getATR().getBytes();
-                            } catch (CardException e2) {
-                                String err2 = TerminalManager.getExceptionMessage(e2);
-                                if (err2.equals(SCard.SCARD_E_SHARING_VIOLATION)) {
-                                    present = "X";
-                                }
-                            }
-                        } else {
-                            secondline = "          " + err;
-                        }
-                    } finally {
-                        if (c != null)
-                            c.disconnect(false);
-                    }
-
-                    if (atr != null) {
-                        secondline = "          " + HexUtils.bin2hex(atr).toUpperCase();
-                    }
-                }
-
-                to.println(String.format("[%s] %s%s", present, vmd, t.getName()));
-                if (secondline != null)
-                    to.println(secondline);
-            }
-        } catch (CardException e) {
-            logger.error("Failed to print reader list: " + e.getMessage(), e);
+            throw new IllegalStateException("jnasmartcardio not bundled, new architecture?");
         }
     }
 
@@ -208,80 +130,6 @@ public final class TerminalManager {
 
     private TerminalManager(List<CardTerminal> terminals) {
         this.terminals = terminals;
-    }
-
-    // Do some DWIM to get a reader out of many
-    public Optional<CardTerminal> dwim(String arg, String ignore, Collection<byte[]> atrs) {
-        if (arg != null) {
-            // DWIM 1: specify reader by human index, 1..9
-            if (arg.length() == 1 && Character.isDigit(arg.charAt(0))) {
-                int n = Character.getNumericValue(arg.charAt(0));
-                if (n > 0 && n < 10 && n <= terminals.size()) {
-                    CardTerminal t = terminals.get(n - 1);
-                    logger.debug("Matched {} based on index {}", t.getName(), n);
-                    return Optional.of(t);
-                } else {
-                    logger.error(n + ": only have " + terminals.size() + " readers.");
-                    listReaders(ignore, terminals, System.err, false);
-                }
-            }
-
-            // DWIM 2: portion of the name or alias
-            final ReaderAliases alias = ReaderAliases.getDefault();
-            final String q = arg.toLowerCase();
-            List<CardTerminal> matchingName = terminals.stream().filter(t -> t.getName().toLowerCase().contains(q) || alias.translate(t.getName()).toLowerCase().contains(q)).collect(Collectors.toList());
-            if (matchingName.size() == 1) {
-                logger.debug("Matched {}", matchingName.get(0));
-                return Optional.of(matchingName.get(0));
-            } else if (matchingName.size() == 0) {
-                logger.error(String.format("No reader matches '%s'", arg));
-                return Optional.empty();
-            } else {
-                logger.warn(String.format("Multiple readers contain '%s'", arg));
-                listReaders(ignore, terminals, System.err, false);
-            }
-        } else {
-            // No reader indicated. Try to figure one out automagically
-            // No readers
-            if (terminals.size() == 0) {
-                logger.error("No smart card readers available");
-                return Optional.empty();
-            }
-
-            // One reader
-            if (terminals.size() == 1) {
-                if (ignoreReader(ignore, terminals.get(0).getName())) {
-                    logger.warn("Only one reader, but ignoring it!");
-                    return Optional.empty();
-                }
-                return Optional.of(terminals.get(0));
-            }
-
-            // Multiple readers.
-            // DWIM 1: Only one has card
-            List<CardTerminal> withCard = terminals.stream().filter(e -> {
-                try {
-                    return e.isCardPresent() && !ignoreReader(ignore, e.getName());
-                } catch (CardException ex) {
-                    return false;
-                }
-            }).collect(Collectors.toList());
-            if (withCard.size() == 1) {
-                logger.debug("Selected the only reader with a card");
-                return Optional.of(withCard.get(0));
-            }
-
-            // DWIM 2: Only one matches ATR hints
-            List<CardTerminal> withAtr = byATR(terminals, atrs);
-            if (withAtr.size() == 1) {
-                logger.debug("Selected the only reader with a matching ATR");
-                return Optional.of(withAtr.get(0));
-            }
-            // DWIM 3: TODO: no cards in any, wait for insertion
-            System.err.println("Multiple readers, must choose one:");
-            listReaders(ignore, terminals, System.err, false);
-        }
-        return Optional.empty();
     }
 
 
@@ -314,13 +162,6 @@ public final class TerminalManager {
     public static List<CardTerminal> byATR(CardTerminals terminals, Collection<byte[]> atrs) throws CardException {
         List<CardTerminal> tl = terminals.list(State.ALL); // FIXME: ALL was required for a while on OSX due to bugs. Safe to replace with PRESENT?
         return byATR(tl, atrs);
-    }
-
-    // Return a list of terminals, filtered by interesting ATR-s
-    public static List<CardTerminal> byATR(Collection<byte[]> atrs) throws NoSuchAlgorithmException, CardException {
-        TerminalFactory tf = TerminalFactory.getInstance("PC/SC", null, new jnasmartcardio.Smartcardio());
-        CardTerminals terminals = tf.terminals();
-        return byATR(terminals, atrs);
     }
 
     public static List<CardTerminal> byFilter(List<CardTerminal> terminals, Function<BIBO, Boolean> f) {
@@ -370,33 +211,6 @@ public final class TerminalManager {
         return byAID(ts.list(), aidlist);
     }
 
-    private static Optional<String> getscard(String s) {
-        if (s == null)
-            return Optional.empty();
-        Pattern p = Pattern.compile("SCARD_\\w+");
-        Matcher m = p.matcher(s);
-        if (m.find()) {
-            return Optional.ofNullable(m.group());
-        }
-        return Optional.empty();
-    }
-
-    // Given an instance of some Exception from a PC/SC system,
-    // return a meaningful PC/SC error name.
-    public static String getExceptionMessage(Exception e) {
-        return getPCSCError(e).orElse(e.getMessage());
-    }
-
-    public static Optional<String> getPCSCError(Throwable e) {
-        while (e != null) {
-            Optional<String> m = getscard(e.getMessage());
-            if (m.isPresent())
-                return m;
-            e = e.getCause();
-        }
-        return Optional.empty();
-    }
-
     // Returns CalVer+git of the utility
     public static String getVersion() {
         Properties prop = new Properties();
@@ -406,5 +220,170 @@ public final class TerminalManager {
         } catch (IOException e) {
             return "unknown-error";
         }
+    }
+
+    // DWIM magic. See if we can pick the interesting reader automagically
+    public static <T> Optional<T> toSingleton(Collection<T> collection, Predicate<T> filter) {
+        List<T> result = collection.stream().filter(filter).limit(2).collect(Collectors.toList());
+        if (result.size() == 1) return Optional.of(result.get(0));
+        return Optional.empty();
+    }
+
+    public static Optional<String> hintMatchesExactlyOne(String hint, List<String> hay) {
+        if (hint == null)
+            return Optional.empty();
+        return toSingleton(hay, n -> fragmentMatches(hint, n));
+    }
+
+    private static boolean fragmentMatches(String fragment, String longer) {
+        return longer.toLowerCase().contains(fragment.toLowerCase());
+    }
+
+    // Returns true if the reader contains fragments to ignore (given as semicolon separated string)
+    public static boolean ignoreReader(String ignoreHints, String readerName) {
+        if (ignoreHints != null) {
+            String reader = readerName.toLowerCase();
+            String[] names = ignoreHints.toLowerCase().split(";");
+            return Arrays.stream(names).anyMatch(reader::contains);
+        }
+        return false;
+    }
+
+    // Fetch what is a combination of CardTerminal + Card data and handle all the weird errors of PC/SC
+    public static List<PCSCReader> listPCSC(List<CardTerminal> terminals, OutputStream logStream, boolean probePinpad) throws CardException {
+        ArrayList<PCSCReader> result = new ArrayList<>();
+        for (CardTerminal t : terminals) {
+            if (logStream != null) {
+                t = LoggingCardTerminal.getInstance(t, logStream);
+            }
+            try {
+                final String name = t.getName();
+                final boolean present = t.isCardPresent();
+                boolean exclusive = false;
+                String vmd = null;
+                byte[] atr = null;
+                if (present) {
+                    // Try to connect in shared mode, also detects EXCLUSIVE
+                    try {
+                        Card c = t.connect("*");
+                        // If successful, we get the protocol and ATR
+                        atr = c.getATR().getBytes();
+                        if (probePinpad)
+                            vmd = PinPadTerminal.getVMD(c);
+                    } catch (CardException e) {
+                        String err = SCard.getExceptionMessage(e);
+                        if (err.equals(SCard.SCARD_E_SHARING_VIOLATION)) {
+                            exclusive = true;
+                            // macOS allows to connect to reader in DIRECT mode when device is in EXCLUSIVE
+                            try {
+                                Card c = t.connect("DIRECT");
+                                atr = c.getATR().getBytes();
+                                if (probePinpad)
+                                    vmd = PinPadTerminal.getVMD(c);
+                            } catch (CardException e2) {
+                                String err2 = SCard.getExceptionMessage(e);
+                                if (err2.equals(SCard.SCARD_E_SHARING_VIOLATION)) {
+                                    vmd = "???";
+                                } else {
+                                    vmd = "EEE";
+                                    logger.debug("Unexpected error: {}", err2, e2);
+                                }
+                            }
+                        } else {
+                            vmd = "EEE";
+                            logger.debug("Unexpected error: {}", err, e);
+                        }
+                    }
+                } else {
+                    // Not present
+                    if (probePinpad) {
+                        // Try to connect in DIRECT mode
+                        try {
+                            Card c = t.connect("DIRECT");
+                            vmd = PinPadTerminal.getVMD(c);
+                        } catch (CardException e) {
+                            vmd = "EEE";
+                            String err = SCard.getExceptionMessage(e);
+                            logger.debug("Could not connect to reader in direct mode: {}", err, e);
+                        }
+                    }
+                }
+                result.add(new PCSCReader(name, atr, present, exclusive, vmd));
+            } catch (CardException e) {
+                String err = SCard.getExceptionMessage(e);
+                logger.debug("Unexpected PC/SC error: {}", err, e);
+            }
+        }
+        return result;
+    }
+
+    // Set the preferred and ignored flags on a reader list, based on hints. Returns the same list
+    public static List<PCSCReader> dwimify(List<PCSCReader> readers, String preferHint, String ignoreHints) {
+        logger.debug("Processing {} readers with {} as preferred and {} as ignored", readers.size(), preferHint, ignoreHints);
+        final ReaderAliases aliases = ReaderAliases.getDefault().apply(readers.stream().map(PCSCReader::getName).collect(Collectors.toList()));
+        final List<String> aliasedNames = readers.stream().map(r -> aliases.extended(r.getName())).collect(Collectors.toList());
+
+        // No readers
+        if (readers.size() == 0)
+            return readers;
+
+        Optional<String> pref = Optional.empty();
+        // DWIM 1: small digit hint means reader index
+        if (preferHint != null && preferHint.matches("\\d{1,2}")) {
+            int index = Integer.parseInt(preferHint);
+            if (index >= 1 && index <= readers.size()) {
+                pref = Optional.of(readers.get(index - 1).getName());
+                logger.debug("Chose {} by index {}", pref.get(), index);
+            } else {
+                logger.warn("Reader index out of bounds: {} vs {}", index, readers.size());
+            }
+        } else if (preferHint != null) {
+            pref = TerminalManager.hintMatchesExactlyOne(preferHint, aliasedNames);
+        } else {
+            // One reader
+            if (readers.size() == 1) {
+                readers.get(0).setPreferred(true);
+                return readers;
+            }
+        }
+
+        logger.debug("Preferred reader: " + pref);
+        // Loop all readers, amending as necessary.
+        for (PCSCReader r : readers) {
+            if (pref.isPresent() && pref.get().toLowerCase().contains(r.getName().toLowerCase())) {
+                r.setPreferred(true);
+                // preference overrides ignores
+                continue;
+            }
+            if (TerminalManager.ignoreReader(ignoreHints, r.getName())) {
+                r.setIgnore(true);
+                continue;
+            }
+        }
+
+        // "if no preferred, but just a single reader of un-ignored readers contains a card - use it
+        //logger.info("Readers after dwimify");
+        //for (PCSCReader r : readers) {
+        //    logger.info("{}", r);
+        //}
+        return readers;
+    }
+
+    public static Optional<CardTerminal> getLucky(List<PCSCReader> readers, CardTerminals terminals) {
+        Optional<PCSCReader> preferred = toSingleton(readers, e -> e.isPreferred());
+        Optional<PCSCReader> lucky = toSingleton(readers, e -> !e.isIgnore() && e.isPresent());
+        Optional<PCSCReader> chosen = preferred.or(() -> lucky);
+        if (chosen.isPresent()) {
+            return Optional.ofNullable(terminals.getTerminal(chosen.get().getName()));
+        }
+        return Optional.empty();
+    }
+
+    public static boolean isMacOS() {
+        return System.getProperty("os.name").equalsIgnoreCase("mac os x");
+    }
+
+    public static boolean isWindows() {
+        return System.getProperty("os.name").toLowerCase().startsWith("windows");
     }
 }
