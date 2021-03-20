@@ -21,13 +21,20 @@
  */
 package apdu4j.pcsc;
 
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 // Random SCard interface constants.
 public final class SCard {
     public static final String SCARD_E_SHARING_VIOLATION = "SCARD_E_SHARING_VIOLATION";
     public static final String SCARD_E_NO_READERS_AVAILABLE = "SCARD_E_NO_READERS_AVAILABLE";
     public static final String SCARD_E_NOT_TRANSACTED = "SCARD_E_NOT_TRANSACTED";
     public static final String SCARD_E_NO_SMARTCARD = "SCARD_E_NO_SMARTCARD";
+    public static final String SCARD_E_NO_SERVICE = "SCARD_E_NO_SERVICE";
+    public static final String SCARD_E_SERVICE_STOPPED = "SCARD_E_SERVICE_STOPPED";
     public static final String SCARD_W_UNPOWERED_CARD = "SCARD_W_UNPOWERED_CARD";
+    public static final String SCARD_W_REMOVED_CARD = "SCARD_W_REMOVED_CARD";
     public static final String SCARD_E_UNSUPPORTED_FEATURE = "SCARD_E_UNSUPPORTED_FEATURE";
     public static final String SCARD_E_TIMEOUT = "SCARD_E_TIMEOUT";
 
@@ -38,5 +45,32 @@ public final class SCard {
         } else {
             return 0x42000000 + c;
         }
+    }
+
+    public static Optional<String> getscard(String s) {
+        if (s == null)
+            return Optional.empty();
+        Pattern p = Pattern.compile("SCARD_\\w+");
+        Matcher m = p.matcher(s);
+        if (m.find()) {
+            return Optional.ofNullable(m.group());
+        }
+        return Optional.empty();
+    }
+
+    // Given an instance of some Exception from a PC/SC system with JNA
+    // return a meaningful PC/SC error name.
+    public static String getExceptionMessage(Throwable e) {
+        return getPCSCError(e).orElse(e.getMessage());
+    }
+
+    public static Optional<String> getPCSCError(Throwable e) {
+        while (e != null) {
+            Optional<String> m = getscard(e.getMessage());
+            if (m.isPresent())
+                return m;
+            e = e.getCause();
+        }
+        return Optional.empty();
     }
 }

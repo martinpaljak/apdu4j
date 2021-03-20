@@ -32,16 +32,29 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
 
-public class APDUReplayProvider extends EmulatedTerminalProvider {
+public class APDUReplayProvider extends EmulatedSingleTerminalProvider {
     static final long serialVersionUID = -8337184383179443730L;
 
+    public static final String READER_NAME = "APDUReplay terminal 0";
+
     public APDUReplayProvider() {
-        super((input) -> {
-            if (input instanceof InputStream) {
-                return new ReplayTerminal((InputStream) input, true);
+        super(APDUReplayProviderImpl.class);
+    }
+
+
+    public static class APDUReplayProviderImpl extends EmulatedTerminalFactorySpi {
+
+        public APDUReplayProviderImpl(Object parameter) {
+            super(parameter);
+        }
+
+        @Override
+        protected CardTerminal getTheTerminal() {
+            if (parameter instanceof InputStream) {
+                return new ReplayTerminal((InputStream) parameter, true);
             }
-            throw new IllegalArgumentException("Don't know how to make terminal");
-        });
+            throw new IllegalArgumentException(getClass().getSimpleName() + " requires InputStream parameter");
+        }
     }
 
 
@@ -114,7 +127,7 @@ public class APDUReplayProvider extends EmulatedTerminalProvider {
 
         @Override
         public String getName() {
-            return "APDUReplay terminal 0";
+            return READER_NAME;
         }
 
         @Override

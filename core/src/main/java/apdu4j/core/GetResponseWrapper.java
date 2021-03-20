@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020 Martin Paljak
+ * Copyright (c) 2019-present Martin Paljak
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,8 @@ package apdu4j.core;
 
 import java.util.concurrent.CompletableFuture;
 
+import static apdu4j.core.HexBytes.concatenate;
+
 public final class GetResponseWrapper implements AsynchronousBIBO {
     private final AsynchronousBIBO wrapped;
 
@@ -35,7 +37,7 @@ public final class GetResponseWrapper implements AsynchronousBIBO {
     }
 
     @Override
-    public CompletableFuture<byte[]> transmit(byte[] command)  {
+    public CompletableFuture<byte[]> transmit(byte[] command) {
         return transmitCombining(new byte[0], wrapped, command);
     }
 
@@ -50,18 +52,5 @@ public final class GetResponseWrapper implements AsynchronousBIBO {
                 return CompletableFuture.completedFuture(concatenate(current, response, res.getSWBytes()));
             }
         });
-    }
-
-    static byte[] concatenate(byte[]... args) {
-        int length = 0, pos = 0;
-        for (byte[] arg : args) {
-            length += arg.length;
-        }
-        byte[] result = new byte[length];
-        for (byte[] arg : args) {
-            System.arraycopy(arg, 0, result, pos, arg.length);
-            pos += arg.length;
-        }
-        return result;
     }
 }

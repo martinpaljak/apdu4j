@@ -33,29 +33,31 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public final class ATRList {
-    private final Map<String, String> map;
+    private final Map<String, List<String>> map;
+    private final String source;
 
-    public static ATRList from(InputStream in) throws IOException {
+    public static ATRList from(InputStream in, String path) throws IOException {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
-            Map<String, String> entries = new HashMap<>();
-            List<String> lines = reader.lines().collect(Collectors.toList());
+            Map<String, List<String>> entries = new HashMap<>();
+
+            List<String> allLines = reader.lines().collect(Collectors.toList());
             String name = null;
-            String desc = null;
-            for (String line : lines) {
+            ArrayList<String> desc = new ArrayList<>();
+            for (String line : allLines) {
                 if (line.length() == 0) {
                     if (name != null && desc != null) {
-                        entries.put(name.replace(" ", ""), desc.trim().replace('\t', '\n'));
+                        entries.put(name.replace(" ", ""), desc);
                     }
-                    desc = "";
+                    desc = new ArrayList<>();
                 } else if (line.charAt(0) == '\t') {
-                    desc += line;
+                    desc.add(line);
                 } else if (line.charAt(0) == '#') {
                     continue;
                 } else {
                     name = line;
                 }
             }
-            return new ATRList(entries);
+            return new ATRList(entries, path);
         }
     }
 
@@ -63,19 +65,26 @@ public final class ATRList {
         final InputStream in;
         if (path.startsWith("http")) {
             in = new URL(path).openStream();
-        } else {
+        } else if (Files.isRegularFile(Paths.get(path))) {
             in = new FileInputStream(path);
+        } else {
+            throw new IOException("Not a URL nor regular file: " + path);
         }
-        return from(in);
+        return from(in, path);
     }
 
-    private ATRList(Map<String, String> map) {
+    private ATRList(Map<String, List<String>> map, String source) {
         this.map = map;
+        this.source = source;
     }
 
-    public Optional<Map.Entry<String, String>> match(byte[] atr) {
+    public Optional<Map.Entry<String, List<String>>> match(byte[] atr) {
         String q = HexUtils.bin2hex(atr).toUpperCase();
         return map.entrySet().stream().filter(e -> q.matches(e.getKey())).findFirst();
+    }
+
+    public Optional<String> getSource() {
+        return Optional.ofNullable(source);
     }
 
     // Does the same as https://github.com/LudovicRousseau/pcsc-tools/blob/master/ATR_analysis#L58

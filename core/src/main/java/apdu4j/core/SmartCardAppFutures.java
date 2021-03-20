@@ -29,10 +29,9 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Default implementation of SmartCardAppListener that provides CompletableFuture-s for all events
  * <p>
- * Extend this class for simple apps
+ * Extend this class for simple app flow with futures
  */
-public class SmartCardAppFutures implements SmartCardAppListener, AsynchronousBIBO {
-    //private static final Logger logger = LoggerFactory.getLogger(SmartCardAppFutures.class);
+public abstract class SmartCardAppFutures implements SmartCardAppListener, AsynchronousBIBO {
 
     private volatile AsynchronousBIBO transport;
 
@@ -69,23 +68,19 @@ public class SmartCardAppFutures implements SmartCardAppListener, AsynchronousBI
 
 
     @Override
-    public CompletableFuture<AppParameters> onStart() {
-        //logger.debug("onStart()");
+    public CompletableFuture<AppParameters> onStart(String[] argv) {
         // We start right away, normally
         return CompletableFuture.completedFuture(new AppParameters());
     }
 
     @Override
     public void onCardPresent(AsynchronousBIBO transport, CardData props) {
-        //logger.debug("onCardPresent() {}", props);
         this.transport = transport;
         cardPresentFuture.get().complete(props);
     }
 
     @Override
     public void onCardRemoved() {
-        //logger.debug("onCardRemoved()");
-
         // Complete the transmit future exceptionally first.
         if (responseFuture != null)
             responseFuture.completeExceptionally(new TagRemovedException("onCardRemoved"));
@@ -106,7 +101,6 @@ public class SmartCardAppFutures implements SmartCardAppListener, AsynchronousBI
 
     @Override
     public void onError(Throwable e) {
-        //logger.debug("onError({})", e.getClass().getCanonicalName());
         cardPresentFuture.get().completeExceptionally(e);
         cardRemovedFuture.get().completeExceptionally(e);
 

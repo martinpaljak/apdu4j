@@ -23,7 +23,7 @@ package apdu4j.core;
 
 import java.util.concurrent.CompletableFuture;
 
-import static apdu4j.core.GetResponseWrapper.concatenate;
+import static apdu4j.core.HexBytes.concatenate;
 
 public final class GetMoreDataWrapper implements AsynchronousBIBO {
     final AsynchronousBIBO wrapped;

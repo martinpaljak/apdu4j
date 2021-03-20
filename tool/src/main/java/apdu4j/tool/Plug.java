@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020 Martin Paljak
+ * Copyright (c) 2019-present Martin Paljak
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,16 +43,24 @@ import java.util.stream.Stream;
 public final class Plug {
     private static final Logger logger = LoggerFactory.getLogger(Plug.class);
 
-    static final ClassLoader bundledLoader;
+    static final ClassLoader pluginClassLoader;
+    static final ClassLoader systemClassLoader;
 
     static {
         try {
-            bundledLoader = getPluginsClassLoader("APDU4J_PLUGINS", Paths.get(System.getProperty("user.home"), ".apdu4j", "plugins"));
+            pluginClassLoader = getPluginsClassLoader("APDU4J_PLUGINS", Paths.get(System.getProperty("user.home"), ".apdu4j", "plugins"));
+            systemClassLoader = ClassLoader.getSystemClassLoader();
         } catch (IOException e) {
             throw new RuntimeException("Could not initialize plugins!");
         }
     }
 
+    /**
+     * Returns a list of all readable and accessible .jar files in a folder
+     *
+     * @param folder
+     * @return List of Path-s with jar-files in that folder
+     */
     static List<Path> jars(Path folder) {
         try (Stream<Path> entries = Files.list(folder)) {
             return entries
@@ -69,13 +77,12 @@ public final class Plug {
     }
 
     // Make a classloader of .jar files in a given folder.
-    static ClassLoader pluginFolderClassLoader(Path folder) throws IOException {
+    static ClassLoader pluginFolderClassLoader(Path folder) {
         if (!Files.isDirectory(folder)) {
             logger.trace("Can't load plugins from " + folder + " defaulting to current classloader");
             return Thread.currentThread().getContextClassLoader();
         }
 
-        logger.debug("Plugins loaded from {}", folder);
         List<URL> plugins = jars(folder).stream()
                 .map(p -> {
                     try {
@@ -85,80 +92,67 @@ public final class Plug {
                     }
                 })
                 .collect(Collectors.toList());
-
+        logger.debug("Plugins from {}: {}", folder, plugins);
         return AccessController.doPrivileged(
                 (PrivilegedAction<URLClassLoader>) () -> new URLClassLoader(plugins.toArray(new URL[plugins.size()]))
         );
     }
 
-    static <T> Optional<T> loadPlugin(String name, Class<T> c) {
-        return loadPlugin(bundledLoader, name, c);
-    }
-
-    // Loads a plugin by name from classloader
-    static <T> Optional<T> loadPlugin(ClassLoader cl, String name, Class<T> t) {
+    // Load all plugins of type t from specified JAR file
+    static <T> List<T> loadPlugins(Path p, Class<T> t) {
         try {
-            ServiceLoader<T> sl = ServiceLoader.load(t, cl);
-            List<T> list = new ArrayList<>();
-            sl.iterator().forEachRemaining(list::add);
-            list.stream().forEach(e -> logger.debug("Found {} from {}", e.getClass().getCanonicalName(), pluginfile(e)));
-            return list.stream().filter(e -> identifies(name, e.getClass())).findFirst();
-        } catch (ServiceConfigurationError e) {
-            throw new RuntimeException("Failed to load plugin: " + e.getCause().getMessage());
-        }
-    }
-
-    // Loads given plugin from a JAR file
-    // Throws runtime exception if can't be loaded
-    static <T> Optional<T> loadPlugin(Path p, Class<T> t) {
-        try {
-            return loadPlugin(p.toUri().toURL(), t);
+            return loadPlugins(p.toUri().toURL(), t);
         } catch (MalformedURLException e) {
-            throw new RuntimeException("Invalid plugin: " + e.getMessage());
+            logger.error("Malformed URL from Path? ", e);
+            return new ArrayList<>();
         }
     }
 
-    // Load a plugin from a file
-    static <T> Optional<T> loadPlugin(URL u, Class<T> t) {
-        try {
-            // Load plugin
-            URL[] plugin = new URL[]{u};
-            logger.debug("Loading plugin from " + plugin[0]);
-
-            final URLClassLoader ucl = AccessController.doPrivileged(
-                    (PrivilegedAction<URLClassLoader>) () -> new URLClassLoader(plugin)
-            );
-            ServiceLoader<T> sl = ServiceLoader.load(t, ucl);
-            List<T> list = new ArrayList<>();
-            sl.iterator().forEachRemaining(list::add);
-
-            if (list.size() != 1) {
-                logger.debug("Could not load plugin, found {} services for {}", list.size(), t.getCanonicalName());
-                return Optional.empty();
+    // Load list of plugins from a file
+    static <T> List<T> loadPlugins(URL u, Class<T> t) {
+        ClassLoader parent = ClassLoader.getSystemClassLoader();
+        URL[] plugin = new URL[]{u};
+        final URLClassLoader ucl = AccessController.doPrivileged(
+                (PrivilegedAction<URLClassLoader>) () -> new URLClassLoader(plugin, parent)
+        );
+        ServiceLoader<T> sl = ServiceLoader.load(t, ucl);
+        List<T> list = new ArrayList<>();
+        // We skip bad plugins
+        Iterator<T> it = sl.iterator();
+        while (it.hasNext()) {
+            try {
+                T i = it.next();
+                if (i.getClass().getClassLoader() != ucl) {
+                    logger.debug("Ignoring {} as not from classloader", i.getClass().getCanonicalName());
+                    continue;
+                }
+                list.add(i);
+            } catch (ServiceConfigurationError e) {
+                if (e.getCause() != null) {
+                    logger.warn("Plugin loading failure: " + e.getCause().getMessage());
+                } else {
+                    logger.warn("Plugin loading failure: " + e.getMessage());
+                }
             }
-            logger.debug("Loaded " + list.get(0).getClass().getCanonicalName() + " from " + u);
-            return Optional.ofNullable(list.get(0));
-        } catch (ServiceConfigurationError e) {
-            logger.error("Failed to load plugin: " + e.getCause().getMessage());
-            return Optional.empty();
         }
+        return list;
     }
 
     // Gets the jarfile of the plugin for display purposes
     static String pluginfile(Object c) {
+        if (c.getClass().getClassLoader() == systemClassLoader)
+            return "builtin";
         CodeSource src = c.getClass().getProtectionDomain().getCodeSource();
         if (src == null)
-            return "BUILTIN";
+            return "builtin";
         URL l = src.getLocation();
-        if (l.getProtocol().equals("file")) {
-            return l.getFile();
+        if (c.getClass().getClassLoader() == pluginClassLoader) {
+            if (l.getProtocol().equals("file"))
+                return "plugin " + l.getFile();
         }
+        if (l.getProtocol().equals("file"))
+            return l.getFile();
         return l.toExternalForm();
-    }
-
-    // Print plugins for service in stdout
-    static <T> void listPlugins(Class<T> service) {
-        pluginStream(service).forEach(e -> System.out.println(String.format("- %s from %s", e.getClass().getCanonicalName(), pluginfile(e))));
     }
 
     // Returns the classloader that contains plugin folder jar-s
@@ -173,14 +167,10 @@ public final class Plug {
         return pluginFolderClassLoader(p);
     }
 
-    // Returns true if the name somehow addresses the given class
-    static boolean identifies(String name, Class<?> c) {
-        logger.trace("{} vs {}", name, c.getCanonicalName());
-        return c.getCanonicalName().equalsIgnoreCase(name) || c.getSimpleName().equalsIgnoreCase(name);
-    }
-
     // Returns a list of existing plugins for a service, masking unloadable ones
     static <T> List<T> plugins(Class<T> t, ClassLoader loader) {
+        if (loader == null)
+            loader = Thread.currentThread().getContextClassLoader();
         ServiceLoader<T> sl = ServiceLoader.load(t, loader);
         List<T> list = new ArrayList<>();
         // We skip bad plugins
@@ -197,9 +187,5 @@ public final class Plug {
             }
         }
         return list;
-    }
-
-    static <T> Stream<T> pluginStream(Class<T> t) {
-        return plugins(t, bundledLoader).stream();
     }
 }

@@ -30,7 +30,10 @@ import org.slf4j.LoggerFactory;
 import javax.smartcardio.*;
 import java.nio.ByteBuffer;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.*;
+
+import static apdu4j.core.SmartCardAppListener.CardData.ATR_BYTES;
 
 // Adapter for apps, exposing synchronous javax.smartcardio interface
 public final class SynthesizedCardTerminal extends CardTerminal {
@@ -62,11 +65,7 @@ public final class SynthesizedCardTerminal extends CardTerminal {
 
         try {
             Map props = reader.getCardPresentFuture().join();
-            if (props.containsKey("atr")) {
-                card._atr = HexUtils.hex2bin((String) props.get("atr"));
-            } else {
-                card._atr = HexUtils.hex2bin("3b00");
-            }
+            card._atr = Optional.ofNullable((byte[]) props.get(ATR_BYTES)).orElse(HexUtils.hex2bin("3b00"));
             logger.trace("connect(" + s + ") == {}", card);
             return card;
         } catch (CompletionException e) {

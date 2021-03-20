@@ -21,9 +21,7 @@
  */
 package apdu4j.tool;
 
-import apdu4j.pcsc.ReaderAliases;
-import apdu4j.pcsc.SCard;
-import apdu4j.pcsc.TerminalManager;
+import apdu4j.pcsc.*;
 import com.googlecode.lanterna.TerminalSize;
 import com.googlecode.lanterna.TextColor;
 import com.googlecode.lanterna.gui2.*;
@@ -37,48 +35,195 @@ import com.googlecode.lanterna.terminal.Terminal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.smartcardio.Card;
-import javax.smartcardio.CardException;
 import javax.smartcardio.CardTerminal;
 import javax.smartcardio.CardTerminals;
+import javax.smartcardio.TerminalFactory;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
 
-public final class FancyChooser implements Callable<Optional<CardTerminal>> {
+// Implements a fancy GUI chooser for use in a terminal CLI. Uses TerminalManager
+public final class FancyChooser implements Callable<Optional<CardTerminal>>, PCSCMonitor {
     private static final Logger logger = LoggerFactory.getLogger(FancyChooser.class);
-    // Nice names
-    static final String PRESENT = "*";
-    static final String EMPTY = " ";
-    static final String EXCLUSIVE = "X";
 
+    // GUI objects
     final Terminal terminal;
     final Screen screen;
-    final List<CardTerminal> initialList;
+    final MultiWindowTextGUI gui;
 
     // UI elements
-    final MultiWindowTextGUI gui;
     final BasicWindow mainWindow;
     final Panel mainPanel;
     final ActionListBox mainActions;
     final Button quitButton;
 
+    // PCSC objects
+    final CardTerminals terminals;
+
     // State monitoring
     final Thread monitor;
-    volatile HashMap<String, String> previousStates = new HashMap<>();
-    volatile String status = "OK";
+    Map<String, PCSCReader> previousStates = new HashMap<>(); // start empty
 
     // The Chosen One
-    volatile CardTerminal chosenOne;
+    volatile String nameOfChosenOne;
+
+    // Hints
+    final String preferred;
+    final String ignored;
+
     final ReaderAliases aliases = ReaderAliases.getDefault();
 
     static {
         // Force the text based terminal on macOS
-        if (isMacOS() && System.console() != null)
+        if (TerminalManager.isMacOS() && System.console() != null)
             System.setProperty("java.awt.headless", "true");
+    }
+
+
+    // This is called from the monitor thread
+    @Override
+    synchronized public void readerListChanged(List<PCSCReader> readers) {
+        try {
+            // -1 == Selection not made; -2 == Selection is quit
+            int selectedIndex = quitButton.isFocused() ? -2 : mainActions.getSelectedIndex();
+            logger.info("CHANGE with selectedIndex={} and {} readers", selectedIndex, readers.size());
+            mainActions.clearItems();
+            Map<String, PCSCReader> statuses = readers.stream().collect(Collectors.toMap(PCSCReader::getName, e -> e));
+
+            TerminalManager.dwimify(readers, preferred, ignored);
+
+            // Update aliases
+            List<String> names = readers.stream().map(PCSCReader::getName).collect(Collectors.toList());
+            ReaderAliases alias = aliases.apply(names);
+
+            // Get a preferred reader, taking into account aliases
+            Optional<String> pref = TerminalManager.hintMatchesExactlyOne(preferred, names.stream().map(alias::extended).collect(Collectors.toList())); // wrong function
+            logger.info("Preferred reader by {} is {}: ", preferred, pref);
+            int current = 0; // setSelectedIndex is 0 based, of course
+            for (PCSCReader r : readers) {
+                int i = current++;
+                final String name = r.getName();
+                // Clear the ignore flag, unless card is present
+                r.setIgnore(r.isPresent() && r.isIgnore());
+
+                mainActions.addItem(String.format("[%s] %s", PCSCReader.presenceMarker(r), alias.extended(name)), () -> {
+                    // This is executed on selection, on main thread
+                    if (r.isExclusive()) {
+                        MessageDialog warn = new MessageDialogBuilder()
+                                .setTitle(" Warning! ")
+                                .setText("Reader is in exclusive use by some other application")
+                                .addButton(MessageDialogButton.Cancel)
+                                .addButton(MessageDialogButton.Continue)
+                                .build();
+                        warn.setCloseWindowWithEscape(true);
+                        MessageDialogButton d = warn.showDialog(gui);
+                        if (d == null || d == MessageDialogButton.Cancel) {
+                            return;
+                        }
+                        // Fall through if clause and set chosen one.
+                    }
+                    nameOfChosenOne = r.getName();
+                    mainWindow.close();
+                });
+
+                Optional<PCSCReader> prev = Optional.ofNullable(previousStates.get(name));
+
+                // Reset if current reader becomes exclusive (unless it is the only reader)
+                if (i == selectedIndex && readers.size() > 1 && r.isExclusive() && !prev.map(PCSCReader::isExclusive).orElse(true)) {
+                    logger.debug("rule 1");
+                    selectedIndex = -1;
+                }
+                // Select if only reader becomes non-exclusive
+                if (!r.isExclusive() && prev.map(PCSCReader::isExclusive).orElse(true) && readers.size() == 1) {
+                    logger.debug("rule 2");
+                    selectedIndex = i;
+                }
+
+                // main rule for non-events
+                if (r.isPreferred() && selectedIndex < 0) {
+                    logger.debug("rule pref");
+
+                    selectedIndex = i;
+                }
+                // Select if new reader connected
+                if (prev.isEmpty() && previousStates.size() > 0) {
+                    logger.debug("rule 3");
+                    selectedIndex = i;
+                }
+
+                // Select first non-exclusive, non-ignored reader on change, unless we have a preferred one
+                if (selectedIndex == -1 && !r.isExclusive() && pref.isEmpty() && !r.isIgnore()) {
+                    logger.debug("rule 4");
+                    selectedIndex = i;
+                }
+
+                Optional<String> thisOptional = Optional.of(alias.extended(name));
+                // Select preferred reader, only if other rules have not applied
+                if (pref.equals(thisOptional) && selectedIndex < 0) {
+                    logger.debug("rule 4.5");
+                    selectedIndex = i;
+                }
+
+                // Select existing non-ignored reader if it gets a card
+                if (!prev.map(PCSCReader::isPresent).orElse(false) && r.isPresent() && !r.isExclusive() && !r.isIgnore()) {
+                    logger.debug("rule 5");
+                    selectedIndex = i;
+                }
+                logger.info("{} Reader: {}, selectedIndex {}", i, r.getName(), selectedIndex);
+                i++;
+            }
+
+            // Set title based on size
+            if (readers.size() == 0) {
+                mainWindow.setTitle(" Connect a reader ");
+            } else {
+                mainWindow.setTitle(" Choose a reader ");
+            }
+
+            // Update selected index and related focus
+            if (selectedIndex >= 0) {
+                mainActions.setSelectedIndex(selectedIndex);
+                mainActions.takeFocus();
+            } else if (selectedIndex == -2) {
+                quitButton.takeFocus();
+            }
+            previousStates = statuses;
+            // Refresh screen
+            mainActions.invalidate();
+            // XXX: make sure the panel sizes don't "wobble". Always add the empty space + quit button rows
+            //mainPanel.setPreferredSize(new TerminalSize(mainActions.getPreferredSize().getColumns(), mainActions.getPreferredSize().getRows() + 2));
+            // Request re-draw
+            mainPanel.invalidate();
+            // Update screen (this should be called from main thread?)
+            gui.updateScreen();
+            /*gui.getGUIThread().invokeLater(() -> {
+                try {
+                    gui.updateScreen();
+                } catch (IOException e) {
+                    logger.error("Failed to update screen: " + e.getMessage(), e);
+                }
+            });*/
+
+
+            //logger.info("panel prefsize: {}, size: {}", mainPanel.getPreferredSize(), mainPanel.getSize());
+            //logger.info("Actions prefsize: {}, size: {}", mainActions.getPreferredSize(), mainActions.getSize());
+            //logger.info("panel prefsize: {} size {}", mainPanel.getPreferredSize(), mainPanel.getSize());
+            //logger.info("Actions prefsize: {} size {}", mainActions.getPreferredSize(), mainActions.getSize());
+
+            //mainActions.setPreferredSize(new TerminalSize(s.getColumns(), readers.size()));
+            //screen.refresh(Screen.RefreshType.COMPLETE);
+
+        } catch (Exception e) {
+            logger.error("Exception in readerListChanged: " + e.getMessage(), e);
+            System.err.println(e.getMessage());
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public void readerListErrored(Throwable t) {
+        System.err.println(t.getMessage());
     }
 
     // TODO: have a simple fallback chooser with a list and "enter 1..N"
@@ -89,14 +234,16 @@ public final class FancyChooser implements Callable<Optional<CardTerminal>> {
         }
     }
 
-    private FancyChooser(Terminal terminal, Screen screen, CardTerminals monitorObject, List<CardTerminal> terminals) {
-        if (monitorObject != null)
-            monitor = new MonitorThread(monitorObject);
-        else monitor = null;
+    private FancyChooser(Terminal terminal, Screen screen, TerminalFactory factory, String preferred, String ignored) {
+        this.preferred = preferred;
+        this.ignored = ignored;
+        this.terminals = factory.terminals(); // XXX: this can change in monitor, but on Windows only. Chooser does not run on Windows.
+        monitor = new Thread(new HandyTerminalsMonitor(factory, this));
+        monitor.setName("FancyChooser monitor");
+
         this.terminal = terminal;
         this.screen = screen;
         gui = new MultiWindowTextGUI(screen, new DefaultWindowManager(), new EmptySpace(TextColor.ANSI.BLUE));
-        this.initialList = terminals;
         // Create UI elements
         mainWindow = new BasicWindow(" apdu4j ");
         mainWindow.setCloseWindowWithEscape(true);
@@ -107,7 +254,9 @@ public final class FancyChooser implements Callable<Optional<CardTerminal>> {
         mainPanel.setLayoutManager(new LinearLayout(Direction.VERTICAL));
         mainActions = new ActionListBox();
         mainActions.setLayoutData(BorderLayout.Location.CENTER);
+        mainActions.takeFocus(); // Quit will be focused if no reader is selected
         mainPanel.addComponent(mainActions);
+        // Empty line between quit button
         mainPanel.addComponent(new EmptySpace(new TerminalSize(0, 1)));
         quitButton = new Button("Cancel and quit", () -> mainWindow.close());
         quitButton.setLayoutData(LinearLayout.createLayoutData(LinearLayout.Alignment.End));
@@ -117,197 +266,62 @@ public final class FancyChooser implements Callable<Optional<CardTerminal>> {
     }
 
 
-    public static Callable<Optional<CardTerminal>> forTerminals(CardTerminals terminals) throws IOException, CardException {
-        if (isWindows())
+    public static Callable<Optional<CardTerminal>> forTerminals(TerminalFactory factory, String preferred, String ignored) throws IOException {
+        // We can't do this on Windows, sorry.
+        if (TerminalManager.isWindows())
             return new EmptyChooser();
-        List<CardTerminal> terminalList = terminals.list();
         Terminal terminal = new DefaultTerminalFactory().createTerminal();
         Screen screen = new TerminalScreen(terminal);
-        return new FancyChooser(terminal, screen, terminals, terminalList);
+        return new FancyChooser(terminal, screen, factory, preferred, ignored);
     }
 
-
-    public static Callable<Optional<CardTerminal>> forTerminals(List<CardTerminal> terminals) throws IOException {
-        Terminal terminal = new DefaultTerminalFactory().createTerminal();
-        Screen screen = new TerminalScreen(terminal);
-        return new FancyChooser(terminal, screen, null, terminals);
-    }
-
-    // Returns true if terminal is in exclusive use
-    private boolean isExlusive(CardTerminal t) {
-        boolean result = false;
-        Card c = null;
-        // Try shared mode, to detect exclusive mode via exception
-        try {
-            c = t.connect("*");
-        } catch (CardException e) {
-            String err = TerminalManager.getExceptionMessage(e);
-            // Detect exclusive mode. Hopes this always succeeds
-            if (err.equals(SCard.SCARD_E_SHARING_VIOLATION))
-                result = true;
-        } finally {
-            if (c != null) {
-                try {
-                    c.disconnect(false);
-                } catch (CardException e) {
-                    // FIXME: log
-                }
-            }
-        }
-        return result;
-    }
-
-    // When selection changes (callable from another thread)
-    synchronized void setSelection(List<CardTerminal> terminals) {
-        try {
-            // -1 == Selection not made; -2 == Selection is quit
-            int previouslySelected = quitButton.isFocused() ? -2 : mainActions.getSelectedIndex();
-            //setStatus("set " + previouslySelected);
-            int selectedIndex = previouslySelected;
-            mainActions.clearItems();
-            HashMap<String, String> statuses = new HashMap<>();
-            int i = 0;
-            for (CardTerminal t : terminals) {
-                final String name = t.getName();
-                final boolean present = t.isCardPresent();
-                final boolean exclusive = isExlusive(t);
-                String status = EMPTY;
-                if (present)
-                    status = PRESENT;
-                if (exclusive)
-                    status = EXCLUSIVE;
-                statuses.put(name, status);
-                mainActions.addItem(String.format("[%s] %s", status, aliases.translate(name)), () -> {
-                    if (exclusive) {
-                        MessageDialog warn = new MessageDialogBuilder()
-                                .setTitle(" Warning! ")
-                                .setText("Reader is in exclusive use by some other application")
-                                .addButton(MessageDialogButton.Cancel)
-                                .addButton(MessageDialogButton.Continue)
-                                .build();
-                        warn.setCloseWindowWithEscape(true);
-                        MessageDialogButton r = warn.showDialog(gui);
-                        if (r == null || r == MessageDialogButton.Cancel) {
-                            return;
-                        }
-                        // Continue below
-                    }
-                    chosenOne = t;
-                    mainWindow.close();
-                });
-
-
-                // Reset if reader becomes exclusive (unless it is the only reader)
-                if (i == selectedIndex && exclusive && !previousStates.get(name).equals(EXCLUSIVE) && terminals.size() > 1)
-                    selectedIndex = -1;
-                // Select if only reader becomes non-exclusive
-                if (!exclusive && previousStates.getOrDefault(name, "").equals(EXCLUSIVE) && terminals.size() == 1)
-                    selectedIndex = i;
-                // New reader connected
-                if (!previousStates.containsKey(name))
-                    selectedIndex = i;
-                // Select first non-exclusive reader
-                if (selectedIndex == -1 && !exclusive)
-                    selectedIndex = i;
-                // Existing reader got a card
-                if (previousStates.getOrDefault(name, "").equals(EMPTY) && present && !exclusive)
-                    selectedIndex = i;
-                i++;
-            }
-
-            // Set title
-            if (terminals.size() == 0) {
-                mainWindow.setTitle(" Connect a reader ");
-            } else {
-                mainWindow.setTitle(" Choose a reader ");
-            }
-
-            // Update selected index and related focus
-            if (selectedIndex >= 0) {
-                mainActions.setSelectedIndex(selectedIndex);
-                mainActions.takeFocus();
-            } else {
-                quitButton.takeFocus();
-            }
-            previousStates = statuses;
-            // Refresh screen
-            mainPanel.invalidate();
-            //screen.refresh(Screen.RefreshType.COMPLETE);
-            gui.updateScreen();
-        } catch (CardException | IOException e) {
-            System.err.println(e.getMessage());
-            throw new RuntimeException(e);
-        }
-    }
 
     @Override
     public Optional<CardTerminal> call() {
         try {
-            setSelection(initialList);
-
-            // Start monitor thread
+            // Start monitor thread. This populates the selection window
             if (monitor != null)
                 monitor.start();
 
             screen.startScreen();
             gui.addWindow(mainWindow);
-            gui.waitForWindowToClose(mainWindow);
 
+            // This blocks the calling thread (should be main)
+            gui.waitForWindowToClose(mainWindow);
+            logger.info("waiting ended");
             terminal.clearScreen();
             screen.stopScreen();
             terminal.close();
+            logger.info("cleared and stopped");
 
-            // on OSX at least this prevents the print from last column
+            // on OSX at least this prevents the print from last column after UI has been closed
             System.out.println();
-            return Optional.ofNullable(chosenOne);
+            logger.info("getting terminal");
+            if (nameOfChosenOne == null)
+                return Optional.empty();
+            CardTerminal t = terminals.getTerminal(nameOfChosenOne);
+            logger.info("terminal received");
+
+            // Exists a chance that the reader is "lost" after it has been selected and this getTerminal call.
+            // Log it here at least
+            if (t == null) {
+                logger.error("{} chosen but not available from CardTerminals?");
+            }
+            return Optional.ofNullable(t);
         } catch (IOException e) {
             logger.error("Could not run: " + e.getMessage());
         } finally {
             if (monitor != null) {
                 monitor.interrupt();
+                try {
+                    monitor.join();
+                } catch (InterruptedException e) {
+                    logger.warn("Joining closing monitor thread got exception: " + e.getMessage(), e);
+                    Thread.currentThread().interrupt();
+                }
             }
         }
         return Optional.empty();
     }
 
-    class MonitorThread extends Thread {
-        final CardTerminals terms;
-
-        MonitorThread(CardTerminals terminals) {
-            terms = terminals;
-            setName("MonitorThread");
-            setDaemon(true);
-        }
-
-        @Override
-        public void run() {
-            while (!isInterrupted()) {
-                boolean changed = true;
-                try {
-                    changed = terms.waitForChange(3000);
-                } catch (CardException e) {
-                    // Removing on Linux results in timeout error, adding results in true
-                    if (TerminalManager.getPCSCError(e).equals(Optional.of(SCard.SCARD_E_TIMEOUT)))
-                        changed = true;
-                    else
-                        logger.error("Failed: " + e.getMessage());
-                }
-                try {
-                    if (changed) {
-                        setSelection(terms.list());
-                    }
-                } catch (CardException e) {
-                    logger.error("Failed: " + e.getMessage());
-                }
-            }
-        }
-    }
-
-    static boolean isMacOS() {
-        return System.getProperty("os.name").equalsIgnoreCase("mac os x");
-    }
-
-    static boolean isWindows() {
-        return System.getProperty("os.name").toLowerCase().startsWith("windows");
-    }
 }
