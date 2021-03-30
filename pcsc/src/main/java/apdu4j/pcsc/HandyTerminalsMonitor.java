@@ -27,15 +27,18 @@ import org.slf4j.LoggerFactory;
 import javax.smartcardio.CardException;
 import javax.smartcardio.CardTerminals;
 import javax.smartcardio.TerminalFactory;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 // Take care of the PC/SC weirdnesses and notify of reader list changes as plain data
-// This should be run in a daemon thread.
+// This SHOULD be run in a daemon thread, or interrupts will work in TICK_WAIT intervals
 public final class HandyTerminalsMonitor implements Runnable {
     private static final Logger logger = LoggerFactory.getLogger(HandyTerminalsMonitor.class);
 
-    private final static long TICK_WAIT = 3000; // PC/SC wait time
+    private final static long TICK_WAIT = 3000; // PC/SC wait time, for interrupt() to work before infinity
     private final static long TICK_POLL = 1000; // Thread sleep time
 
     private final TerminalFactory factory;
@@ -49,6 +52,12 @@ public final class HandyTerminalsMonitor implements Runnable {
         this.listener = whereToReport;
     }
 
+    private final boolean isWindows = TerminalManager.isWindows();
+    private final boolean isMacOS = TerminalManager.isMacOS();
+    private final boolean isLinux = !(isWindows || isMacOS);
+
+    private Set<PCSCReader> currentState = Collections.emptySet();
+    private boolean haveReportedNoReaders = false;
 
     /**
      * With pcsc-lite, every thread requires their own context, or blocking calls would block other threads
@@ -80,10 +89,6 @@ public final class HandyTerminalsMonitor implements Runnable {
         }
     }
 
-    // Linux here means pcsc-lite (everything except Windows and macOS)
-    boolean isLinux() {
-        return !(TerminalManager.isWindows() || TerminalManager.isMacOS());
-    }
 
     private void fail(String message, Throwable t) {
         logger.error("Failing: {} {}", message, t == null ? "" : SCard.getExceptionMessage(t));
@@ -92,33 +97,65 @@ public final class HandyTerminalsMonitor implements Runnable {
         Thread.currentThread().interrupt();
     }
 
+
+    private boolean shouldReport(List<PCSCReader> newStates) {
+        HashSet<PCSCReader> news = new HashSet<>(newStates);
+        logger.debug("current state: {}", currentState);
+        logger.debug("new     state: {}", news);
+
+        // Only report no readers once
+        if (news.size() == 0 && !haveReportedNoReaders) {
+            return true;
+        } else {
+            if (!currentState.equals(news)) {
+                logger.debug("change");
+                return true;
+            } else {
+                logger.debug("no change");
+            }
+        }
+        // "supurious state change" from jna
+        return false;
+    }
+
+    private void reportChanges(List<PCSCReader> state) {
+        logger.debug("Reporting state: {}", state);
+        haveReportedNoReaders = state.size() == 0;
+        listener.readerListChanged(state);
+        currentState = new HashSet<>(state);
+    }
+
     @Override
     public void run() {
         logger.debug("PC/SC monitor thread starting");
         establishContext();
-        // SunPCSC does not detect a change on initial wait
-        // But we always list first before waiting
+        // SunPCSC does not detect a change on initial wait so
+        // we always list first before waiting and then filter JNA "spurious changes"
         boolean changed = true; // Trigger initial listing
         try {
             while (!Thread.currentThread().isInterrupted()) {
+                // list readers and their changes, reporting changes as necessary
                 if (!Thread.currentThread().isInterrupted() && changed) {
                     try {
                         long start = System.currentTimeMillis();
                         List<PCSCReader> readers = TerminalManager.listPCSC(monitor.list(), null, false);
                         logger.debug("list took {}ms, {} items", System.currentTimeMillis() - start, readers.size());
+
+                        if (shouldReport(readers))
+                            reportChanges(readers);
+
                         if (isSunPCSC && readers.size() == 0) {
                             //Exception in thread "PC/SC Monitor" java.lang.IllegalStateException: No terminals available
                             //	at java.smartcardio/sun.security.smartcardio.PCSCTerminals.waitForChange(PCSCTerminals.java:174)
-                            logger.info("sunpcsc on macosx, wait for change will break with illegalstateexception");
+                            logger.info("sunpcsc on macosx, waitForChange() will fail with IllegalStateException");
                             Thread.sleep(TICK_POLL);
                             continue;
                         }
-                        listener.readerListChanged(readers);
                     } catch (CardException e) {
                         String err = SCard.getExceptionMessage(e);
                         // pcsc-lite
                         if (err.equals(SCard.SCARD_E_NO_READERS_AVAILABLE)) {
-                            if (isLinux()) {
+                            if (isLinux) {
                                 logger.info("No readers, sleeping one tick");
                                 TimeUnit.MILLISECONDS.sleep(TICK_POLL);
                                 continue;
@@ -126,7 +163,7 @@ public final class HandyTerminalsMonitor implements Runnable {
                                 fail("list", e);
                             }
                         } else if (err.equals(SCard.SCARD_E_SERVICE_STOPPED)) {
-                            if (TerminalManager.isWindows()) {
+                            if (isWindows) {
                                 if (isSunPCSC) {
                                     fail("Can't recover from stopped PC/SC with SunPCSC", e);
                                 } else {
@@ -136,10 +173,11 @@ public final class HandyTerminalsMonitor implements Runnable {
                                     continue;
                                 }
                             } else {
+                                // Should not happen on non-windows
                                 fail("list", e);
                             }
                         } else if (err.equals(SCard.SCARD_E_NO_SERVICE)) {
-                            // SunPCSC on Windows throws after reader is removed
+                            // SunPCSC on Windows throws after reader is removed and service stopped has been received
                             logger.info("list: {}", err);
                             TimeUnit.MILLISECONDS.sleep(TICK_POLL);
                             continue;
@@ -148,6 +186,7 @@ public final class HandyTerminalsMonitor implements Runnable {
                         }
                     }
                 }
+                // ... and wait for further changes
                 if (!Thread.currentThread().isInterrupted()) {
                     try {
                         long start = System.currentTimeMillis();
@@ -158,7 +197,7 @@ public final class HandyTerminalsMonitor implements Runnable {
                         // Removing a reader on Linux results in timeout error, adding results in true
                         if (err.equals(SCard.SCARD_E_TIMEOUT)) {
                             logger.info("wait: {}", err);
-                            if (isLinux()) {
+                            if (isLinux) {
                                 logger.debug("Removed reader on Linux");
                                 changed = true;
                             } else {
@@ -169,13 +208,24 @@ public final class HandyTerminalsMonitor implements Runnable {
                             logger.info("wait: {}", err);
                             TimeUnit.MILLISECONDS.sleep(TICK_POLL);
                             continue;
+                        } else if (err.equals(SCard.SCARD_E_NO_READERS_AVAILABLE)) {
+                            // SunPCSC on Linux
+                            if (isLinux && isSunPCSC) {
+                                // Should have been caught in list cycle
+                                logger.error("{} in wait cycle? Should not reach here");
+                                // Anyway, wait a bit before hitting it again
+                                TimeUnit.MILLISECONDS.sleep(TICK_POLL);
+                                continue;
+                            } else {
+                                fail("list", e);
+                            }
                         } else {
                             fail("wait", e);
                         }
                     }
                 }
             }
-            logger.debug("Thread interrupted itself, done");
+            logger.debug("Thread interrupted cleanly, done");
         } catch (InterruptedException e) {
             logger.debug("Thread was interrupted, done");
         }

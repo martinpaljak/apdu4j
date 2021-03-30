@@ -21,6 +21,8 @@
  */
 package apdu4j.pcsc;
 
+import apdu4j.core.HexBytes;
+
 import java.util.Objects;
 import java.util.Optional;
 
@@ -95,7 +97,7 @@ public final class PCSCReader {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PCSCReader that = (PCSCReader) o;
-        return name.equals(that.name);
+        return this.name.equals(that.name) && this.present == that.present && this.getATR().equals(that.getATR());
     }
 
     @Override
@@ -105,7 +107,7 @@ public final class PCSCReader {
 
     @Override
     public String toString() {
-        return "PCSCReader{" + name + '}';
+        return "PCSCReader{" + name + "," + present + getATR().map(a -> "," + HexBytes.b(a).s()).orElse("") + "}";
     }
 
     // Utility function to print the terminal list in a predictable way
