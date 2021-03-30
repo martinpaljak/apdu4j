@@ -258,7 +258,7 @@ public final class TerminalManager {
             }
             try {
                 final String name = t.getName();
-                final boolean present = t.isCardPresent();
+                boolean present = t.isCardPresent();
                 boolean exclusive = false;
                 String vmd = null;
                 byte[] atr = null;
@@ -272,7 +272,11 @@ public final class TerminalManager {
                             vmd = PinPadTerminal.getVMD(c);
                     } catch (CardException e) {
                         String err = SCard.getExceptionMessage(e);
-                        if (err.equals(SCard.SCARD_E_SHARING_VIOLATION)) {
+                        if (err.equals(SCard.SCARD_W_UNPOWERED_CARD)) {
+                            logger.warn("Unpowered card. Contact card inserted wrong way or card mute?");
+                            // We don't present such cards, as for contactless this is a no-case TODO: reconsider ?
+                            present = false;
+                        } else if (err.equals(SCard.SCARD_E_SHARING_VIOLATION)) {
                             exclusive = true;
                             // macOS allows to connect to reader in DIRECT mode when device is in EXCLUSIVE
                             try {

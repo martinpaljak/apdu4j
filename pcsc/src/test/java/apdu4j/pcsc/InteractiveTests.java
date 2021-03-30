@@ -176,4 +176,17 @@ public class InteractiveTests {
         ch.transmit(cmd);
         log.info("transmitted2");
     }
+
+
+    @Test
+    public void testNoReadersWaiting() throws Exception {
+        onlyInteractive("Have no readers");
+        // TODO JNA: card disconnected in other thread should go IllegalstateException when transmitting in other thread
+
+        CardTerminals terminals = factory.terminals();
+        //terminals.waitForChange();
+        System.out.println(terminals.list());
+    }
+
+
 }
