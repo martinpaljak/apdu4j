@@ -69,6 +69,9 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
     boolean bareBibo;
     @Option(names = {"-r", "--reader"}, description = "Use reader", paramLabel = "<reader>")
     String reader;
+    @Option(names = {"-R"}, description = "Force reader selector")
+    boolean forceReaderSelection;
+
     @Option(names = {"-a", "--apdu"}, description = "Send APDU-s", paramLabel = "<HEX>")
     byte[][] apdus = {};
 
@@ -556,22 +559,26 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
             factory = getTerminalFactory();
             terminals = factory.terminals();
 
-            List<PCSCReader> readers = TerminalManager.listPCSC(terminals.list(), null, false);
-            TerminalManager.dwimify(readers, spec, System.getenv(ENV_APDU4J_READER_IGNORE));
             Optional<CardTerminal> result;
-            if (spec != null) {
-                Optional<PCSCReader> preferred = TerminalManager.toSingleton(readers, e -> e.isPreferred());
-                if (preferred.isPresent()) {
-                    result = Optional.ofNullable(terminals.getTerminal(preferred.get().getName()));
-                } else {
-                    System.err.println("-r/$APDU4J_READER was not found: " + spec);
-                    result = Optional.empty();
-                }
+            if (forceReaderSelection) {
+                result = FancyChooser.forTerminals(factory, System.getenv(ENV_APDU4J_READER), System.getenv(ENV_APDU4J_READER_IGNORE)).call();
             } else {
-                result = TerminalManager.getLucky(readers, terminals);
-            }
-            if (result.isEmpty() && spec == null) {
-                result = FancyChooser.forTerminals(factory, null, System.getenv(ENV_APDU4J_READER_IGNORE)).call();
+                List<PCSCReader> readers = TerminalManager.listPCSC(terminals.list(), null, false);
+                TerminalManager.dwimify(readers, spec, System.getenv(ENV_APDU4J_READER_IGNORE));
+                if (spec != null) {
+                    Optional<PCSCReader> preferred = TerminalManager.toSingleton(readers, e -> e.isPreferred());
+                    if (preferred.isPresent()) {
+                        result = Optional.ofNullable(terminals.getTerminal(preferred.get().getName()));
+                    } else {
+                        System.err.println("-r/$APDU4J_READER was not found: " + spec);
+                        result = Optional.empty();
+                    }
+                } else {
+                    result = TerminalManager.getLucky(readers, terminals);
+                }
+                if (result.isEmpty() && spec == null) {
+                    result = FancyChooser.forTerminals(factory, null, System.getenv(ENV_APDU4J_READER_IGNORE)).call();
+                }
             }
             // Apply logging, if requested
             return result.map(t -> debug ? LoggingCardTerminal.getInstance(t) : t);
