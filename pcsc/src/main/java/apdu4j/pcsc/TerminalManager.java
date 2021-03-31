@@ -160,7 +160,7 @@ public final class TerminalManager {
     }
 
     public static List<CardTerminal> byATR(CardTerminals terminals, Collection<byte[]> atrs) throws CardException {
-        List<CardTerminal> tl = terminals.list(State.ALL); // FIXME: ALL was required for a while on OSX due to bugs. Safe to replace with PRESENT?
+        List<CardTerminal> tl = terminals.list(State.ALL);
         return byATR(tl, atrs);
     }
 
@@ -263,9 +263,10 @@ public final class TerminalManager {
                 String vmd = null;
                 byte[] atr = null;
                 if (present) {
+                    Card c = null;
                     // Try to connect in shared mode, also detects EXCLUSIVE
                     try {
-                        Card c = t.connect("*");
+                        c = t.connect("*");
                         // If successful, we get the protocol and ATR
                         atr = c.getATR().getBytes();
                         if (probePinpad)
@@ -280,7 +281,7 @@ public final class TerminalManager {
                             exclusive = true;
                             // macOS allows to connect to reader in DIRECT mode when device is in EXCLUSIVE
                             try {
-                                Card c = t.connect("DIRECT");
+                                c = t.connect("DIRECT");
                                 atr = c.getATR().getBytes();
                                 if (probePinpad)
                                     vmd = PinPadTerminal.getVMD(c);
@@ -297,18 +298,25 @@ public final class TerminalManager {
                             vmd = "EEE";
                             logger.debug("Unexpected error: {}", err, e);
                         }
+                    } finally {
+                        if (c != null)
+                            c.disconnect(false);
                     }
                 } else {
                     // Not present
                     if (probePinpad) {
+                        Card c = null;
                         // Try to connect in DIRECT mode
                         try {
-                            Card c = t.connect("DIRECT");
+                            c = t.connect("DIRECT");
                             vmd = PinPadTerminal.getVMD(c);
                         } catch (CardException e) {
                             vmd = "EEE";
                             String err = SCard.getExceptionMessage(e);
                             logger.debug("Could not connect to reader in direct mode: {}", err, e);
+                        } finally {
+                            if (c != null)
+                                c.disconnect(false);
                         }
                     }
                 }
@@ -343,12 +351,10 @@ public final class TerminalManager {
             }
         } else if (preferHint != null) {
             pref = TerminalManager.hintMatchesExactlyOne(preferHint, aliasedNames);
-        } else {
+        } else if (readers.size() == 1) {
             // One reader
-            if (readers.size() == 1) {
-                readers.get(0).setPreferred(true);
-                return readers;
-            }
+            readers.get(0).setPreferred(true);
+            return readers;
         }
 
         logger.debug("Preferred reader: " + pref);
