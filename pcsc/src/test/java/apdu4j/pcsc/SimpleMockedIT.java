@@ -45,7 +45,7 @@ public class SimpleMockedIT {
         t.join();
         long duration = System.currentTimeMillis() - start;
         logger.info("Test took {} ms", duration);
-        Assert.assertTrue(duration < 100, "Execution took more than 100ms");
+        Assert.assertTrue(duration < 700, "Execution took more than 700ms");
     }
 
 
@@ -76,6 +76,6 @@ public class SimpleMockedIT {
         t.join();
         long duration = System.currentTimeMillis() - start;
         logger.info("Test took {} ms", duration);
-        Assert.assertTrue(duration < 100, "Execution took more than 100ms");
+        Assert.assertTrue(duration < 700, "Execution took more than 700ms");
     }
 }
