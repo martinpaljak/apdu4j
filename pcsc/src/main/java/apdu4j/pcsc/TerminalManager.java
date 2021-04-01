@@ -59,7 +59,31 @@ public final class TerminalManager {
     private static final String fedora64_path = "/usr/lib64/libpcsclite.so.1";
     private static final String raspbian_path = "/usr/lib/arm-linux-gnueabihf/libpcsclite.so.1";
 
-    private final List<CardTerminal> terminals;
+    private final TerminalFactory factory;
+    // TODO: this should end up in jnasmartcardio?
+    // it is not static as it is tied to factory instance of this class
+    private ThreadLocal<CardTerminals> threadLocalTerminals = ThreadLocal.withInitial(() -> null);
+
+    public TerminalManager(TerminalFactory factory) {
+        this.factory = factory;
+    }
+
+    public CardTerminals getTerminals() {
+        return getTerminals(false);
+    }
+
+    public CardTerminals getTerminals(boolean fresh) {
+        CardTerminals terms = threadLocalTerminals.get();
+        if (terms == null || fresh) {
+            terms = factory.terminals();
+            threadLocalTerminals.set(terms);
+        }
+        return terms;
+    }
+
+    public static boolean isEnabled(String feature, boolean def) {
+        return Boolean.parseBoolean(System.getProperty(feature, System.getenv().getOrDefault("_" + feature.toUpperCase().replace(".", "_"), Boolean.toString(def))));
+    }
 
     // SunPCSC needs to have the path to the loadable library to work, for whatever reasons.
     public static String detectLibraryPath() {
@@ -119,19 +143,6 @@ public final class TerminalManager {
             throw new IllegalStateException("jnasmartcardio not bundled, new architecture?");
         }
     }
-
-    public static TerminalManager getInstance(CardTerminals terminals) throws CardException {
-        return getInstance(terminals.list());
-    }
-
-    public static TerminalManager getInstance(List<CardTerminal> terminals) {
-        return new TerminalManager(terminals);
-    }
-
-    private TerminalManager(List<CardTerminal> terminals) {
-        this.terminals = terminals;
-    }
-
 
     /**
      * Return a list of CardTerminal-s that contain a card with one of the specified ATR-s.

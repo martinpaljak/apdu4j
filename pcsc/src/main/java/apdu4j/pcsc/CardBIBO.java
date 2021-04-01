@@ -118,6 +118,7 @@ public class CardBIBO implements BIBO, AsynchronousBIBO {
             return channels.get(channel).transmit(new CommandAPDU(bytes)).getBytes();
         } catch (CardException e) {
             String r = SCard.getExceptionMessage(e);
+            // TODO: try to localize SCARD_E_NOT_TRANSACTED to possibly contactless readers
             if (r.equals(SCard.SCARD_E_NOT_TRANSACTED) || r.equals(SCard.SCARD_E_NO_SMARTCARD)) {
                 logger.debug("Assuming tag removed, because {}", r);
                 throw new TagRemovedException(r, e);

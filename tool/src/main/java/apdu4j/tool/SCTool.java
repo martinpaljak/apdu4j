@@ -457,7 +457,7 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
     }
 
     Optional<String> forceLibraryPath() {
-        if (lowlevel.useSUN != null && lowlevel.useSUN.trim().length() > 0) {
+        if (lowlevel.useSUN != null && !lowlevel.useSUN.isBlank()) {
             return Optional.of(lowlevel.useSUN.trim());
         }
         return Optional.empty();
@@ -472,7 +472,8 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
         try {
             if (lowlevel.useSUN != null) {
                 // Fix (SunPCSC) properties on non-windows platforms
-                TerminalManager.fixPlatformPaths();
+                if (TerminalManager.isEnabled("apdu4j.fixpath", true))
+                    TerminalManager.fixPlatformPaths();
 
                 // Override PC/SC library path (Only applies to SunPCSC)
                 forceLibraryPath().ifPresent(e -> System.setProperty(TerminalManager.LIB_PROP, e));
