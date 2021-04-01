@@ -13,6 +13,7 @@ public class UID implements SimpleSmartCardApp {
             System.out.printf("UID: %s%n", HexUtils.bin2hex(resp.getData()));
         else
             System.err.printf("UID not supported by reader? SW=%04Xd", resp.getSW());
+        bibo.close();
         return 0;
     }
 }
