@@ -109,6 +109,10 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
     }
 
     void printReaderList(List<PCSCReader> readers, PrintStream to, boolean verbose) {
+        if (readers.size() == 0) {
+            to.println("No readers found");
+            return;
+        }
         ReaderAliases aliases = ReaderAliases.getDefault().apply(readers.stream().map(PCSCReader::getName).collect(Collectors.toList()));
 
         ATRList atrList = null;
@@ -163,10 +167,10 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
         } catch (Smartcardio.EstablishContextException | CardException e) {
             String em = SCard.getExceptionMessage(e);
             if (em.equals(SCard.SCARD_E_NO_SERVICE)) {
-                return fail("PC/SC service is not running!");
+                return fail("PC/SC service is not running: " + em);
             } else if (em.equals(SCard.SCARD_E_NO_READERS_AVAILABLE)) {
                 // Address Windows with SunPCSC
-                return fail("No reader with a card found!");
+                return fail("No readers found: " + em);
             } else {
                 return fail("Could not list readers: " + em);
             }
