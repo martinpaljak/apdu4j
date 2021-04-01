@@ -12,6 +12,6 @@
 
     <groupId>com.github.martinpaljak</groupId>
     <artifactId>apdu4j-core</artifactId>
-    <version>2020b3-SNAPSHOT</version>
+    <version>2020r3</version>
 
 </project>
