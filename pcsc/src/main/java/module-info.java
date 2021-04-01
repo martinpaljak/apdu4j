@@ -9,7 +9,4 @@ module apdu4j.pcsc {
     exports apdu4j.pcsc;
     exports apdu4j.pcsc.terminals;
     exports apdu4j.pcsc.providers;
-
-    // Not really, only for tests, but this seems to be harmless. PC/SC is desktop-oriented
-    requires java.desktop;
 }

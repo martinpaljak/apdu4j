@@ -41,14 +41,14 @@ public final class HandyTerminalsMonitor implements Runnable {
     private final static long TICK_WAIT = 3000; // PC/SC wait time, for interrupt() to work before infinity
     private final static long TICK_POLL = 1000; // Thread sleep time
 
-    private final TerminalFactory factory;
     private final PCSCMonitor listener;
 
+    private TerminalManager manager;
     private CardTerminals monitor;
     private boolean isSunPCSC = false;
 
-    public HandyTerminalsMonitor(TerminalFactory whatToMonitor, PCSCMonitor whereToReport) {
-        this.factory = whatToMonitor;
+    public HandyTerminalsMonitor(TerminalManager whatToMonitor, PCSCMonitor whereToReport) {
+        this.manager = whatToMonitor;
         this.listener = whereToReport;
     }
 
@@ -69,7 +69,7 @@ public final class HandyTerminalsMonitor implements Runnable {
     private void establishContext() {
         try {
             logger.info("Getting new terminals object");
-            monitor = factory.terminals();
+            monitor = manager.terminals(true);
             String monitorClass = monitor.getClass().getCanonicalName();
             if (monitorClass.equals("javax.smartcardio.TerminalFactory.NoneCardTerminals")) {
                 // we can't recover from this

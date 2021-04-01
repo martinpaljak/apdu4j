@@ -10,6 +10,7 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import javax.smartcardio.*;
+import java.security.NoSuchAlgorithmException;
 
 public class SimpleMockedIT {
     static {
@@ -25,12 +26,21 @@ public class SimpleMockedIT {
 
     private static final Logger logger = LoggerFactory.getLogger(SimpleMockedIT.class);
 
+    CardTerminal terminalMaker() {
+        try {
+            TerminalFactory factory = TerminalFactory.getInstance("PC/SC", SimpleMockedIT.class.getResourceAsStream("test.dump"), new APDUReplayProvider());
+            TerminalManager manager = new TerminalManager(factory);
+            return manager.getTerminal(APDUReplayProvider.READER_NAME);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     @Test
     public void testSimpleEmulatedTerminalApp() throws Exception {
-        TerminalFactory factory = TerminalFactory.getInstance("PC/SC", SimpleMockedIT.class.getResourceAsStream("test.dump"), new APDUReplayProvider());
         long start = System.currentTimeMillis();
         SampleApp app = new SampleApp();
-        Thread t = new Thread(CardTerminalAppRunner.once(factory, APDUReplayProvider.READER_NAME, app));
+        Thread t = new Thread(CardTerminalAppRunner.once(this::terminalMaker, app));
         t.start();
         t.join();
         long duration = System.currentTimeMillis() - start;
@@ -42,7 +52,6 @@ public class SimpleMockedIT {
     @Test
     public void testSynthesizedCardTerminal() throws Exception {
         long start = System.currentTimeMillis();
-        TerminalFactory factory = TerminalFactory.getInstance("PC/SC", SimpleMockedIT.class.getResourceAsStream("test.dump"), new APDUReplayProvider());
 
         SmartCardAppFutures pipe = new SmartCardAppFutures() {
             @Override
@@ -50,7 +59,7 @@ public class SimpleMockedIT {
                 return "test";
             }
         };
-        Thread t = new Thread(CardTerminalAppRunner.once(factory, APDUReplayProvider.READER_NAME, pipe));
+        Thread t = new Thread(CardTerminalAppRunner.once(this::terminalMaker, pipe));
         t.start();
 
         // This is synchronous

@@ -41,20 +41,20 @@ public final class ATRList {
             Map<String, List<String>> entries = new HashMap<>();
 
             List<String> allLines = reader.lines().collect(Collectors.toList());
-            String name = null;
+            String atrmask = null;
             ArrayList<String> desc = new ArrayList<>();
             for (String line : allLines) {
                 if (line.length() == 0) {
-                    if (name != null && desc != null) {
-                        entries.put(name.replace(" ", ""), desc);
+                    if (atrmask != null && desc != null) {
+                        entries.put(atrmask.replace(" ", ""), desc);
                     }
                     desc = new ArrayList<>();
                 } else if (line.charAt(0) == '\t') {
-                    desc.add(line);
+                    desc.add(line.trim());
                 } else if (line.charAt(0) == '#') {
                     continue;
                 } else {
-                    name = line;
+                    atrmask = line;
                 }
             }
             return new ATRList(entries, path);

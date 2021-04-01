@@ -28,7 +28,6 @@ import apdu4j.pcsc.TerminalManager;
 import javax.smartcardio.*;
 import java.io.OutputStream;
 import java.io.PrintStream;
-import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
@@ -44,10 +43,10 @@ import java.util.Calendar;
  */
 public final class LoggingCardTerminal extends CardTerminal implements AutoCloseable {
     // The actual terminal
-    protected long startTime;
     protected final CardTerminal terminal;
     protected final PrintStream log;
     protected final PrintStream dump;
+    protected long startTime;
 
     private LoggingCardTerminal(CardTerminal term, PrintStream log, PrintStream dump) {
         if (term == null)
@@ -57,31 +56,16 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
         this.dump = dump;
     }
 
-    private static LoggingCardTerminal make(CardTerminal term, OutputStream log, OutputStream dump) {
-        final PrintStream logstream;
-        final PrintStream dumpstream;
-        try {
-            logstream = new PrintStream(log, true, StandardCharsets.UTF_8.name());
-            if (dump != null) {
-                dumpstream = new PrintStream(dump, true, StandardCharsets.UTF_8.name());
-            } else
-                dumpstream = null;
-        } catch (UnsupportedEncodingException e) {
-            throw new Error("Must support UTF-8", e);
-        }
-        return new LoggingCardTerminal(term, logstream, dumpstream);
-    }
-
     public static LoggingCardTerminal getInstance(CardTerminal term) {
-        return make(term, System.out, null);
+        return new LoggingCardTerminal(term, System.out, null);
     }
 
     public static LoggingCardTerminal getInstance(CardTerminal term, OutputStream logStream) {
-        return make(term, logStream, null);
+        return new LoggingCardTerminal(term, new PrintStream(logStream, true, StandardCharsets.UTF_8), null);
     }
 
     public static LoggingCardTerminal getInstance(CardTerminal term, OutputStream logStream, OutputStream dump) {
-        return make(term, logStream, dump);
+        return new LoggingCardTerminal(term, new PrintStream(logStream, true, StandardCharsets.UTF_8), new PrintStream(dump, true, StandardCharsets.UTF_8));
     }
 
     @Override
