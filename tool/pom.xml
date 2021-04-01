@@ -5,7 +5,7 @@
     <parent>
         <artifactId>apdu4j</artifactId>
         <groupId>com.github.martinpaljak</groupId>
-        <version>20.08.14-SNAPSHOT</version>
+        <version>21.04.01</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -15,7 +15,7 @@
         <dependency>
             <groupId>com.github.martinpaljak</groupId>
             <artifactId>apdu4j-pcsc</artifactId>
-            <version>20.08.14-SNAPSHOT</version>
+            <version>21.04.01</version>
         </dependency>
         <!-- cmdline -->
         <dependency>
