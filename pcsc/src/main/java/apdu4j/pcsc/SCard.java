@@ -37,6 +37,7 @@ public final class SCard {
     public static final String SCARD_W_REMOVED_CARD = "SCARD_W_REMOVED_CARD";
     public static final String SCARD_E_UNSUPPORTED_FEATURE = "SCARD_E_UNSUPPORTED_FEATURE";
     public static final String SCARD_E_TIMEOUT = "SCARD_E_TIMEOUT";
+    public static final String SCARD_E_INVALID_HANDLE = "SCARD_E_INVALID_HANDLE";
 
     public static int CARD_CTL_CODE(int c) {
         String os = System.getProperty("os.name", "unknown").toLowerCase();

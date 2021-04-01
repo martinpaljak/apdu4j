@@ -311,9 +311,8 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
                     Optional<Thread> exiter = exiter();
                     // Then run the app
                     int ret = ((SimpleSmartCardApp) sca).run(b, args);
-                    System.out.println("Returned " + ret);
                     exiter.map(t -> Runtime.getRuntime().removeShutdownHook(t));
-                    b.close(); // Close the bibo if app was successful
+                    b.close(); // Close the bibo if app was successful and did not do it itself.
                     return ret;
                 } else if (sca instanceof SmartCardAppListener) {
                     Optional<Thread> exiter = exiter();

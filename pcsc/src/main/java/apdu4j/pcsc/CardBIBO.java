@@ -40,6 +40,7 @@ public class CardBIBO implements BIBO, AsynchronousBIBO {
     private static final Logger logger = LoggerFactory.getLogger(CardBIBO.class);
     public static final String PROP_APDU4J_PSEUDOAPDU = "apdu4j.pseudoapdu";
     protected final Card card;
+    private volatile boolean closed = false;
 
     // set to false to disable pseudoapdu-s
     public boolean pseudo = Boolean.getBoolean(System.getProperty(PROP_APDU4J_PSEUDOAPDU, Boolean.TRUE.toString()));
@@ -68,6 +69,8 @@ public class CardBIBO implements BIBO, AsynchronousBIBO {
 
     @Override
     public byte[] transceive(byte[] bytes) throws BIBOException {
+        if (closed)
+            throw new BIBOException("has been closed!");
         try {
             int channel = getChannel(bytes[0] & 0xFF);
 
@@ -129,15 +132,22 @@ public class CardBIBO implements BIBO, AsynchronousBIBO {
 
     @Override
     public void close() {
+        closed = true;
         try {
             card.disconnect(true);
         } catch (CardException e) {
-            logger.warn("disconnect() failed: " + e.getMessage(), e);
+            String err = SCard.getExceptionMessage(e);
+            if (err.equals(SCard.SCARD_E_INVALID_HANDLE)) {
+                logger.debug("Ignoring {} during disconnect, already closed before", err);
+            } else
+                logger.warn("disconnect() failed: " + e.getMessage(), e);
         }
     }
 
     @Override
     public CompletableFuture<byte[]> transmit(byte[] command) {
+        if (closed)
+            return CompletableFuture.failedFuture(new BIBOException("closed"));
         // FIXME: do not execute this in common pool
         return CompletableFuture.supplyAsync(() -> transceive(command));
     }
