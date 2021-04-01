@@ -24,14 +24,15 @@ public class SampleApp extends SmartCardAppFutures {
     public void onCardPresent(AsynchronousBIBO transport, CardData props) {
         super.onCardPresent(transport, props);
         logger.info("Received card: {}", props);
-
-        transmit(HexUtils.hex2bin("00a4040000"))
+        //
+        CompletableFuture.runAsync(() -> transmit(HexUtils.hex2bin("00a4040000"))
                 .thenComposeAsync(SampleApp::checkAndLog)
                 .thenAcceptAsync(s -> close())
                 .exceptionally((ex) -> {
                     logger.error("SampleApp failed: " + ex);
                     return null;
-                });
+                }));
+
     }
 
     @Override

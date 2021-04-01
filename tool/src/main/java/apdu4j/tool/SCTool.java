@@ -41,6 +41,8 @@ import java.security.Provider;
 import java.security.Security;
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
 
 @Command(name = "apdu4j", versionProvider = SCTool.class, mixinStandardHelpOptions = true, subcommands = {HelpCommand.class})
@@ -93,8 +95,7 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
 
     private Map<String, SmartCardApp> apps;
 
-    private TerminalFactory factory;
-    private CardTerminals terminals;
+    private TerminalManager manager;
 
     static class LowLevel {
         @Option(names = {"-X", "--exclusive"}, description = "Use EXCLUSIVE mode (JNA only)")
@@ -161,7 +162,7 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
                 verbose(String.join(" ", env));
         }
         try {
-            List<PCSCReader> result = TerminalManager.listPCSC(getTerminalFactory().terminals().list(), debug ? System.out : null, beVerbose);
+            List<PCSCReader> result = TerminalManager.listPCSC(getTerminalManager().terminals().list(), debug ? System.out : null, beVerbose);
             TerminalManager.dwimify(result, System.getenv(ENV_APDU4J_READER), System.getenv(ENV_APDU4J_READER_IGNORE));
             printReaderList(result, System.out, beVerbose);
         } catch (Smartcardio.EstablishContextException | CardException e) {
@@ -269,8 +270,7 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
 
         try {
             // Resolve reader
-            String preferredHint = reader == null ? System.getenv(ENV_APDU4J_READER) : reader;
-            Optional<CardTerminal> rdr = getTheTerminal(preferredHint);
+            Optional<CardTerminal> rdr = getTheTerminal();
 
             rdr.ifPresent((t) -> verbose("Using " + t.getName()));
 
@@ -311,18 +311,24 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
                     Optional<Thread> exiter = exiter();
                     // Then run the app
                     int ret = ((SimpleSmartCardApp) sca).run(b, args);
+                    System.out.println("Returned " + ret);
                     exiter.map(t -> Runtime.getRuntime().removeShutdownHook(t));
                     b.close(); // Close the bibo if app was successful
                     return ret;
                 } else if (sca instanceof SmartCardAppListener) {
-                    exiter();
-                    // Runs on separate thread
-                    Thread appThread = new Thread(new CardTerminalAppRunner(factory, rdr.get().getName(), (SmartCardAppListener) sca, args));
+                    Optional<Thread> exiter = exiter();
+                    ErrorReportingSmartCardAppProxy proxy = new ErrorReportingSmartCardAppProxy((SmartCardAppListener) sca);
+                    Thread appThread = new Thread(new CardTerminalAppRunner(getTheTerminal()::get, proxy, ForkJoinPool.commonPool(), args));
                     appThread.start();
                     appThread.join();
-                    //exiter.map(t -> Runtime.getRuntime().removeShutdownHook(t));
-                    verbose("Success");
-                    return 0;
+                    exiter.map(t -> Runtime.getRuntime().removeShutdownHook(t));
+                    if (proxy.didError()) {
+                        verbose("Failed");
+                        return 1;
+                    } else {
+                        verbose("Success");
+                        return 0;
+                    }
                 } else
                     return fail("Don't know how to handle apps of type " + Arrays.asList(sca.getClass().getInterfaces()));
             }
@@ -333,6 +339,51 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
         }
         return 66;
     }
+
+    static class ErrorReportingSmartCardAppProxy implements SmartCardAppListener {
+        final SmartCardAppListener proxied;
+        private volatile Throwable errored;
+
+        ErrorReportingSmartCardAppProxy(SmartCardAppListener app) {
+            proxied = app;
+        }
+
+        @Override
+        public String getName() {
+            return proxied.getName();
+        }
+
+        @Override
+        public Optional<String> getDescription() {
+            return proxied.getDescription();
+        }
+
+        @Override
+        public CompletableFuture<AppParameters> onStart(String[] argv) {
+            return proxied.onStart(argv);
+        }
+
+        @Override
+        public void onCardPresent(AsynchronousBIBO transport, CardData properties) {
+            proxied.onCardPresent(transport, properties);
+        }
+
+        @Override
+        public void onCardRemoved() {
+            proxied.onCardRemoved();
+        }
+
+        @Override
+        public void onError(Throwable e) {
+            errored = e;
+            proxied.onError(e);
+        }
+
+        public boolean didError() {
+            return errored != null;
+        }
+    }
+
 
     Optional<Thread> exiter() {
         if (verbose) {
@@ -349,7 +400,7 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
         List<byte[]> toCard = new ArrayList<>(Arrays.asList(this.apdus));
         // Then explicit apdu-s
         toCard.addAll(apdus);
-        try (BIBO b = getBIBO(getTheTerminal(reader))) {
+        try (BIBO b = getBIBO(getTheTerminal())) {
             for (byte[] s : toCard) {
                 ResponseAPDU r = new ResponseAPDU(b.transceive(s));
                 if (r.getSW() != 0x9000 && !force) {
@@ -366,15 +417,13 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
 
 
     @Command(name = "plugins", description = "List available plugins.")
-    @SuppressWarnings("deprecation")
-    // Provider.getVersion()
     public int listPlugins() {
         // List TerminalFactory providers
         Provider[] providers = Security.getProviders("TerminalFactory.PC/SC");
         System.out.println("Existing TerminalFactory providers:");
         if (providers != null) {
             for (Provider p : providers) {
-                System.out.printf("%s v%s (%s) from %s%n", p.getName(), p.getVersion(), p.getInfo(), Plug.pluginfile(p));
+                System.out.printf("%s v%s (%s) from %s%n", p.getName(), p.getVersionStr(), p.getInfo(), Plug.pluginfile(p));
             }
         }
         return 0;
@@ -464,10 +513,11 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
     }
 
 
-    // Return a terminal factory, taking into account CLI options
-    TerminalFactory getTerminalFactory() {
-        if (tf != null)
-            return tf;
+    // Return a terminal factory manager, taking into account CLI options
+    TerminalManager getTerminalManager() {
+        TerminalFactory tf;
+        if (manager != null)
+            return manager;
         // Separate trycatch block for potential Windows exception in terminal listing
         try {
             if (lowlevel.useSUN != null) {
@@ -485,14 +535,15 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
                 // Get the built-int provider
                 tf = TerminalFactory.getDefault();
             } else {
-                // Get JNA
+                // Get JNA or default
                 tf = TerminalManager.getTerminalFactory();
             }
 
             if (verbose) {
                 System.out.println("# Using " + tf.getProvider());
             }
-            return tf;
+            manager = new TerminalManager(tf);
+            return manager;
         } catch (Smartcardio.EstablishContextException e) {
             String msg = SCard.getExceptionMessage(e);
             fail("No readers: " + msg);
@@ -551,7 +602,9 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
     }
 
     // Return a terminal TODO: handle plugins
-    private Optional<CardTerminal> getTheTerminal(String spec) {
+    private Optional<CardTerminal> getTheTerminal() {
+        String spec = reader == null ? System.getenv(ENV_APDU4J_READER) : reader;
+
         // Don't issue APDU-s internally
         if (bareBibo) {
             System.setProperty("sun.security.smartcardio.t0GetResponse", "false");
@@ -561,13 +614,13 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
 
         try {
             // Get the right factory, based on command line options
-            factory = getTerminalFactory();
-            terminals = factory.terminals();
+            getTerminalManager();
 
             Optional<CardTerminal> result;
             if (forceReaderSelection) {
-                result = FancyChooser.forTerminals(factory, System.getenv(ENV_APDU4J_READER), System.getenv(ENV_APDU4J_READER_IGNORE)).call();
+                result = FancyChooser.forTerminals(manager, System.getenv(ENV_APDU4J_READER), System.getenv(ENV_APDU4J_READER_IGNORE)).call();
             } else {
+                CardTerminals terminals = manager.terminals();
                 List<PCSCReader> readers = TerminalManager.listPCSC(terminals.list(), null, false);
                 TerminalManager.dwimify(readers, spec, System.getenv(ENV_APDU4J_READER_IGNORE));
                 if (spec != null) {
@@ -582,10 +635,10 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
                     result = TerminalManager.getLucky(readers, terminals);
                 }
                 if (result.isEmpty() && spec == null) {
-                    result = FancyChooser.forTerminals(factory, null, System.getenv(ENV_APDU4J_READER_IGNORE)).call();
+                    result = FancyChooser.forTerminals(manager, null, System.getenv(ENV_APDU4J_READER_IGNORE)).call();
                 }
             }
-            // Apply logging, if requested
+            // Apply logging, if requested XXX: does not apply to app listener in other thread.
             return result.map(t -> debug ? LoggingCardTerminal.getInstance(t) : t);
         } catch (Exception e) {
             System.out.println("Failed : " + e.getMessage());

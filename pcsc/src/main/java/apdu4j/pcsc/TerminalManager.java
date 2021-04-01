@@ -60,25 +60,47 @@ public final class TerminalManager {
     private static final String raspbian_path = "/usr/lib/arm-linux-gnueabihf/libpcsclite.so.1";
 
     private final TerminalFactory factory;
-    // TODO: this should end up in jnasmartcardio?
+    // TODO: this whole threadlocal stuff should end up in jnasmartcardio?
     // it is not static as it is tied to factory instance of this class
     private ThreadLocal<CardTerminals> threadLocalTerminals = ThreadLocal.withInitial(() -> null);
+
+
+    public static TerminalManager getDefault() {
+        return new TerminalManager(getTerminalFactory());
+    }
 
     public TerminalManager(TerminalFactory factory) {
         this.factory = factory;
     }
 
-    public CardTerminals getTerminals() {
-        return getTerminals(false);
+    public CardTerminals terminals() {
+        return terminals(false);
     }
 
-    public CardTerminals getTerminals(boolean fresh) {
+    public CardTerminals terminals(boolean fresh) {
         CardTerminals terms = threadLocalTerminals.get();
+        // Explicity release the old context if using jnasmartcardio
+        if (terms != null && fresh && terms instanceof Smartcardio.JnaCardTerminals) {
+            try {
+                ((Smartcardio.JnaCardTerminals) terms).close();
+            } catch (Smartcardio.JnaPCSCException e) {
+                logger.warn("Could not release context: {}", SCard.getExceptionMessage(e), e);
+            }
+        }
         if (terms == null || fresh) {
             terms = factory.terminals();
             threadLocalTerminals.set(terms);
         }
         return terms;
+    }
+
+    public TerminalFactory getFactory() {
+        return factory;
+    }
+
+    // Makes sure the associated context would be thread-local for jnasmartcardio and Linux
+    public CardTerminal getTerminal(String name) {
+        return terminals().getTerminal(name);
     }
 
     public static boolean isEnabled(String feature, boolean def) {
@@ -140,7 +162,9 @@ public final class TerminalManager {
         try {
             return TerminalFactory.getInstance("PC/SC", null, new Smartcardio());
         } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("jnasmartcardio not bundled, new architecture?");
+            logger.error("jnasmartcardio not bundled or pcsc-lite not available");
+            // Should result in NoneProvider
+            return TerminalFactory.getDefault();
         }
     }
 
@@ -281,7 +305,7 @@ public final class TerminalManager {
                         // If successful, we get the protocol and ATR
                         atr = c.getATR().getBytes();
                         if (probePinpad)
-                            vmd = PinPadTerminal.getVMD(c);
+                            vmd = PinPadTerminal.getVMD(t, c);
                     } catch (CardException e) {
                         String err = SCard.getExceptionMessage(e);
                         if (err.equals(SCard.SCARD_W_UNPOWERED_CARD)) {
@@ -295,7 +319,7 @@ public final class TerminalManager {
                                 c = t.connect("DIRECT");
                                 atr = c.getATR().getBytes();
                                 if (probePinpad)
-                                    vmd = PinPadTerminal.getVMD(c);
+                                    vmd = PinPadTerminal.getVMD(t, c);
                             } catch (CardException e2) {
                                 String err2 = SCard.getExceptionMessage(e);
                                 if (err2.equals(SCard.SCARD_E_SHARING_VIOLATION)) {
@@ -320,7 +344,7 @@ public final class TerminalManager {
                         // Try to connect in DIRECT mode
                         try {
                             c = t.connect("DIRECT");
-                            vmd = PinPadTerminal.getVMD(c);
+                            vmd = PinPadTerminal.getVMD(t, c);
                         } catch (CardException e) {
                             vmd = "EEE";
                             String err = SCard.getExceptionMessage(e);

@@ -137,6 +137,11 @@ public class APDUReplayProvider extends EmulatedSingleTerminalProvider {
 
         @Override
         public boolean waitForCardAbsent(long arg0) throws CardException {
+            try {
+                Thread.sleep(arg0);
+            } catch (InterruptedException e) {
+                throw new CardException("Interrupted", e);
+            }
             return false;
         }
 

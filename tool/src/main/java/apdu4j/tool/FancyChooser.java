@@ -59,7 +59,7 @@ public final class FancyChooser implements Callable<Optional<CardTerminal>>, PCS
     final Button quitButton;
 
     // PCSC objects
-    final CardTerminals terminals;
+    final TerminalManager manager;
 
     // State monitoring
     final Thread monitor;
@@ -226,20 +226,13 @@ public final class FancyChooser implements Callable<Optional<CardTerminal>>, PCS
         System.err.println(t.getMessage());
     }
 
-    // TODO: have a simple fallback chooser with a list and "enter 1..N"
-    static class EmptyChooser implements Callable<Optional<CardTerminal>> {
-        @Override
-        public Optional<CardTerminal> call() {
-            return Optional.empty();
-        }
-    }
-
-    private FancyChooser(Terminal terminal, Screen screen, TerminalFactory factory, String preferred, String ignored) {
+    private FancyChooser(Terminal terminal, Screen screen, TerminalManager manager, String preferred, String ignored) {
         this.preferred = preferred;
         this.ignored = ignored;
-        this.terminals = factory.terminals(); // XXX: this can change in monitor, but on Windows only. Chooser does not run on Windows.
-        monitor = new Thread(new HandyTerminalsMonitor(factory, this));
+        this.manager = manager;
+        monitor = new Thread(new HandyTerminalsMonitor(manager, this));
         monitor.setName("FancyChooser monitor");
+        monitor.setDaemon(true);
 
         this.terminal = terminal;
         this.screen = screen;
@@ -266,13 +259,13 @@ public final class FancyChooser implements Callable<Optional<CardTerminal>>, PCS
     }
 
 
-    public static Callable<Optional<CardTerminal>> forTerminals(TerminalFactory factory, String preferred, String ignored) throws IOException {
+    public static Callable<Optional<CardTerminal>> forTerminals(TerminalManager manager, String preferred, String ignored) throws IOException {
         // We can't do this on Windows, sorry.
         if (TerminalManager.isWindows())
-            return new EmptyChooser();
+            return () -> Optional.empty();
         Terminal terminal = new DefaultTerminalFactory().createTerminal();
         Screen screen = new TerminalScreen(terminal);
-        return new FancyChooser(terminal, screen, factory, preferred, ignored);
+        return new FancyChooser(terminal, screen, manager, preferred, ignored);
     }
 
 
@@ -299,7 +292,7 @@ public final class FancyChooser implements Callable<Optional<CardTerminal>>, PCS
             logger.info("getting terminal");
             if (nameOfChosenOne == null)
                 return Optional.empty();
-            CardTerminal t = terminals.getTerminal(nameOfChosenOne);
+            CardTerminal t = manager.getTerminal(nameOfChosenOne);
             logger.info("terminal received");
 
             // Exists a chance that the reader is "lost" after it has been selected and this getTerminal call.
@@ -313,15 +306,8 @@ public final class FancyChooser implements Callable<Optional<CardTerminal>>, PCS
         } finally {
             if (monitor != null) {
                 monitor.interrupt();
-                try {
-                    monitor.join();
-                } catch (InterruptedException e) {
-                    logger.warn("Joining closing monitor thread got exception: " + e.getMessage(), e);
-                    Thread.currentThread().interrupt();
-                }
             }
         }
         return Optional.empty();
     }
-
 }

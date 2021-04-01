@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.smartcardio.Card;
 import javax.smartcardio.CardException;
+import javax.smartcardio.CardTerminal;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
@@ -52,7 +53,6 @@ public final class PinPadTerminal {
             FEATURE f = FEATURE.fromValue(ft);
             byte[] c = Arrays.copyOfRange(tlv, i + 2, i + 6);
             ByteBuffer buffer = ByteBuffer.wrap(c);
-            // FIXME: M1 with x86_64 vs aarch64
             buffer.order(ByteOrder.BIG_ENDIAN);
             int ci = buffer.getInt();
             m.put(f, ci);
@@ -86,8 +86,8 @@ public final class PinPadTerminal {
         }
     }
 
-    private PinPadTerminal(Card c, Map<FEATURE, Integer> features) throws CardException {
-        logger.debug("Found features: {}", features.keySet().stream().map(FEATURE::name).collect(Collectors.joining(", ")));
+    private PinPadTerminal(CardTerminal t, Card c, Map<FEATURE, Integer> features) throws CardException {
+        logger.debug("{} has: {}", t.getName(), features.keySet().stream().map(FEATURE::name).collect(Collectors.joining(", ")));
         this.features = new HashMap<>(features);
 
         // Get PIN properties, if possible
@@ -111,7 +111,7 @@ public final class PinPadTerminal {
         }
     }
 
-    public static PinPadTerminal probe(Card c) throws CardException {
+    public static PinPadTerminal probe(CardTerminal t, Card c) throws CardException {
         final int CM_IOCTL_GET_FEATURE_REQUEST = SCard.CARD_CTL_CODE(3400);
 
         // Probe for features.
@@ -119,13 +119,13 @@ public final class PinPadTerminal {
         // Parse features
         Map<FEATURE, Integer> f = tokenize(resp);
         // Try to parse pinpad related features
-        return new PinPadTerminal(c, f);
+        return new PinPadTerminal(t, c, f);
     }
 
 
-    public static String getVMD(Card c) {
+    public static String getVMD(CardTerminal t, Card c) {
         try {
-            PinPadTerminal ppt = probe(c);
+            PinPadTerminal ppt = probe(t, c);
             return (ppt.canVerify() ? "V" : " ") + (ppt.canModify() ? "M" : " ") + (ppt.hasDisplay() ? "D" : " ");
         } catch (CardException e) {
             String err = SCard.getExceptionMessage(e);
