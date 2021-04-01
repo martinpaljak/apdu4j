@@ -29,13 +29,18 @@ public interface SmartCardAppListener extends SmartCardApp {
     /**
      * Complete the returned future to start application (emit onCardPresent)
      *
-     * @return
+     * @param argv similar to argv in main()
+     *
+     * @return the future, which completion will start the app.
      */
     CompletableFuture<AppParameters> onStart(String[] argv);
 
     /**
      * Called for every chip session. This means a "freshly" started chip.
      * transport.done() may or may not power down the chip for new session
+     *
+     * @param transport APDU transport channel to the card
+     * @param properties card properties
      */
     void onCardPresent(AsynchronousBIBO transport, CardData properties);
 
@@ -48,6 +53,8 @@ public interface SmartCardAppListener extends SmartCardApp {
     /**
      * Technical error when communicating with the reader, no further communication possible.
      * May be preceded by onCardRemoved.
+     *
+     * @param e the exception
      */
     void onError(Throwable e);
 

@@ -31,7 +31,6 @@ import java.util.concurrent.atomic.AtomicReference;
  * CancelledException from callable is passed as-is from get(), InterruptedException turned into CancellationException
  * and other exceptions are wrapped in ExecutionException
  *
- * @param <V>
  */
 public class CancellationWaitingFuture<V> implements RunnableFuture<V> {
     AtomicReference<Thread> runner = new AtomicReference<>(null);
