@@ -89,7 +89,7 @@ public abstract class EmulatedSingleTerminalProvider extends Provider {
                 Thread.sleep(l);
                 return false;
             } catch (InterruptedException e) {
-                throw new CardException("Interrupted: " + e.getMessage(), e);
+                throw new CardException("Interrupted", e);
             }
         }
     }
