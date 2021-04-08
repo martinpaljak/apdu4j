@@ -26,7 +26,6 @@ import org.slf4j.LoggerFactory;
 
 import javax.smartcardio.CardException;
 import javax.smartcardio.CardTerminals;
-import javax.smartcardio.TerminalFactory;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -66,9 +65,9 @@ public final class HandyTerminalsMonitor implements Runnable {
      * JNA implementation creates a context when terminals() is called. This allows to work even after
      * SCARD_E_SERVICE_STOPPED is received, what would block SunPCSC.
      */
-    private void establishContext() {
+    private void establishFreshContext() {
         try {
-            logger.info("Getting new terminals object");
+            logger.debug("Getting new terminals object");
             monitor = manager.terminals(true);
             String monitorClass = monitor.getClass().getCanonicalName();
             if (monitorClass.equals("javax.smartcardio.TerminalFactory.NoneCardTerminals")) {
@@ -76,16 +75,15 @@ public final class HandyTerminalsMonitor implements Runnable {
                 fail("SunPCSC without a valid module? Please restart the application!", null);
             } else if (monitorClass.equals("sun.security.smartcardio.PCSCTerminals")) {
                 isSunPCSC = true;
-                logger.info("SunPCSC mode");
+                logger.debug("SunPCSC mode");
             } else if (monitorClass.equals("jnasmartcardio.Smartcardio.JnaCardTerminals")) {
-                logger.info("jnasmartcardio mode");
+                logger.debug("jnasmartcardio mode");
             } else {
                 logger.warn("Unknown CardTerminals class {} ", monitorClass);
             }
         } catch (Exception e) {
             // What to do here, report error and fail? Try some recovery?
             logger.error("Failed to fetch terminals: " + e.getMessage(), e);
-            e.printStackTrace();
         }
     }
 
@@ -100,18 +98,19 @@ public final class HandyTerminalsMonitor implements Runnable {
 
     private boolean shouldReport(List<PCSCReader> newStates) {
         HashSet<PCSCReader> news = new HashSet<>(newStates);
-        logger.debug("current state: {}", currentState);
-        logger.debug("new     state: {}", news);
+        logger.trace("current state: {}", currentState);
+        logger.trace("new     state: {}", news);
 
         // Only report no readers once
         if (news.size() == 0 && !haveReportedNoReaders) {
+            logger.trace("change: no readers");
             return true;
         } else {
             if (!currentState.equals(news)) {
-                logger.debug("change");
+                logger.trace("change");
                 return true;
             } else {
-                logger.debug("no change");
+                logger.trace("no change");
             }
         }
         // "supurious state change" from jna
@@ -128,7 +127,7 @@ public final class HandyTerminalsMonitor implements Runnable {
     @Override
     public void run() {
         logger.debug("PC/SC monitor thread starting");
-        establishContext();
+        establishFreshContext();
         // SunPCSC does not detect a change on initial wait so
         // we always list first before waiting and then filter JNA "spurious changes"
         boolean changed = true; // Trigger initial listing
@@ -139,7 +138,7 @@ public final class HandyTerminalsMonitor implements Runnable {
                     try {
                         long start = System.currentTimeMillis();
                         List<PCSCReader> readers = TerminalManager.listPCSC(monitor.list(), null, false);
-                        logger.debug("list took {}ms, {} items", System.currentTimeMillis() - start, readers.size());
+                        logger.trace("list took {}ms, {} items", System.currentTimeMillis() - start, readers.size());
 
                         if (shouldReport(readers))
                             reportChanges(readers);
@@ -147,7 +146,7 @@ public final class HandyTerminalsMonitor implements Runnable {
                         if (isSunPCSC && readers.size() == 0) {
                             //Exception in thread "PC/SC Monitor" java.lang.IllegalStateException: No terminals available
                             //	at java.smartcardio/sun.security.smartcardio.PCSCTerminals.waitForChange(PCSCTerminals.java:174)
-                            logger.info("sunpcsc on macosx, waitForChange() will fail with IllegalStateException");
+                            logger.debug("sunpcsc on macosx, waitForChange() will fail with IllegalStateException");
                             Thread.sleep(TICK_POLL);
                             continue;
                         }
@@ -156,7 +155,7 @@ public final class HandyTerminalsMonitor implements Runnable {
                         // pcsc-lite
                         if (err.equals(SCard.SCARD_E_NO_READERS_AVAILABLE)) {
                             if (isLinux) {
-                                logger.info("No readers, sleeping one tick");
+                                logger.debug("No readers, sleeping one tick");
                                 TimeUnit.MILLISECONDS.sleep(TICK_POLL);
                                 continue;
                             } else {
@@ -168,7 +167,7 @@ public final class HandyTerminalsMonitor implements Runnable {
                                     fail("Can't recover from stopped PC/SC with SunPCSC", e);
                                 } else {
                                     logger.info("Getting new context");
-                                    establishContext();
+                                    establishFreshContext();
                                     TimeUnit.MILLISECONDS.sleep(TICK_POLL);
                                     continue;
                                 }
@@ -178,7 +177,7 @@ public final class HandyTerminalsMonitor implements Runnable {
                             }
                         } else if (err.equals(SCard.SCARD_E_NO_SERVICE)) {
                             // SunPCSC on Windows throws after reader is removed and service stopped has been received
-                            logger.info("list: {}", err);
+                            logger.debug("list: {}", err);
                             TimeUnit.MILLISECONDS.sleep(TICK_POLL);
                             continue;
                         } else {
@@ -191,21 +190,22 @@ public final class HandyTerminalsMonitor implements Runnable {
                     try {
                         long start = System.currentTimeMillis();
                         changed = monitor.waitForChange(TICK_WAIT);
-                        logger.debug("wait took {}ms and was {}", System.currentTimeMillis() - start, changed);
+                        logger.trace("wait took {}ms and was {}", System.currentTimeMillis() - start, changed);
+                        // macOS 11.2.3 will wait for the tick, report false, and report a change at next wait, always.
                     } catch (CardException e) {
                         String err = SCard.getExceptionMessage(e);
                         // Removing a reader on Linux results in timeout error, adding results in true
                         if (err.equals(SCard.SCARD_E_TIMEOUT)) {
-                            logger.info("wait: {}", err);
+                            logger.trace("wait: {}", err);
                             if (isLinux) {
-                                logger.debug("Removed reader on Linux");
+                                logger.trace("Removed reader on Linux");
                                 changed = true;
                             } else {
                                 fail("wait", e);
                             }
                         } else if (err.equals(SCard.SCARD_E_SERVICE_STOPPED)) {
                             // After reader is removed on Windows, service is stopped. New CardTerminals needs to be fetched
-                            logger.info("wait: {}", err);
+                            logger.trace("wait: {}", err);
                             TimeUnit.MILLISECONDS.sleep(TICK_POLL);
                             continue;
                         } else if (err.equals(SCard.SCARD_E_NO_READERS_AVAILABLE)) {
