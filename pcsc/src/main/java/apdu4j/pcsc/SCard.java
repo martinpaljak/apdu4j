@@ -38,6 +38,7 @@ public final class SCard {
     public static final String SCARD_E_UNSUPPORTED_FEATURE = "SCARD_E_UNSUPPORTED_FEATURE";
     public static final String SCARD_E_TIMEOUT = "SCARD_E_TIMEOUT";
     public static final String SCARD_E_INVALID_HANDLE = "SCARD_E_INVALID_HANDLE";
+    public static final String SCARD_E_UNKNOWN_READER = "SCARD_E_UNKNOWN_READER";
 
     public static int CARD_CTL_CODE(int c) {
         String os = System.getProperty("os.name", "unknown").toLowerCase();
@@ -59,8 +60,8 @@ public final class SCard {
         return Optional.empty();
     }
 
-    // Given an instance of some Exception from a PC/SC system with JNA
-    // return a meaningful PC/SC error name.
+    // Given an instance of some Exception from a PC/SC system
+    // return a meaningful PC/SC error name, if found in any of the exception messages.
     public static String getExceptionMessage(Throwable e) {
         return getPCSCError(e).orElse(e.getMessage());
     }

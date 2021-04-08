@@ -322,15 +322,16 @@ public final class TerminalManager {
                                     vmd = PinPadTerminal.getVMD(t, c);
                             } catch (CardException e2) {
                                 String err2 = SCard.getExceptionMessage(e);
-                                if (err2.equals(SCard.SCARD_E_SHARING_VIOLATION)) {
-                                    vmd = "???";
-                                } else {
-                                    vmd = "EEE";
-                                    logger.debug("Unexpected error: {}", err2, e2);
-                                }
+                                if (probePinpad)
+                                    if (err2.equals(SCard.SCARD_E_SHARING_VIOLATION)) {
+                                        vmd = "???";
+                                    } else {
+                                        vmd = "EEE";
+                                        logger.debug("Unexpected error: {}", err2, e2);
+                                    }
                             }
                         } else {
-                            vmd = "EEE";
+                            if (probePinpad) vmd = "EEE";
                             logger.debug("Unexpected error: {}", err, e);
                         }
                     } finally {
