@@ -23,6 +23,7 @@ package apdu4j.pcsc;
 
 import apdu4j.core.HexBytes;
 
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -97,12 +98,15 @@ public final class PCSCReader {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PCSCReader that = (PCSCReader) o;
-        return this.name.equals(that.name) && this.present == that.present && this.getATR().equals(that.getATR());
+        return this.name.equals(that.name)
+                && this.present == that.present
+                && this.atr != null && that.atr != null
+                && Arrays.equals(this.atr, that.atr);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name);
+        return Objects.hash(name, present, atr);
     }
 
     @Override
