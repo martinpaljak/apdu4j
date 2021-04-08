@@ -57,7 +57,7 @@ public class CardTerminalAppRunner implements Runnable, AsynchronousBIBO {
 
     String protocol = "*";
     boolean multisession = false;
-    boolean needsTouch = true;
+    boolean needsTouch = false;
     boolean spawnMonitor = true;
 
     // Companion thread for monitoring events
