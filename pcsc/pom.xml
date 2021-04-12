@@ -19,7 +19,7 @@
         <dependency>
             <groupId>com.github.martinpaljak</groupId>
             <artifactId>apdu4j-core</artifactId>
-            <version>2020r4-SNAPSHOT</version>
+            <version>2020r3</version>
         </dependency>
         <!-- PC/SC access -->
         <dependency>
