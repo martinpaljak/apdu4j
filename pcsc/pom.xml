@@ -19,7 +19,7 @@
         <dependency>
             <groupId>com.github.martinpaljak</groupId>
             <artifactId>apdu4j-core</artifactId>
-            <version>2020b3-SNAPSHOT</version>
+            <version>2020r4-SNAPSHOT</version>
         </dependency>
         <!-- PC/SC access -->
         <dependency>
@@ -31,13 +31,13 @@
         <dependency>
             <groupId>org.yaml</groupId>
             <artifactId>snakeyaml</artifactId>
-            <version>1.27</version>
+            <version>1.28</version>
         </dependency>
         <!-- lazy plugins -->
         <dependency>
             <groupId>com.google.auto.service</groupId>
             <artifactId>auto-service-annotations</artifactId>
-            <version>1.0-rc7</version>
+            <version>1.0</version>
         </dependency>
     </dependencies>
     <build>
@@ -53,7 +53,7 @@
             <plugin>
                 <groupId>pl.project13.maven</groupId>
                 <artifactId>git-commit-id-plugin</artifactId>
-                <version>4.0.3</version>
+                <version>4.0.1</version>
                 <executions>
                     <execution>
                         <id>store-git-info</id>
