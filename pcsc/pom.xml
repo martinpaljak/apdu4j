@@ -7,12 +7,12 @@
     <parent>
         <groupId>com.github.martinpaljak</groupId>
         <artifactId>apdu4j</artifactId>
-        <version>21.05.06</version>
+        <version>21.05.7-SNAPSHOT</version>
     </parent>
 
     <groupId>com.github.martinpaljak</groupId>
     <artifactId>apdu4j-pcsc</artifactId>
-    <version>21.05.06</version>
+    <version>21.05.7-SNAPSHOT</version>
 
     <dependencies>
         <!-- Core -->
