@@ -105,7 +105,7 @@ public final class PCSCReader {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, present, atr);
+        return Objects.hash(name, present, Arrays.hashCode(atr));
     }
 
     @Override
