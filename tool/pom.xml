@@ -5,23 +5,27 @@
     <parent>
         <artifactId>apdu4j</artifactId>
         <groupId>com.github.martinpaljak</groupId>
-        <version>21.05.7-SNAPSHOT</version>
+        <version>22.01.05-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>apdu4j-tool</artifactId>
 
+    <properties>
+        <maven.javadoc.skip>true</maven.javadoc.skip>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.github.martinpaljak</groupId>
             <artifactId>apdu4j-pcsc</artifactId>
-            <version>21.05.7-SNAPSHOT</version>
+            <version>${project.version}</version>
         </dependency>
         <!-- cmdline -->
         <dependency>
             <groupId>info.picocli</groupId>
             <artifactId>picocli</artifactId>
-            <version>4.6.1</version>
+            <version>4.6.2</version>
             <optional>true</optional>
         </dependency>
         <!-- FancyChooser terminal chooser -->
@@ -35,24 +39,21 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
-            <version>1.7.31</version>
             <optional>true</optional>
         </dependency>
         <!-- Lazy service -->
         <dependency>
-           <groupId>com.google.auto.service</groupId>
-           <artifactId>auto-service-annotations</artifactId>
-           <version>1.0</version>
+            <groupId>com.google.auto.service</groupId>
+            <artifactId>auto-service-annotations</artifactId>
+            <version>1.0.1</version>
         </dependency>
     </dependencies>
 
     <build>
         <plugins>
-
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>3.2.4</version>
                 <executions>
                     <execution>
                         <id>default-shade</id>
@@ -94,7 +95,6 @@
             <plugin>
                 <groupId>com.akathist.maven.plugins.launch4j</groupId>
                 <artifactId>launch4j-maven-plugin</artifactId>
-                <version>2.0.1</version>
                 <executions>
                     <execution>
                         <id>apdu4j-exe</id>
@@ -115,11 +115,15 @@
                                 <minVersion>11</minVersion>
                             </jre>
                             <versionInfo>
-                                <fileVersion>${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.incrementalVersion}.${parsedVersion.buildNumber}</fileVersion>
+                                <fileVersion>
+                                    ${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.incrementalVersion}.${parsedVersion.buildNumber}
+                                </fileVersion>
                                 <txtFileVersion>${project.version}</txtFileVersion>
                                 <fileDescription>apdu4j</fileDescription>
                                 <copyright>(C) 2015 - 2021 Martin Paljak and contributors (LGPL+MIT)</copyright>
-                                <productVersion>${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.incrementalVersion}.${parsedVersion.buildNumber}</productVersion>
+                                <productVersion>
+                                    ${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.incrementalVersion}.${parsedVersion.buildNumber}
+                                </productVersion>
                                 <txtProductVersion>${project.version}</txtProductVersion>
                                 <productName>apdu4j</productName>
                                 <internalName>apdu4j</internalName>
