@@ -84,7 +84,6 @@ public final class HexBytes {
         return Arrays.hashCode(v);
     }
 
-
     @Override
     public String toString() {
         return "HexBytes[" + HexUtils.bin2hex(v) + ']';
@@ -102,5 +101,14 @@ public final class HexBytes {
             pos += arg.length;
         }
         return result;
+    }
+
+    public static boolean isHex(String s) {
+        try {
+            HexUtils.hex2bin(s);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 }
