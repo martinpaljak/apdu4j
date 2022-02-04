@@ -214,7 +214,8 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
             @Override
             public javax.smartcardio.ResponseAPDU transmit(javax.smartcardio.CommandAPDU apdu) throws CardException {
                 byte[] cb = apdu.getBytes();
-                int len_end = apdu.getData().length > 255 ? 7 : 5;
+                boolean extended = cb[4] == 0x00 && cb.length > 5;
+                int len_end = extended ? 7 : 5;
                 String header = HexUtils.bin2hex(Arrays.copyOfRange(cb, 0, 4));
                 log.print(String.format("A>> %s (4+%04d) %s", card.getProtocol(), apdu.getData().length, header));
 
@@ -223,7 +224,7 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
                     int cmdlen = cb[4] & 0xFF;
 
                     // If extended length
-                    if (cmdlen == 0 && apdu.getData().length > 255) {
+                    if (cmdlen == 0 && extended) {
                         cmdlen = ((cb[5] & 0xff << 8) | cb[6] & 0xff);
                     }
                     // P3 is Le
