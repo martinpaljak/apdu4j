@@ -1,4 +1,5 @@
 **.iml
+**/target
 *.iml
 *~
 .DS_Store
@@ -7,6 +8,7 @@
 /*.jar
 /*/target
 /.idea
+/.mvn/wrapper/maven-wrapper.jar
 /apdu4j.sh
 /bin/
 /build/
@@ -15,5 +17,5 @@
 /lib/*.jar
 /target
 /version.txt
+apdu4j.log/.idea
 pom.xml.versionsBackup
-apdu4j.log

@@ -116,13 +116,13 @@
                             </jre>
                             <versionInfo>
                                 <fileVersion>
-                                    ${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.incrementalVersion}.${parsedVersion.buildNumber}
+                                    ${windowsVersion.majorVersion}.${windowsVersion.minorVersion}.${windowsVersion.incrementalVersion}.${windowsVersion.buildNumber}
                                 </fileVersion>
                                 <txtFileVersion>${project.version}</txtFileVersion>
                                 <fileDescription>apdu4j</fileDescription>
                                 <copyright>(C) 2015 - 2022 Martin Paljak and contributors (LGPL+MIT)</copyright>
                                 <productVersion>
-                                    ${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.incrementalVersion}.${parsedVersion.buildNumber}
+                                    ${windowsVersion.majorVersion}.${windowsVersion.minorVersion}.${windowsVersion.incrementalVersion}.${windowsVersion.buildNumber}
                                 </productVersion>
                                 <txtProductVersion>${project.version}</txtProductVersion>
                                 <productName>apdu4j</productName>
