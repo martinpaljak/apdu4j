@@ -48,7 +48,6 @@ public final class PCSCReader {
         this.vmd = vmd;
     }
 
-
     public String getName() {
         return name;
     }

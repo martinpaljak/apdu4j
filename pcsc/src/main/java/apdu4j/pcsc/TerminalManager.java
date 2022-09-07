@@ -257,6 +257,32 @@ public final class TerminalManager {
         }
     }
 
+    public static boolean isContactless(CardTerminal t) {
+        return isContactless(t.getName());
+    }
+
+    public static boolean isContactless(String reader) {
+        String[] contactless = {"Contactless", " PICC", "KP382", "502-CL", "ACR1255U"};
+        for (String s : contactless) {
+            if (fragmentMatches(s, reader))
+                return true;
+        }
+        return false;
+    }
+
+    public static boolean isSpecial(CardTerminal t) {
+        return isSpecial(t.getName());
+    }
+
+    public static boolean isSpecial(String reader) {
+        String[] special = {"YubiKey"};
+        for (String s : special) {
+            if (fragmentMatches(s, reader))
+                return true;
+        }
+        return false;
+    }
+
     // DWIM magic. See if we can pick the interesting reader automagically
     public static <T> Optional<T> toSingleton(Collection<T> collection, Predicate<T> filter) {
         List<T> result = collection.stream().filter(filter).limit(2).collect(Collectors.toList());
