@@ -39,11 +39,18 @@ import java.util.concurrent.CompletableFuture;
 public class CardBIBO implements BIBO, AsynchronousBIBO {
     private static final Logger logger = LoggerFactory.getLogger(CardBIBO.class);
     public static final String PROP_APDU4J_PSEUDOAPDU = "apdu4j.pseudoapdu";
+    public static final String ENV_APDU4J_PSEUDOAPDU = "APDU4J_PSEUDOAPDU";
+
+    public static final String PROP_APDU4J_PCSC_RESET = "apdu4j.pcsc.reset";
+    public static final String ENV_APDU4J_PCSC_RESET = "APDU4J_PCSC_RESET";
+
     protected final Card card;
     private volatile boolean closed = false;
 
     // set to false to disable pseudoapdu-s
-    public boolean pseudo = Boolean.getBoolean(System.getProperty(PROP_APDU4J_PSEUDOAPDU, Boolean.TRUE.toString()));
+    public boolean pseudo = Boolean.getBoolean(System.getProperty(PROP_APDU4J_PSEUDOAPDU, System.getenv().getOrDefault(ENV_APDU4J_PSEUDOAPDU, Boolean.TRUE.toString())));
+    public boolean reset = Boolean.getBoolean(System.getProperty(PROP_APDU4J_PCSC_RESET, System.getenv().getOrDefault(ENV_APDU4J_PCSC_RESET, Boolean.TRUE.toString())));
+
     protected HashMap<Integer, CardChannel> channels = new HashMap<>();
 
     protected CardBIBO(Card card) {
@@ -134,7 +141,7 @@ public class CardBIBO implements BIBO, AsynchronousBIBO {
     public void close() {
         closed = true;
         try {
-            card.disconnect(true);
+            card.disconnect(reset);
         } catch (CardException e) {
             String err = SCard.getExceptionMessage(e);
             if (err.equals(SCard.SCARD_E_INVALID_HANDLE)) {
