@@ -19,3 +19,4 @@
 /version.txt
 apdu4j.log/.idea
 pom.xml.versionsBackup
+dependency-reduced-pom.xml
