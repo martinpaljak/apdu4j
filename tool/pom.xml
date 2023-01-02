@@ -113,6 +113,7 @@
                                 <mainClass>apdu4j.tool.SCTool</mainClass>
                             </classPath>
                             <jre>
+                                <path>%JAVA_HOME%;%PATH%</path>
                                 <minVersion>11</minVersion>
                             </jre>
                             <versionInfo>
