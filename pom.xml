@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.github.martinpaljak</groupId>
         <artifactId>metacard</artifactId>
-        <version>22.09.07</version>
+        <version>23.01.02</version>
     </parent>
     <artifactId>apdu4j</artifactId>
     <version>22.09.8-SNAPSHOT</version>
