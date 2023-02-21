@@ -125,7 +125,12 @@ public class CardBIBO implements BIBO, AsynchronousBIBO {
             }
             if (!channels.containsKey(channel))
                 throw new BIBOException("Channel not open: " + channel);
-            return channels.get(channel).transmit(new CommandAPDU(bytes)).getBytes();
+            // Some readers/drivers return zero length response
+            // See https://github.com/martinpaljak/GlobalPlatformPro/issues/307
+            byte[] resp = channels.get(channel).transmit(new CommandAPDU(bytes)).getBytes();
+            if (resp.length < 2)
+                throw new BIBOException("Broken incoming data: " + HexUtils.bin2hex(resp));
+            return resp;
         } catch (CardException e) {
             String r = SCard.getExceptionMessage(e);
             // TODO: try to localize SCARD_E_NOT_TRANSACTED to possibly contactless readers
