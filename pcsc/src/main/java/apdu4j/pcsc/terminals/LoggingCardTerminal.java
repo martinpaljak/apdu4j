@@ -87,7 +87,6 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
     @Override
     public boolean waitForCardAbsent(long arg0) throws CardException {
         return terminal.waitForCardAbsent(arg0);
-
     }
 
     @Override
@@ -110,36 +109,38 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
         private final Card card;
 
         private LoggingCard(CardTerminal term, String protocol) throws CardException {
-            log.print("SCardConnect(\"" + terminal.getName() + "\", " + (protocol.equals("*") ? "T=*" : protocol) + ")");
-            log.flush();
+            StringBuilder sb = new StringBuilder();
+            sb.append(String.format("# SCardConnect(\"%s\", %s)", term.getName(), protocol.equals("*") ? "T=*" : protocol));
             try {
-                card = terminal.connect(protocol);
+                card = term.connect(protocol);
                 byte[] atr = card.getATR().getBytes();
-                log.println(" -> " + card.getProtocol() + (atr.length > 0 ? ", " + HexUtils.bin2hex(atr) : ""));
+                sb.append(" -> " + card.getProtocol() + (atr.length > 0 ? ", " + HexUtils.bin2hex(atr) : ""));
                 if (dump != null) {
                     String ts = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss Z").format(Calendar.getInstance().getTime());
                     dump.println("# Generated on " + ts + " by apdu4j/" + TerminalManager.getVersion());
-                    dump.println("# Using " + terminal.getName());
+                    dump.println("# Using " + term.getName());
                     dump.println("# ATR: " + HexUtils.bin2hex(atr));
                     dump.println("# PROTOCOL: " + card.getProtocol());
                     dump.println("#");
                 }
             } catch (CardException e) {
-                log.println(" -> " + SCard.getExceptionMessage(e));
+                sb.append(" -> " + SCard.getExceptionMessage(e));
                 throw e;
+            } finally {
+                log.println(sb);
             }
         }
 
         @Override
         public void beginExclusive() throws CardException {
-            log.println(String.format("SCardBeginTransaction(\"%s\")", terminal.getName()));
+            log.println(String.format("# SCardBeginTransaction(\"%s\")", terminal.getName()));
             card.beginExclusive();
         }
 
         @Override
         public void disconnect(boolean arg0) throws CardException {
             long duration = System.currentTimeMillis() - startTime;
-            log.println(String.format("SCardDisconnect(\"%s\", %s) tx:%d/rx:%d in %s", terminal.getName(), arg0, outBytes, inBytes, time(duration)));
+            log.println(String.format("# SCardDisconnect(\"%s\", %s) tx:%d/rx:%d in %s", terminal.getName(), arg0, outBytes, inBytes, time(duration)));
             inBytes = outBytes = 0;
             if (dump != null) {
                 dump.close();
@@ -149,7 +150,7 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
 
         @Override
         public void endExclusive() throws CardException {
-            log.println(String.format("SCardEndTransaction(\"%s\")", terminal.getName()));
+            log.println(String.format("# SCardEndTransaction(\"%s\")", terminal.getName()));
             card.endExclusive();
         }
 
@@ -170,21 +171,25 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
 
         @Override
         public CardChannel openLogicalChannel() throws CardException {
+            // FIXME
             throw new CardException("Logical channels are not supported");
         }
 
         @Override
         public byte[] transmitControlCommand(int arg0, byte[] arg1) throws CardException {
-            log.print(String.format("SCardControl(\"%s\", 0x%08X, %s)", terminal.getName(), arg0, (arg1 == null || arg1.length == 0) ? "null" : HexUtils.bin2hex(arg1)));
+            StringBuilder sb = new StringBuilder();
+            sb.append(String.format("# SCardControl(\"%s\", 0x%08X, %s)", terminal.getName(), arg0, nil(arg1) ? "null" : HexUtils.bin2hex(arg1)));
             final byte[] result;
             try {
                 result = card.transmitControlCommand(arg0, arg1);
+                sb.append(" -> " + (nil(result) ? "null" : HexUtils.bin2hex(result)));
+                return result;
             } catch (CardException e) {
-                log.println("-> " + SCard.getPCSCError(e).orElse("Exception"));
+                sb.append("-> " + SCard.getPCSCError(e).orElse("Exception"));
                 throw e;
+            } finally {
+                log.println(sb);
             }
-            log.println(" -> " + ((result == null || result.length == 0) ? "null" : HexUtils.bin2hex(result)));
-            return result;
         }
 
         public final class LoggingCardChannel extends CardChannel {
@@ -217,7 +222,8 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
                 boolean extended = cb[4] == 0x00 && cb.length > 5;
                 int len_end = extended ? 7 : 5;
                 String header = HexUtils.bin2hex(Arrays.copyOfRange(cb, 0, 4));
-                log.print(String.format("A>> %s (4+%04d) %s", card.getProtocol(), apdu.getData().length, header));
+                StringBuilder log_s = new StringBuilder();
+                log_s.append(String.format("A>> %s (4+%04d) %s", card.getProtocol(), apdu.getData().length, header));
 
                 // Only if Case 2, 3 or 4 APDU
                 if (cb.length > 4) {
@@ -232,18 +238,15 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
                         cmdlen = 0;
                     }
                     // print length bytes
-                    log.print(" " + HexUtils.bin2hex(Arrays.copyOfRange(cb, 4, len_end)));
+                    log_s.append(" " + HexUtils.bin2hex(Arrays.copyOfRange(cb, 4, len_end)));
                     // print payload
-                    log.print(" " + HexUtils.bin2hex(Arrays.copyOfRange(cb, len_end, len_end + cmdlen)));
+                    log_s.append(" " + HexUtils.bin2hex(Arrays.copyOfRange(cb, len_end, len_end + cmdlen)));
                     // Print Le
                     if (len_end + cmdlen < cb.length) {
-                        log.println(" " + HexUtils.bin2hex(Arrays.copyOfRange(cb, len_end + cmdlen, cb.length)));
-                    } else {
-                        log.println();
+                        log_s.append(" " + HexUtils.bin2hex(Arrays.copyOfRange(cb, len_end + cmdlen, cb.length)));
                     }
-                } else {
-                    log.println();
                 }
+                log.println(log_s);
                 log.flush();
 
                 long t = System.currentTimeMillis();
@@ -263,13 +266,15 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
 
                 String time = time(System.currentTimeMillis() - t);
 
+                StringBuilder log_r = new StringBuilder();
                 byte[] rb = response.getBytes();
                 inBytes += rb.length;
-                log.print(String.format("A<< (%04d+2) (%s)", response.getData().length, time));
+                log_r.append(String.format("A<< (%04d+2) (%s)", response.getData().length, time));
                 if (rb.length > 2) {
-                    log.print(" " + HexUtils.bin2hex(Arrays.copyOfRange(rb, 0, rb.length - 2)));
+                    log_r.append(" " + HexUtils.bin2hex(Arrays.copyOfRange(rb, 0, rb.length - 2)));
                 }
-                log.println(" " + HexUtils.bin2hex(Arrays.copyOfRange(rb, rb.length - 2, rb.length)));
+                log_r.append(" " + HexUtils.bin2hex(Arrays.copyOfRange(rb, rb.length - 2, rb.length)));
+                log.println(log_r);
                 if (dump != null) {
                     dump.println("# Sent\n" + HexUtils.bin2hex(cb));
                     dump.println("# Received in " + time + "\n" + HexUtils.bin2hex(rb));
@@ -311,5 +316,9 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
             time = ms / 1000 + "s" + ms % 1000 + "ms";
         }
         return time;
+    }
+
+    private static boolean nil(byte[] v) {
+        return v == null || v.length == 0;
     }
 }

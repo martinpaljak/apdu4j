@@ -201,10 +201,7 @@ public final class SynthesizedCardTerminal extends CardTerminal {
                     return new ResponseAPDU(reader.transmit(commandAPDU.getBytes()).get());
                 } catch (BIBOException e) {
                     throw new CardException(e.getMessage(), e);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                    throw new CardException(e.getMessage(), e);
-                } catch (ExecutionException e) {
+                } catch (InterruptedException | ExecutionException e) {
                     e.printStackTrace();
                     throw new CardException(e.getMessage(), e);
                 }

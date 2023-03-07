@@ -41,7 +41,6 @@ public class APDUReplayProvider extends EmulatedSingleTerminalProvider {
         super(APDUReplayProviderImpl.class);
     }
 
-
     public static class APDUReplayProviderImpl extends EmulatedTerminalFactorySpi {
 
         public APDUReplayProviderImpl(Object parameter) {
