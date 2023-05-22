@@ -17,13 +17,13 @@
         <dependency>
             <groupId>com.github.martinpaljak</groupId>
             <artifactId>apdu4j-core</artifactId>
-            <version>2020r3</version>
+            <version>2022r1-SNAPSHOT</version>
         </dependency>
         <!-- PC/SC access -->
         <dependency>
             <groupId>com.github.martinpaljak</groupId>
             <artifactId>apdu4j-jnasmartcardio</artifactId>
-            <version>0.2.7+220204</version>
+            <version>0.2.7+230522</version>
         </dependency>
         <!-- Config file for aliases -->
         <dependency>
@@ -51,7 +51,7 @@
             <plugin>
                 <groupId>io.github.git-commit-id</groupId>
                 <artifactId>git-commit-id-maven-plugin</artifactId>
-                <version>5.0.0</version>
+                <version>6.0.0</version>
                 <executions>
                     <execution>
                         <id>store-git-info</id>
