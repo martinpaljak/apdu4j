@@ -36,7 +36,7 @@ public abstract class SmartCardAppFutures implements SmartCardAppListener, Async
     private volatile AsynchronousBIBO transport;
 
     private volatile CompletableFuture<byte[]> responseFuture;
-    private AtomicReference<CompletableFuture<Map>> cardPresentFuture = new AtomicReference<>(new CompletableFuture<>());
+    private AtomicReference<CompletableFuture<Map<String, Object>>> cardPresentFuture = new AtomicReference<>(new CompletableFuture<>());
     private AtomicReference<CompletableFuture<Void>> cardRemovedFuture = new AtomicReference<>(new CompletableFuture<>());
 
     public SmartCardAppFutures() {
@@ -54,11 +54,11 @@ public abstract class SmartCardAppFutures implements SmartCardAppListener, Async
         return responseFuture;
     }
 
-    public CompletableFuture<Map> getCardPresentFuture() {
+    public CompletableFuture<Map<String, Object>> getCardPresentFuture() {
         return cardPresentFuture.get();
     }
 
-    public CompletableFuture<Map> waitForCard(TimeUnit unit, long duration) {
+    public CompletableFuture<Map<String, Object>> waitForCard(TimeUnit unit, long duration) {
         return cardPresentFuture.get().orTimeout(duration, unit);
     }
 
@@ -86,11 +86,11 @@ public abstract class SmartCardAppFutures implements SmartCardAppListener, Async
             responseFuture.completeExceptionally(new TagRemovedException("onCardRemoved"));
 
         // We are ready for next card
-        CompletableFuture<Map> newCardPresentFuture = new CompletableFuture<>();
+        CompletableFuture<Map<String, Object>> newCardPresentFuture = new CompletableFuture<>();
         CompletableFuture<Void> newCardRemovedFuture = new CompletableFuture<>();
 
         CompletableFuture<Void> crf = cardRemovedFuture.get();
-        CompletableFuture<Map> cpf = cardPresentFuture.get();
+        CompletableFuture<Map<String, Object>> cpf = cardPresentFuture.get();
         if (cardRemovedFuture.compareAndSet(crf, newCardRemovedFuture) &&
                 cardPresentFuture.compareAndSet(cpf, newCardPresentFuture)) {
             crf.complete(null);

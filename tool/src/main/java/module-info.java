@@ -1,3 +1,4 @@
+@SuppressWarnings("requires-automatic")
 module apdu4j.tool {
     uses apdu4j.core.SmartCardApp;
     requires java.smartcardio;
