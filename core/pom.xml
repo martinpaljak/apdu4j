@@ -10,7 +10,6 @@
         <version>23.03.22-SNAPSHOT</version>
     </parent>
 
-    <groupId>com.github.martinpaljak</groupId>
     <artifactId>apdu4j-core</artifactId>
     <version>2022r1-SNAPSHOT</version>
 
