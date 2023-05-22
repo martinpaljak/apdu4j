@@ -26,7 +26,6 @@ import apdu4j.core.BIBOException;
 import apdu4j.core.SmartCardAppListener;
 import apdu4j.core.SmartCardAppListener.AppParameters;
 import apdu4j.core.SmartCardAppListener.CardData;
-import apdu4j.pcsc.terminals.LoggingCardTerminal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,7 +33,6 @@ import javax.smartcardio.*;
 import java.io.EOFException;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static apdu4j.pcsc.SCard.getExceptionMessage;
@@ -337,7 +335,7 @@ public class CardTerminalAppRunner implements Runnable, AsynchronousBIBO {
     @Override
     public void close() {
         logger.debug("close()");
-        CompletableFuture ic = incoming.get();
+        CompletableFuture<byte[]> ic = incoming.get();
         if (ic != null)
             ic.completeExceptionally(new EOFException("close"));
     }

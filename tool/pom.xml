@@ -69,6 +69,7 @@
                                     <mainClass>apdu4j.tool.SCTool</mainClass>
                                 </transformer>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer"/>
                             </transformers>
                             <filters>
                                 <filter>

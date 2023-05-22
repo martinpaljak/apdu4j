@@ -70,13 +70,12 @@ public class CancellationWaitingFuture<V> implements RunnableFuture<V> {
         }
         if (!cancelled.compareAndSet(false, true))
             return false;
-        try {
-            Thread t = runner.get();
-            if (t != null)
-                t.interrupt();
-        } finally {
-            return true;
-        }
+
+        Thread t = runner.get();
+        if (t != null)
+            t.interrupt();
+
+        return true;
     }
 
     @Override

@@ -1,3 +1,4 @@
+@SuppressWarnings("requires-automatic") // FIXME: eventually remove this
 module apdu4j.pcsc {
     requires transitive apdu4j.core;
     requires apdu4j.jnasmartcardio;

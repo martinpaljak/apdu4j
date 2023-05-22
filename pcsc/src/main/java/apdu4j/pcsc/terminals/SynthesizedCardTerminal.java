@@ -64,7 +64,7 @@ public final class SynthesizedCardTerminal extends CardTerminal {
             throw new CardNotPresentException("Card not present!");
 
         try {
-            Map props = reader.getCardPresentFuture().join();
+            Map<String, Object> props = reader.getCardPresentFuture().join();
             card._atr = Optional.ofNullable((byte[]) props.get(ATR_BYTES)).orElse(HexUtils.hex2bin("3b00"));
             logger.trace("connect(" + s + ") == {}", card);
             return card;
@@ -84,7 +84,7 @@ public final class SynthesizedCardTerminal extends CardTerminal {
     public boolean waitForCardPresent(long l) throws CardException {
         logger.debug("waitForCardPresent({})", l);
         // Wait for reader message, but not longer than asked for
-        CompletableFuture cf = reader.getCardPresentFuture();
+        CompletableFuture<Map<String, Object>> cf = reader.getCardPresentFuture();
         try {
             if (l == 0) {
                 cf.get(10, TimeUnit.MINUTES);
