@@ -60,6 +60,8 @@ public interface SmartCardAppListener extends SmartCardApp {
 
     // Data objects
     class AppParameters extends HashMap<String, String> {
+        public AppParameters() {
+        }
         private static final long serialVersionUID = 5410274086433485297L;
         // Set to "true" to support multiple sessions in one app
         public static final String MULTISESSION_BOOLEAN = "multisession";
@@ -70,6 +72,8 @@ public interface SmartCardAppListener extends SmartCardApp {
     }
 
     class CardData extends HashMap<String, Object> {
+        public CardData() {
+        }
         private static final long serialVersionUID = 2127675255938833899L;
         public static final String PROTOCOL_STRING = "protocol";
         public static final String ATR_BYTES = "atr";
