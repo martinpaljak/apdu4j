@@ -163,7 +163,9 @@ public final class TerminalManager {
             return TerminalFactory.getInstance("PC/SC", null, new Smartcardio());
         } catch (NoSuchAlgorithmException e) {
             logger.error("jnasmartcardio not bundled or pcsc-lite not available");
-            // Should result in NoneProvider
+            // Try to auto-fix library path
+            fixPlatformPaths();
+            // Should not result in NoneProvider
             return TerminalFactory.getDefault();
         }
     }
