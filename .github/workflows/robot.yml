@@ -1,0 +1,46 @@
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+name: Build robot
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        java: [ 11, 17 ]
+
+    name: Java ${{ matrix.java }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3.5.2
+      - name: Setup Java
+        uses: actions/setup-java@v3.11.0
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: temurin
+      - name: Set SSH key
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_KEY }}
+      - name: Add known host key
+        run: ssh-keyscan javacard.pro >> ~/.ssh/known_hosts
+      - name: Package
+        run: ./mvnw -T1C -U -B clean verify
+      - name: Release
+        if: startsWith(github.event.ref, 'refs/tags/v') && matrix.java == '11'
+        id: create_release
+        uses: softprops/action-gh-release@v0.1.15
+        with:
+            files: |
+              tool/target/apdu4j.jar
+              tool/target/apdu4j.exe
+            fail_on_unmatched_files: true
+            body: Release ${{ github.ref_name }}
+            prerelease: true # manually promoted
+      - name: Deploy package
+        if: matrix.java == '11'
+        run: ./mvnw -T1C -B deploy
