@@ -27,6 +27,8 @@ import java.util.regex.Pattern;
 
 // Random SCard interface constants.
 public final class SCard {
+    private SCard() {
+    }
     public static final String SCARD_E_SHARING_VIOLATION = "SCARD_E_SHARING_VIOLATION";
     public static final String SCARD_E_NO_READERS_AVAILABLE = "SCARD_E_NO_READERS_AVAILABLE";
     public static final String SCARD_E_NOT_TRANSACTED = "SCARD_E_NOT_TRANSACTED";
