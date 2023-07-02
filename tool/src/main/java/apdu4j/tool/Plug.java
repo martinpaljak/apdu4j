@@ -33,9 +33,7 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.AccessController;
 import java.security.CodeSource;
-import java.security.PrivilegedAction;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -93,9 +91,7 @@ public final class Plug {
                 })
                 .collect(Collectors.toList());
         logger.debug("Plugins from {}: {}", folder, plugins);
-        return AccessController.doPrivileged(
-                (PrivilegedAction<URLClassLoader>) () -> new URLClassLoader(plugins.toArray(new URL[plugins.size()]))
-        );
+        return  new URLClassLoader(plugins.toArray(new URL[plugins.size()]));
     }
 
     // Load all plugins of type t from specified JAR file
@@ -112,9 +108,8 @@ public final class Plug {
     static <T> List<T> loadPlugins(URL u, Class<T> t) {
         ClassLoader parent = ClassLoader.getSystemClassLoader();
         URL[] plugin = new URL[]{u};
-        final URLClassLoader ucl = AccessController.doPrivileged(
-                (PrivilegedAction<URLClassLoader>) () -> new URLClassLoader(plugin, parent)
-        );
+        final URLClassLoader ucl = new URLClassLoader(plugin, parent);
+
         ServiceLoader<T> sl = ServiceLoader.load(t, ucl);
         List<T> list = new ArrayList<>();
         // We skip bad plugins

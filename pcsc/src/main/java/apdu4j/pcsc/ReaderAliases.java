@@ -35,9 +35,9 @@ import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 public final class ReaderAliases {
-    private static transient final Logger logger = LoggerFactory.getLogger(ReaderAliases.class);
+    private static final Logger logger = LoggerFactory.getLogger(ReaderAliases.class);
     public static final String ENV_APDU4J_ALIASES = "APDU4J_ALIASES";
-    private static transient volatile ReaderAliases INSTANCE;
+    private static volatile ReaderAliases INSTANCE;
     private transient final HashMap<String, String> aliases;
 
     // Translates full name to alias name, if it matches any
