@@ -161,7 +161,7 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
 
         @Override
         public CardChannel getBasicChannel() {
-            return new LoggingCardChannel(card);
+            return new LoggingCardChannel(card, card.getBasicChannel());
         }
 
         @Override
@@ -171,8 +171,19 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
 
         @Override
         public CardChannel openLogicalChannel() throws CardException {
-            // FIXME
-            throw new CardException("Logical channels are not supported");
+            // FIXME - would want to "see" MANAGE CHANNEL APDU-s as well.
+            StringBuilder mc = new StringBuilder();
+            mc.append("# MANAGE CHANNEL - OPEN -> ");
+            try {
+                CardChannel c = card.openLogicalChannel();
+                mc.append(c.getChannelNumber());
+                return new LoggingCardChannel(card, c);
+            } catch (CardException e) {
+                mc.append(SCard.getPCSCError(e).orElse("Exception (" + e.getMessage() + ")"));
+                throw e;
+            } finally {
+                log.println(mc);
+            }
         }
 
         @Override
@@ -196,13 +207,15 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
             private final CardChannel channel;
             private final Card card;
 
-            public LoggingCardChannel(Card card) {
+            public LoggingCardChannel(Card card, CardChannel channel) {
                 this.card = card;
-                this.channel = card.getBasicChannel();
+                this.channel = channel;
             }
 
             @Override
             public void close() throws CardException {
+                if (getChannelNumber() != 0)
+                    log.println("# MANAGE CHANNEL - CLOSE");
                 channel.close();
             }
 
@@ -223,7 +236,7 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
                 int len_end = extended ? 7 : 5;
                 String header = HexUtils.bin2hex(Arrays.copyOfRange(cb, 0, 4));
                 StringBuilder log_s = new StringBuilder();
-                log_s.append(String.format("A>> %s (4+%04d) %s", card.getProtocol(), apdu.getData().length, header));
+                log_s.append(String.format("A%s>> %s (4+%04d) %s", getChannelNumber() != 0 ? String.format("#%d", getChannelNumber()) : "", card.getProtocol(), apdu.getData().length, header));
 
                 // Only if Case 2, 3 or 4 APDU
                 if (cb.length > 4) {
@@ -255,12 +268,8 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
                     response = channel.transmit(apdu);
                     outBytes += cb.length;
                 } catch (CardException e) {
-                    String err = SCard.getExceptionMessage(e);
                     String time = time(System.currentTimeMillis() - t);
-                    if (err != null)
-                        log.println("<< (" + time + ") " + err);
-                    else
-                        log.println("<< Exception (" + time + ")");
+                    log.println("<< (" + time + ") " + SCard.getPCSCError(e).orElse("Exception (" + e.getMessage() + ")"));
                     throw e;
                 }
 
@@ -269,7 +278,7 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
                 StringBuilder log_r = new StringBuilder();
                 byte[] rb = response.getBytes();
                 inBytes += rb.length;
-                log_r.append(String.format("A<< (%04d+2) (%s)", response.getData().length, time));
+                log_r.append(String.format("A%s<< (%04d+2) (%s)", getChannelNumber() != 0 ? String.format("#%d", getChannelNumber()) : "", response.getData().length, time));
                 if (rb.length > 2) {
                     log_r.append(" " + HexUtils.bin2hex(Arrays.copyOfRange(rb, 0, rb.length - 2)));
                 }

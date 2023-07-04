@@ -39,17 +39,17 @@ import java.util.concurrent.CompletableFuture;
 public class CardBIBO implements BIBO, AsynchronousBIBO {
     private static final Logger logger = LoggerFactory.getLogger(CardBIBO.class);
     public static final String PROP_APDU4J_PSEUDOAPDU = "apdu4j.pseudoapdu";
-    public static final String ENV_APDU4J_PSEUDOAPDU = "APDU4J_PSEUDOAPDU";
-
     public static final String PROP_APDU4J_PCSC_RESET = "apdu4j.pcsc.reset";
-    public static final String ENV_APDU4J_PCSC_RESET = "APDU4J_PCSC_RESET";
 
+    static String prop2env(String prop) {
+        return prop.toUpperCase().replace('.', '_');
+    }
     protected final Card card;
     private volatile boolean closed = false;
 
     // set to false to disable pseudoapdu-s
-    public boolean pseudo = Boolean.getBoolean(System.getProperty(PROP_APDU4J_PSEUDOAPDU, System.getenv().getOrDefault(ENV_APDU4J_PSEUDOAPDU, Boolean.TRUE.toString())));
-    public boolean reset = Boolean.getBoolean(System.getProperty(PROP_APDU4J_PCSC_RESET, System.getenv().getOrDefault(ENV_APDU4J_PCSC_RESET, Boolean.TRUE.toString())));
+    public boolean pseudo = Boolean.getBoolean(System.getProperty(PROP_APDU4J_PSEUDOAPDU, System.getenv().getOrDefault(prop2env(PROP_APDU4J_PSEUDOAPDU), Boolean.TRUE.toString())));
+    public boolean reset = Boolean.getBoolean(System.getProperty(PROP_APDU4J_PCSC_RESET, System.getenv().getOrDefault(prop2env(PROP_APDU4J_PCSC_RESET), Boolean.TRUE.toString())));
 
     protected HashMap<Integer, CardChannel> channels = new HashMap<>();
 
@@ -83,6 +83,7 @@ public class CardBIBO implements BIBO, AsynchronousBIBO {
 
             // Intercept OPEN CHANNEL
             if (bytes.length <= 5 && ((bytes[0] & 0x80) == 0x00) && bytes[1] == 0x70 && bytes[2] == 0x00 && bytes[3] == 0x00) {
+                // Call implementation, which issues a direct SCardTransmit for this
                 CardChannel l = card.openLogicalChannel();
                 channels.put(l.getChannelNumber(), l);
                 return new byte[]{(byte) l.getChannelNumber(), (byte) 0x90, 0x00};
@@ -90,7 +91,10 @@ public class CardBIBO implements BIBO, AsynchronousBIBO {
 
             // intercept CLOSE CHANNEL
             if (bytes.length == 4 && bytes[1] == 0x70 && bytes[2] == (byte) 0x80 && bytes[3] == 0x00) {
-                channels.get(channel).close();
+                CardChannel toClose = channels.remove(channel);
+                if (toClose == null)
+                    throw new BIBOException("channel " + channel + " not open");
+                toClose.close();
                 return new byte[]{(byte) 0x90, 0x00};
             }
 
@@ -119,10 +123,12 @@ public class CardBIBO implements BIBO, AsynchronousBIBO {
                 if (Arrays.equals(Arrays.copyOf(bytes, 5), HexUtils.hex2bin("FFCA000000"))) {
                     // T=0 can't be contactless, thus no UID
                     if (card.getProtocol().equals("T=0"))
-                        return new byte[]{0x6A, (byte) 0x81};
+                        return new byte[]{0x6A, (byte) 0x81}; // FIXME: source
                     // Passthrough, handled by reader
                 }
             }
+
+            // Require channel to be open
             if (!channels.containsKey(channel))
                 throw new BIBOException("Channel not open: " + channel);
             // Some readers/drivers return zero length response
