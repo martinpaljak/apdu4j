@@ -1,5 +1,7 @@
 on:
   push:
+    tags:
+      - 'v*'
     branches:
       - master
   pull_request:
@@ -16,13 +18,14 @@ jobs:
     name: Java ${{ matrix.java }} build
     steps:
       - name: Checkout
-        uses: actions/checkout@v3.5.2
+        uses: actions/checkout@v3.5.3
       - name: Setup Java
         uses: actions/setup-java@v3.11.0
         with:
           java-version: ${{ matrix.java }}
           distribution: temurin
       - name: Set SSH key
+        if: github.event_name != 'pull_request'
         uses: webfactory/ssh-agent@v0.8.0
         with:
           ssh-private-key: ${{ secrets.SSH_KEY }}
@@ -31,7 +34,7 @@ jobs:
       - name: Package
         run: ./mvnw -T1C -U -B clean verify
       - name: Release
-        if: startsWith(github.event.ref, 'refs/tags/v') && matrix.java == '11'
+        if: startsWith(github.ref, 'refs/tags/v') && matrix.java == '11'
         id: create_release
         uses: softprops/action-gh-release@v0.1.15
         with:
@@ -42,5 +45,5 @@ jobs:
             body: Release ${{ github.ref_name }}
             prerelease: true # manually promoted
       - name: Deploy package
-        if: matrix.java == '11'
+        if: matrix.java == '11' && github.ref == 'refs/heads/master'
         run: ./mvnw -T1C -B deploy
