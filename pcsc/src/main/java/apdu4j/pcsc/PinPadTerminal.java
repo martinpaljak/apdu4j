@@ -43,6 +43,7 @@ public final class PinPadTerminal {
 
     // Parse the features into FEATURE -> control code map
     private static Map<FEATURE, Integer> tokenize(byte[] tlv) {
+        // XXX: OK 5022 returns 6900 as a SW (?) on macOS, which obviously fails here.
         HashMap<FEATURE, Integer> m = new HashMap<>();
 
         if (tlv.length % 6 != 0) {
@@ -114,10 +115,18 @@ public final class PinPadTerminal {
     public static PinPadTerminal probe(CardTerminal t, Card c) throws CardException {
         final int CM_IOCTL_GET_FEATURE_REQUEST = SCard.CARD_CTL_CODE(3400);
 
-        // Probe for features.
-        byte[] resp = c.transmitControlCommand(CM_IOCTL_GET_FEATURE_REQUEST, new byte[]{});
-        // Parse features
-        Map<FEATURE, Integer> f = tokenize(resp);
+        Map<FEATURE, Integer> f;
+
+        try {
+            // Probe for features.
+            byte[] resp = c.transmitControlCommand(CM_IOCTL_GET_FEATURE_REQUEST, new byte[]{});
+            // Parse features
+            f = tokenize(resp);
+        } catch (IllegalArgumentException e) {
+            // XXX: relying on exceptions here is not nice
+            logger.debug("Failed to parse features: {}", e.getMessage());
+            throw new CardException("Failed to parse features", e);
+        }
         // Try to parse pinpad related features
         return new PinPadTerminal(t, c, f);
     }
