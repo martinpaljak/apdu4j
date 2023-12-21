@@ -113,12 +113,12 @@ public final class FancyChooser implements Callable<Optional<CardTerminal>>, PCS
                         MessageDialog warn = new MessageDialogBuilder()
                                 .setTitle(" Warning! ")
                                 .setText("Reader is in exclusive use by some other application")
-                                .addButton(MessageDialogButton.CANCEL)
-                                .addButton(MessageDialogButton.CONTINUE)
+                                .addButton(MessageDialogButton.Cancel)
+                                .addButton(MessageDialogButton.Continue)
                                 .build();
                         warn.setCloseWindowWithEscape(true);
                         MessageDialogButton d = warn.showDialog(gui);
-                        if (d == null || d == MessageDialogButton.CANCEL) {
+                        if (d == null || d == MessageDialogButton.Cancel) {
                             return;
                         }
                         // Fall through if clause and set chosen one.
@@ -252,9 +252,9 @@ public final class FancyChooser implements Callable<Optional<CardTerminal>>, PCS
         // Empty line between quit button
         mainPanel.addComponent(new EmptySpace(new TerminalSize(0, 1)));
         quitButton = new Button("Cancel and quit", () -> mainWindow.close());
-        quitButton.setLayoutData(LinearLayout.createLayoutData(LinearLayout.Alignment.END));
+        quitButton.setLayoutData(LinearLayout.createLayoutData(LinearLayout.Alignment.End));
         mainPanel.addComponent(quitButton);
-        //mainPanel.setLayoutData(LinearLayout.createLayoutData(LinearLayout.Alignment.END));
+        //mainPanel.setLayoutData(LinearLayout.createLayoutData(LinearLayout.Alignment.End));
         mainWindow.setComponent(mainPanel);
     }
 
