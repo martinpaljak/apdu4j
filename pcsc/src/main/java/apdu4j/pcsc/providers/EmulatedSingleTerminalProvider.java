@@ -35,10 +35,10 @@ import java.util.List;
 public abstract class EmulatedSingleTerminalProvider extends Provider {
     static final long serialVersionUID = -1813264769968105172L;
 
-    @SuppressWarnings("deprecation") // 11 would prefer String, String, String super
+    @SuppressWarnings("this-escape")
     public EmulatedSingleTerminalProvider(Class<? extends EmulatedTerminalFactorySpi> clazz) {
-        super(String.format("Emulated %s", clazz.getSimpleName()), 0.1d, "EmulatedTerminalProvider from apdu4j/" + TerminalManager.getVersion());
-        put("TerminalFactory.PC/SC", clazz.getName());
+        super(String.format("Emulated %s", clazz.getSimpleName()), "0.1", "EmulatedTerminalProvider from apdu4j/" + TerminalManager.getVersion());
+        put("TerminalFactory.PC/SC", clazz.getName()); // possible 'this' escape before subclass is fully initialized
     }
 
     public static class EmulatedTerminalFactorySpi extends TerminalFactorySpi {
