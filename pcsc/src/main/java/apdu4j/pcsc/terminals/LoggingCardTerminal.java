@@ -232,7 +232,7 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
             @Override
             public javax.smartcardio.ResponseAPDU transmit(javax.smartcardio.CommandAPDU apdu) throws CardException {
                 byte[] cb = apdu.getBytes();
-                boolean extended = cb[4] == 0x00 && cb.length > 5;
+                boolean extended = cb.length > 5 && cb[4] == 0x00;
                 int len_end = extended ? 7 : 5;
                 String header = HexUtils.bin2hex(Arrays.copyOfRange(cb, 0, 4));
                 StringBuilder log_s = new StringBuilder();
