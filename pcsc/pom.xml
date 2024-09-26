@@ -23,13 +23,13 @@
         <dependency>
             <groupId>com.github.martinpaljak</groupId>
             <artifactId>apdu4j-jnasmartcardio</artifactId>
-            <version>0.2.7+231210</version>
+            <version>0.2.7+240517</version>
         </dependency>
         <!-- Config file for aliases -->
         <dependency>
             <groupId>org.yaml</groupId>
             <artifactId>snakeyaml</artifactId>
-            <version>2.2</version>
+            <version>2.3</version>
         </dependency>
         <!-- lazy plugins -->
         <dependency>
