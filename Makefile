@@ -1,3 +1,5 @@
+TZ = UTC # same as Github
+export TZ
 SHELL = bash
 MVNOPTS = -Dmaven.javadoc.skip=true -Dmaven.test.skip=true -Dspotbugs.skip=true
 

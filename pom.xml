@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.github.martinpaljak</groupId>
         <artifactId>metacard</artifactId>
-        <version>24.03.29</version>
+        <version>24.09.25</version>
     </parent>
     <artifactId>apdu4j</artifactId>
     <version>23.03.22-SNAPSHOT</version>
@@ -13,6 +13,9 @@
     <name>apdu4j</name>
     <url>https://github.com/martinpaljak/apdu4j</url>
     <description>Working with smart card readers? This is for you.</description>
+    <properties>
+        <project.build.outputTimestamp>2024-04-08T12:09:56Z</project.build.outputTimestamp>
+    </properties>
     <scm>
         <url>https://github.com/martinpaljak/apdu4j</url>
         <developerConnection>scm:git:git@github.com:martinpaljak/apdu4j.git</developerConnection>
@@ -75,11 +78,6 @@
                 <configuration>
                     <excludeFilterFile>spotbugs.xml</excludeFilterFile>
                 </configuration>
-            </plugin>
-            <!-- Reproducible -->
-            <plugin>
-                <groupId>io.github.zlika</groupId>
-                <artifactId>reproducible-build-maven-plugin</artifactId>
             </plugin>
         </plugins>
     </build>
