@@ -8,13 +8,13 @@
         <version>24.09.25</version>
     </parent>
     <artifactId>apdu4j</artifactId>
-    <version>24.09.24</version>
+    <version>24.09.26</version>
     <packaging>pom</packaging>
     <name>apdu4j</name>
     <url>https://github.com/martinpaljak/apdu4j</url>
     <description>Working with smart card readers? This is for you.</description>
     <properties>
-        <project.build.outputTimestamp>2024-09-26T11:20:47Z</project.build.outputTimestamp>
+        <project.build.outputTimestamp>2024-09-26T11:48:52Z</project.build.outputTimestamp>
     </properties>
     <scm>
         <url>https://github.com/martinpaljak/apdu4j</url>
