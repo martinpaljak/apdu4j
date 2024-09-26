@@ -48,5 +48,5 @@ jobs:
             body: Release ${{ github.ref_name }}
             prerelease: true # manually promoted
       - name: Deploy package
-        if: matrix.java == '11' && github.ref == 'refs/heads/master'
+        if: matrix.java == '11' && ( github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v') )
         run: ./mvnw -T1C -B deploy
