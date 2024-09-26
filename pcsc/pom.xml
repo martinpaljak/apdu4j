@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.github.martinpaljak</groupId>
         <artifactId>apdu4j</artifactId>
-        <version>23.03.22-SNAPSHOT</version>
+        <version>24.09.24</version>
     </parent>
 
     <artifactId>apdu4j-pcsc</artifactId>
@@ -17,13 +17,13 @@
         <dependency>
             <groupId>com.github.martinpaljak</groupId>
             <artifactId>apdu4j-core</artifactId>
-            <version>2022r1-SNAPSHOT</version>
+            <version>24.09.24</version>
         </dependency>
         <!-- PC/SC access -->
         <dependency>
             <groupId>com.github.martinpaljak</groupId>
             <artifactId>apdu4j-jnasmartcardio</artifactId>
-            <version>0.2.7+240517</version>
+            <version>24.09.26</version>
         </dependency>
         <!-- Config file for aliases -->
         <dependency>
