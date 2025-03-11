@@ -5,7 +5,7 @@
     <parent>
         <artifactId>apdu4j</artifactId>
         <groupId>com.github.martinpaljak</groupId>
-        <version>25.03.11</version>
+        <version>25.03.12-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
