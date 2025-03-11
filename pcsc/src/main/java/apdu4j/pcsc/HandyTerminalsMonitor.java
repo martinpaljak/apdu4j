@@ -44,7 +44,7 @@ public final class HandyTerminalsMonitor implements Runnable {
 
     private TerminalManager manager;
     private CardTerminals monitor;
-    private boolean isSunPCSC = false;
+    private volatile boolean isSunPCSC = false;
 
     public HandyTerminalsMonitor(TerminalManager whatToMonitor, PCSCMonitor whereToReport) {
         this.manager = whatToMonitor;
@@ -56,7 +56,7 @@ public final class HandyTerminalsMonitor implements Runnable {
     private final boolean isLinux = !(isWindows || isMacOS);
 
     private Set<PCSCReader> currentState = Collections.emptySet();
-    private boolean haveReportedNoReaders = false;
+    private volatile boolean haveReportedNoReaders = false;
 
     /**
      * With pcsc-lite, every thread requires their own context, or blocking calls would block other threads

@@ -7,7 +7,12 @@ on:
   pull_request:
     branches:
       - master
+
+permissions:
+  contents: write
+
 name: Build robot
+
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -33,13 +38,13 @@ jobs:
           ssh-private-key: ${{ secrets.SSH_KEY }}
       - name: Add known host key
         if: github.event_name != 'pull_request'
-        run: ssh-keyscan javacard.pro >> ~/.ssh/known_hosts
+        run: ssh-keyscan mvn.javacard.pro >> ~/.ssh/known_hosts
       - name: Package
         run: ./mvnw -P exe -T1C -U -B clean verify
       - name: Release
         if: startsWith(github.ref, 'refs/tags/v') && matrix.java == '11'
         id: create_release
-        uses: softprops/action-gh-release@v2.2.0
+        uses: softprops/action-gh-release@v2.2.1
         with:
             files: |
               tool/target/apdu4j.jar

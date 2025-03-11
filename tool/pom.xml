@@ -32,7 +32,7 @@
         <dependency>
             <groupId>com.googlecode.lanterna</groupId>
             <artifactId>lanterna</artifactId>
-            <version>3.1.2</version>
+            <version>3.1.3</version>
             <optional>true</optional>
         </dependency>
         <!-- logging for cmdline -->
@@ -89,7 +89,7 @@
                                         </fileVersion>
                                         <txtFileVersion>${project.version}</txtFileVersion>
                                         <fileDescription>apdu4j</fileDescription>
-                                        <copyright>(C) 2015 - 2023 Martin Paljak and contributors (LGPL+MIT)</copyright>
+                                        <copyright>(C) 2015 - 2025 Martin Paljak and contributors (LGPL+MIT)</copyright>
                                         <productVersion>
                                             ${windowsVersion.majorVersion}.${windowsVersion.minorVersion}.${windowsVersion.incrementalVersion}.${windowsVersion.buildNumber}
                                         </productVersion>

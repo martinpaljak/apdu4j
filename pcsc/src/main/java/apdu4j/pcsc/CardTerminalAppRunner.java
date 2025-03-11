@@ -54,9 +54,9 @@ public class CardTerminalAppRunner implements Runnable, AsynchronousBIBO {
     private AtomicReference<CompletableFuture<byte[]>> outgoing = new AtomicReference<>();
 
     String protocol = "*";
-    boolean multisession = false;
-    boolean needsTouch = false;
-    boolean spawnMonitor = true;
+    volatile boolean multisession = false;
+    volatile boolean needsTouch = false;
+    volatile boolean spawnMonitor = true;
 
     // Companion thread for monitoring events
     Thread monitor;
