@@ -27,6 +27,11 @@
             <name>javacard.pro</name>
             <url>https://mvn.javacard.pro/maven/</url>
         </repository>
+        <repository>
+            <id>javacard-pro-snapshots</id>
+            <name>javacard.pro</name>
+            <url>https://mvn.javacard.pro/maven/SNAPSHOTS/</url>
+        </repository>
     </repositories>
     <licenses>
         <license>
