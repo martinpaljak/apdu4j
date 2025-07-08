@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.github.martinpaljak</groupId>
         <artifactId>apdu4j</artifactId>
-        <version>25.03.12-SNAPSHOT</version>
+        <version>25.07.08-SNAPSHOT</version>
     </parent>
 
     <artifactId>apdu4j-pcsc</artifactId>
@@ -17,7 +17,7 @@
         <dependency>
             <groupId>com.github.martinpaljak</groupId>
             <artifactId>apdu4j-core</artifactId>
-            <version>25.03.12-SNAPSHOT</version>
+            <version>25.07.08-SNAPSHOT</version>
         </dependency>
         <!-- PC/SC access -->
         <dependency>

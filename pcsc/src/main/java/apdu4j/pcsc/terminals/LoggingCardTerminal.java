@@ -47,6 +47,7 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
     protected final PrintStream log;
     protected final PrintStream dump;
     protected long startTime;
+    protected long transactionStartTime;
 
     private LoggingCardTerminal(CardTerminal term, PrintStream log, PrintStream dump) {
         if (term == null)
@@ -135,6 +136,7 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
         public void beginExclusive() throws CardException {
             log.println(String.format("# SCardBeginTransaction(\"%s\")", terminal.getName()));
             card.beginExclusive();
+            transactionStartTime = System.currentTimeMillis();
         }
 
         @Override
@@ -150,7 +152,9 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
 
         @Override
         public void endExclusive() throws CardException {
-            log.println(String.format("# SCardEndTransaction(\"%s\")", terminal.getName()));
+            long duration = System.currentTimeMillis() - transactionStartTime;
+            transactionStartTime = 0;
+            log.println(String.format("# SCardEndTransaction(\"%s\") in %s", terminal.getName(), time(duration)));
             card.endExclusive();
         }
 
@@ -195,8 +199,8 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
                 result = card.transmitControlCommand(arg0, arg1);
                 sb.append(" -> " + (nil(result) ? "null" : HexUtils.bin2hex(result)));
                 return result;
-            } catch (CardException e) {
-                sb.append("-> " + SCard.getPCSCError(e).orElse("Exception"));
+            } catch (Exception e) {
+                sb.append("-> " + SCard.getPCSCError(e).orElse("Exception: " + e.getMessage()));
                 throw e;
             } finally {
                 log.println(sb);
@@ -267,7 +271,7 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
                 try {
                     response = channel.transmit(apdu);
                     outBytes += cb.length;
-                } catch (CardException e) {
+                } catch (Exception e) {
                     String time = time(System.currentTimeMillis() - t);
                     log.println("<< (" + time + ") " + SCard.getPCSCError(e).orElse("Exception (" + e.getMessage() + ")"));
                     throw e;

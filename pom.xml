@@ -5,16 +5,16 @@
     <parent>
         <groupId>com.github.martinpaljak</groupId>
         <artifactId>metacard</artifactId>
-        <version>25.03.11</version>
+        <version>25.07.08-SNAPSHOT</version>
     </parent>
     <artifactId>apdu4j</artifactId>
-    <version>25.03.12-SNAPSHOT</version>
+    <version>25.07.08-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>apdu4j</name>
     <url>https://github.com/martinpaljak/apdu4j</url>
     <description>Working with smart card readers? This is for you.</description>
     <properties>
-        <project.build.outputTimestamp>2025-03-11T09:32:36Z</project.build.outputTimestamp>
+        <project.build.outputTimestamp>2025-07-08T07:20:23Z</project.build.outputTimestamp>
     </properties>
     <scm>
         <url>https://github.com/martinpaljak/apdu4j</url>
