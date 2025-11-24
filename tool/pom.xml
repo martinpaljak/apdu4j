@@ -5,7 +5,7 @@
     <parent>
         <artifactId>apdu4j</artifactId>
         <groupId>com.github.martinpaljak</groupId>
-        <version>25.07.08-SNAPSHOT</version>
+        <version>25.11.24-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -63,6 +63,7 @@
                     <plugin>
                         <groupId>com.akathist.maven.plugins.launch4j</groupId>
                         <artifactId>launch4j-maven-plugin</artifactId>
+                        <version>2.6.0</version>
                         <executions>
                             <execution>
                                 <id>apdu4j-exe</id>
@@ -111,6 +112,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
+                <version>3.6.1</version>
                 <executions>
                     <execution>
                         <id>default-shade</id>

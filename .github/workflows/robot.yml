@@ -19,16 +19,16 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        java: [ 11, 17, 21 ]
+        java: [ 17, 21, 25 ]
     name: Java ${{ matrix.java }} build
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0 # To make git describe give the intended output
           fetch-tags: true
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: ${{ matrix.java }}
           distribution: temurin
@@ -43,9 +43,9 @@ jobs:
       - name: Package
         run: ./mvnw --no-transfer-progress -P exe -T1C -U -B clean verify
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/v') && matrix.java == '11'
+        if: startsWith(github.ref, 'refs/tags/v') && matrix.java == '17'
         id: create_release
-        uses: softprops/action-gh-release@v2.2.1
+        uses: softprops/action-gh-release@v2.2.4
         with:
             files: |
               tool/target/apdu4j.jar
@@ -54,5 +54,5 @@ jobs:
             body: Release ${{ github.ref_name }}
             prerelease: true # manually promoted
       - name: Deploy package
-        if: matrix.java == '11' && ( github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v') )
+        if: matrix.java == '17' && ( github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v') )
         run: ./mvnw --no-transfer-progress -T1C -B deploy
