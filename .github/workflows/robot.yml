@@ -45,7 +45,7 @@ jobs:
       - name: Release
         if: startsWith(github.ref, 'refs/tags/v') && matrix.java == '17'
         id: create_release
-        uses: softprops/action-gh-release@v2.2.4
+        uses: softprops/action-gh-release@v2.4.2
         with:
             files: |
               tool/target/apdu4j.jar
