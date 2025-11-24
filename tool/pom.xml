@@ -54,10 +54,22 @@
             <id>exe</id>
             <build>
                 <plugins>
-                    <!-- Call windows version number mangler -->
+                    <!-- Parse and mangle version for Windows, to have no leading '0' -->
                     <plugin>
                         <groupId>org.codehaus.mojo</groupId>
                         <artifactId>build-helper-maven-plugin</artifactId>
+                        <version>3.6.1</version>
+                        <executions>
+                            <execution>
+                                <id>windows-file-version</id>
+                                <goals>
+                                    <goal>parse-version</goal>
+                                </goals>
+                                <configuration>
+                                    <propertyPrefix>windowsVersion</propertyPrefix>
+                                </configuration>
+                            </execution>
+                        </executions>
                     </plugin>
                     <!-- Package for Windows -->
                     <plugin>
