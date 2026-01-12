@@ -32,27 +32,23 @@ jobs:
         with:
           java-version: ${{ matrix.java }}
           distribution: temurin
-      - name: Set SSH key
-        if: github.event_name != 'pull_request'
-        uses: webfactory/ssh-agent@v0.9.1
-        with:
-          ssh-private-key: ${{ secrets.SSH_KEY }}
-      - name: Add known host key
-        if: github.event_name != 'pull_request'
-        run: ssh-keyscan mvn.javacard.pro >> ~/.ssh/known_hosts
       - name: Package
         run: ./mvnw --no-transfer-progress -P exe -T1C -U -B clean verify
       - name: Release
         if: startsWith(github.ref, 'refs/tags/v') && matrix.java == '17'
         id: create_release
-        uses: softprops/action-gh-release@v2.4.2
+        uses: softprops/action-gh-release@v2.5.0
         with:
-            files: |
-              tool/target/apdu4j.jar
-              tool/target/apdu4j.exe
-            fail_on_unmatched_files: true
-            body: Release ${{ github.ref_name }}
-            prerelease: true # manually promoted
+          files: |
+            tool/target/apdu4j.jar
+            tool/target/apdu4j.exe
+          fail_on_unmatched_files: true
+          body: Release ${{ github.ref_name }}
+          prerelease: true # manually promoted
       - name: Deploy package
         if: matrix.java == '17' && ( github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v') )
-        run: ./mvnw --no-transfer-progress -T1C -B deploy
+        uses: martinpaljak/maven-ssh-deploy@v1
+        with:
+          key: ${{ secrets.SSH_KEY }}
+          user: mvn@mvn.javacard.pro
+          host_fp: SHA256:auiF3nHWvDmvq2stDl+QEECCqMcDp+FY1/bDRnvxpRw

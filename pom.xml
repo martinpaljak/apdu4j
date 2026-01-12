@@ -4,17 +4,16 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.github.martinpaljak</groupId>
     <artifactId>apdu4j</artifactId>
-    <version>25.11.25-SNAPSHOT</version>
+    <version>26.01.12-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>apdu4j</name>
     <url>https://github.com/martinpaljak/apdu4j</url>
     <description>Working with smart card readers? This is for you.</description>
+    <inceptionYear>2015</inceptionYear>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <!-- GH Actions fails sometimes on first try -->
-        <maven.wagon.http.retryHandler.count>2</maven.wagon.http.retryHandler.count>
-        <project.build.outputTimestamp>2025-11-24T14:31:27Z</project.build.outputTimestamp>
+        <project.build.outputTimestamp>2026-01-12T10:43:12Z</project.build.outputTimestamp>
     </properties>
     <scm>
         <url>https://github.com/martinpaljak/apdu4j</url>
@@ -33,17 +32,9 @@
             <url>https://mvn.javacard.pro/maven/SNAPSHOTS/</url>
         </repository>
     </repositories>
-    <!-- Default is publishing to private Maven repo on mvn.javacard.pro -->
-    <distributionManagement>
-        <repository>
-            <id>javacard</id>
-            <url>scpexe://mvn@mvn.javacard.pro/home/mvn/maven/</url>
-        </repository>
-        <snapshotRepository>
-            <id>javacard</id>
-            <url>scpexe://mvn@mvn.javacard.pro/home/mvn/maven/SNAPSHOTS</url>
-        </snapshotRepository>
-    </distributionManagement>
+    <organization>
+        <name>Martin Paljak</name>
+    </organization>
     <licenses>
         <license>
             <name>MIT</name>
@@ -81,13 +72,6 @@
         </dependencies>
     </dependencyManagement>
     <build>
-        <extensions>
-            <extension>
-                <groupId>org.apache.maven.wagon</groupId>
-                <artifactId>wagon-ssh-external</artifactId>
-                <version>3.5.3</version>
-            </extension>
-        </extensions>
         <plugins>
             <!-- Minimum Maven version. Not really relevant with wrapper -->
             <plugin>
@@ -107,7 +91,7 @@
                                     <message>Project requires JDK 17+</message>
                                 </requireJavaVersion>
                                 <requireMavenVersion>
-                                    <version>[3.9.11,)</version>
+                                    <version>[3.9.12,)</version>
                                 </requireMavenVersion>
                             </rules>
                         </configuration>

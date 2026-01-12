@@ -5,7 +5,7 @@
     <parent>
         <artifactId>apdu4j</artifactId>
         <groupId>com.github.martinpaljak</groupId>
-        <version>25.11.25-SNAPSHOT</version>
+        <version>26.01.12-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -54,28 +54,11 @@
             <id>exe</id>
             <build>
                 <plugins>
-                    <!-- Parse and mangle version for Windows, to have no leading '0' -->
-                    <plugin>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <artifactId>build-helper-maven-plugin</artifactId>
-                        <version>3.6.1</version>
-                        <executions>
-                            <execution>
-                                <id>windows-file-version</id>
-                                <goals>
-                                    <goal>parse-version</goal>
-                                </goals>
-                                <configuration>
-                                    <propertyPrefix>windowsVersion</propertyPrefix>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
                     <!-- Package for Windows -->
                     <plugin>
                         <groupId>com.akathist.maven.plugins.launch4j</groupId>
                         <artifactId>launch4j-maven-plugin</artifactId>
-                        <version>2.6.0</version>
+                        <version>2.7.0</version>
                         <executions>
                             <execution>
                                 <id>apdu4j-exe</id>
@@ -97,16 +80,8 @@
                                         <minVersion>11</minVersion>
                                     </jre>
                                     <versionInfo>
-                                        <fileVersion>
-                                            ${windowsVersion.majorVersion}.${windowsVersion.minorVersion}.${windowsVersion.incrementalVersion}.${windowsVersion.buildNumber}
-                                        </fileVersion>
-                                        <txtFileVersion>${project.version}</txtFileVersion>
                                         <fileDescription>apdu4j</fileDescription>
-                                        <copyright>(C) 2015 - 2025 Martin Paljak and contributors (LGPL+MIT)</copyright>
-                                        <productVersion>
-                                            ${windowsVersion.majorVersion}.${windowsVersion.minorVersion}.${windowsVersion.incrementalVersion}.${windowsVersion.buildNumber}
-                                        </productVersion>
-                                        <txtProductVersion>${project.version}</txtProductVersion>
+                                        <copyright>(C) 2015 - 2026 Martin Paljak and contributors (LGPL+MIT)</copyright>
                                         <productName>apdu4j</productName>
                                         <internalName>apdu4j</internalName>
                                         <originalFilename>apdu4j.exe</originalFilename>
