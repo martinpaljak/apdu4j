@@ -44,40 +44,50 @@ public class CardBIBO implements BIBO, AsynchronousBIBO {
     static String prop2env(String prop) {
         return prop.toUpperCase().replace('.', '_');
     }
+
     protected final Card card;
     private volatile boolean closed = false;
 
     // set to false to disable pseudoapdu-s
-    public boolean pseudo = Boolean.getBoolean(System.getProperty(PROP_APDU4J_PSEUDOAPDU, System.getenv().getOrDefault(prop2env(PROP_APDU4J_PSEUDOAPDU), Boolean.TRUE.toString())));
-    public boolean reset = Boolean.getBoolean(System.getProperty(PROP_APDU4J_PCSC_RESET, System.getenv().getOrDefault(prop2env(PROP_APDU4J_PCSC_RESET), Boolean.TRUE.toString())));
+    private final boolean pseudo = Boolean.getBoolean(System.getProperty(PROP_APDU4J_PSEUDOAPDU, System.getenv().getOrDefault(prop2env(PROP_APDU4J_PSEUDOAPDU), Boolean.TRUE.toString())));
+    private final boolean reset;
 
     protected HashMap<Integer, CardChannel> channels = new HashMap<>();
 
-    protected CardBIBO(Card card) {
+    protected CardBIBO(Card card, boolean reset) {
         this.card = card;
+        this.reset = reset;
         channels.put(0, card.getBasicChannel());
     }
 
     protected int getChannel(int cla) {
         // TODO: validate this logic here.
-        if ((cla & 0x80) == 0x80)
+        if ((cla & 0x80) == 0x80) {
             return 0;
+        }
         if ((cla & 0xE0) == 0x00) {
             return cla & 0x03;
         } else if ((cla & 0x40) == 0x40) {
             return (cla & 0x0F) + 4;
-        } else
+        } else {
             return 0;
+        }
     }
 
     public static CardBIBO wrap(Card card) {
-        return new CardBIBO(card);
+        boolean rst = Boolean.getBoolean(System.getProperty(PROP_APDU4J_PCSC_RESET, System.getenv().getOrDefault(prop2env(PROP_APDU4J_PCSC_RESET), Boolean.TRUE.toString())));
+        return new CardBIBO(card, rst);
+    }
+
+    public static CardBIBO wrap(Card card, boolean reset) {
+        return new CardBIBO(card, reset);
     }
 
     @Override
     public byte[] transceive(byte[] bytes) throws BIBOException {
-        if (closed)
+        if (closed) {
             throw new BIBOException("has been closed!");
+        }
         try {
             int channel = getChannel(bytes[0] & 0xFF);
 
@@ -92,8 +102,9 @@ public class CardBIBO implements BIBO, AsynchronousBIBO {
             // intercept CLOSE CHANNEL
             if (bytes.length == 4 && bytes[1] == 0x70 && bytes[2] == (byte) 0x80 && bytes[3] == 0x00) {
                 CardChannel toClose = channels.remove(channel);
-                if (toClose == null)
+                if (toClose == null) {
                     throw new BIBOException("channel " + channel + " not open");
+                }
                 toClose.close();
                 return new byte[]{(byte) 0x90, 0x00};
             }
@@ -122,20 +133,23 @@ public class CardBIBO implements BIBO, AsynchronousBIBO {
                 // Pseudo APDU - get UID
                 if (Arrays.equals(Arrays.copyOf(bytes, 5), HexUtils.hex2bin("FFCA000000"))) {
                     // T=0 can't be contactless, thus no UID
-                    if (card.getProtocol().equals("T=0"))
+                    if (card.getProtocol().equals("T=0")) {
                         return new byte[]{0x6A, (byte) 0x81}; // FIXME: source
+                    }
                     // Passthrough, handled by reader
                 }
             }
 
             // Require channel to be open
-            if (!channels.containsKey(channel))
+            if (!channels.containsKey(channel)) {
                 throw new BIBOException("Channel not open: " + channel);
+            }
             // Some readers/drivers return zero length response
             // See https://github.com/martinpaljak/GlobalPlatformPro/issues/307
             byte[] resp = channels.get(channel).transmit(new CommandAPDU(bytes)).getBytes();
-            if (resp.length < 2)
+            if (resp.length < 2) {
                 throw new BIBOException("Broken incoming data: " + HexUtils.bin2hex(resp));
+            }
             return resp;
         } catch (CardException e) {
             String r = SCard.getExceptionMessage(e);
@@ -157,15 +171,17 @@ public class CardBIBO implements BIBO, AsynchronousBIBO {
             String err = SCard.getExceptionMessage(e);
             if (err.equals(SCard.SCARD_E_INVALID_HANDLE)) {
                 logger.debug("Ignoring {} during disconnect, already closed before", err);
-            } else
+            } else {
                 logger.warn("disconnect() failed: " + e.getMessage(), e);
+            }
         }
     }
 
     @Override
     public CompletableFuture<byte[]> transmit(byte[] command) {
-        if (closed)
+        if (closed) {
             return CompletableFuture.failedFuture(new BIBOException("closed"));
+        }
         // FIXME: do not execute this in common pool
         return CompletableFuture.supplyAsync(() -> transceive(command));
     }
