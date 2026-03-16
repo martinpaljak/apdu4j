@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.github.martinpaljak</groupId>
         <artifactId>apdu4j</artifactId>
-        <version>26.01.13-SNAPSHOT</version>
+        <version>26.03.16-SNAPSHOT</version>
     </parent>
 
     <artifactId>apdu4j-pcsc</artifactId>
@@ -29,7 +29,7 @@
         <dependency>
             <groupId>org.yaml</groupId>
             <artifactId>snakeyaml</artifactId>
-            <version>2.5</version>
+            <version>2.6</version>
         </dependency>
         <!-- lazy plugins -->
         <dependency>
