@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020 Martin Paljak
+ * Copyright (c) 2019-present Martin Paljak <martin@martinpaljak.net>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,36 +21,25 @@
  */
 package apdu4j.core;
 
-import java.util.concurrent.CompletableFuture;
+// Chains GET RESPONSE commands on SW1=0x9F (ETSI TS 102.221 / GSM 11.11)
+public final class GetMoreDataWrapper implements BIBO {
+    private final BIBO wrapped;
 
-import static apdu4j.core.HexBytes.concatenate;
-
-public final class GetMoreDataWrapper implements AsynchronousBIBO {
-    final AsynchronousBIBO wrapped;
-
-    public static GetMoreDataWrapper wrap(AsynchronousBIBO bibo) {
+    public static GetMoreDataWrapper wrap(BIBO bibo) {
         return new GetMoreDataWrapper(bibo);
     }
 
-    public GetMoreDataWrapper(AsynchronousBIBO bibo) {
+    public GetMoreDataWrapper(BIBO bibo) {
         this.wrapped = bibo;
     }
 
     @Override
-    public CompletableFuture<byte[]> transmit(final byte[] command) {
-        return transmitCombining(new byte[0], wrapped, command);
+    public byte[] transceive(byte[] command) throws BIBOException {
+        return GetResponseWrapper.chainOnSw1(wrapped, command, 0x9F);
     }
 
-    static CompletableFuture<byte[]> transmitCombining(final byte[] current, final AsynchronousBIBO bibo, final byte[] command) {
-        return bibo.transmit(command).thenComposeAsync((response) -> {
-            ResponseAPDU res = new ResponseAPDU(response);
-            if (res.getSW1() == 0x9F) {
-                // XXX: dependence on CommandAPDU for 256
-                final byte[] cmd = new CommandAPDU(command[0], 0xC0, 0x00, 0x00, res.getSW2() == 0x00 ? 256 : res.getSW2()).getBytes();
-                return transmitCombining(concatenate(current, res.getData()), bibo, cmd);
-            } else {
-                return CompletableFuture.completedFuture(concatenate(current, response, res.getSWBytes()));
-            }
-        });
+    @Override
+    public void close() {
+        wrapped.close();
     }
 }

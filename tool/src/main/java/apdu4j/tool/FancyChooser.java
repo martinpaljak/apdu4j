@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-present Martin Paljak
+ * Copyright (c) 2019-present Martin Paljak <martin@martinpaljak.net>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,7 +25,6 @@ import apdu4j.pcsc.*;
 import com.googlecode.lanterna.TerminalSize;
 import com.googlecode.lanterna.TextColor;
 import com.googlecode.lanterna.gui2.*;
-import com.googlecode.lanterna.gui2.dialogs.MessageDialog;
 import com.googlecode.lanterna.gui2.dialogs.MessageDialogBuilder;
 import com.googlecode.lanterna.gui2.dialogs.MessageDialogButton;
 import com.googlecode.lanterna.screen.Screen;
@@ -36,10 +35,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.smartcardio.CardTerminal;
-import javax.smartcardio.CardTerminals;
-import javax.smartcardio.TerminalFactory;
 import java.io.IOException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
@@ -70,112 +70,104 @@ public final class FancyChooser implements Callable<Optional<CardTerminal>>, PCS
 
     // Hints
     final String preferred;
-    final String ignored;
+    final List<String> ignoreFragments;
 
     final ReaderAliases aliases = ReaderAliases.getDefault();
 
     static {
         // Force the text based terminal on macOS
-        if (TerminalManager.isMacOS() && System.console() != null)
+        if (TerminalManager.isMacOS() && System.console() != null) {
             System.setProperty("java.awt.headless", "true");
+        }
     }
 
 
     // This is called from the monitor thread
     @Override
-    synchronized public void readerListChanged(List<PCSCReader> readers) {
+    public synchronized void readerListChanged(List<PCSCReader> readers) {
         try {
             // -1 == Selection not made; -2 == Selection is quit
             int selectedIndex = quitButton.isFocused() ? -2 : mainActions.getSelectedIndex();
             logger.info("CHANGE with selectedIndex={} and {} readers", selectedIndex, readers.size());
             mainActions.clearItems();
-            Map<String, PCSCReader> statuses = readers.stream().collect(Collectors.toMap(PCSCReader::getName, e -> e));
+            var statuses = readers.stream().collect(Collectors.toMap(PCSCReader::name, e -> e));
 
-            TerminalManager.dwimify(readers, preferred, ignored);
+            var dwimified = Readers.dwimify(readers, preferred, ignoreFragments);
+            var hasPreferred = dwimified.stream().anyMatch(PCSCReader::preferred);
 
             // Update aliases
-            List<String> names = readers.stream().map(PCSCReader::getName).collect(Collectors.toList());
-            ReaderAliases alias = aliases.apply(names);
+            List<String> names = dwimified.stream().map(PCSCReader::name).toList();
+            var alias = aliases.apply(names);
+            var current = 0;
+            for (PCSCReader r : dwimified) {
+                var i = current++;
+                // Clear the ignore flag unless card is present
+                var rd = r.withIgnored(r.present() && r.ignored());
 
-            // Get a preferred reader, taking into account aliases
-            Optional<String> pref = TerminalManager.hintMatchesExactlyOne(preferred, names.stream().map(alias::extended).collect(Collectors.toList())); // wrong function
-            logger.info("Preferred reader by {} is {}: ", preferred, pref);
-            int current = 0; // setSelectedIndex is 0 based, of course
-            for (PCSCReader r : readers) {
-                int i = current++;
-                final String name = r.getName();
-                // Clear the ignore flag, unless card is present
-                r.setIgnore(r.isPresent() && r.isIgnore());
-
-                mainActions.addItem(String.format("[%s] %s", PCSCReader.presenceMarker(r), alias.extended(name)), () -> {
-                    // This is executed on selection, on main thread
-                    if (r.isExclusive()) {
-                        MessageDialog warn = new MessageDialogBuilder()
+                mainActions.addItem("[%s] %s".formatted(PCSCReader.presenceMarker(rd), alias.extended(rd.name())), () -> {
+                    if (rd.exclusive()) {
+                        var warn = new MessageDialogBuilder()
                                 .setTitle(" Warning! ")
                                 .setText("Reader is in exclusive use by some other application")
                                 .addButton(MessageDialogButton.Cancel)
                                 .addButton(MessageDialogButton.Continue)
                                 .build();
                         warn.setCloseWindowWithEscape(true);
-                        MessageDialogButton d = warn.showDialog(gui);
+                        var d = warn.showDialog(gui);
                         if (d == null || d == MessageDialogButton.Cancel) {
                             return;
                         }
-                        // Fall through if clause and set chosen one.
                     }
-                    nameOfChosenOne = r.getName();
+                    nameOfChosenOne = rd.name();
                     mainWindow.close();
                 });
 
-                Optional<PCSCReader> prev = Optional.ofNullable(previousStates.get(name));
+                var prev = Optional.ofNullable(previousStates.get(rd.name()));
 
                 // Reset if current reader becomes exclusive (unless it is the only reader)
-                if (i == selectedIndex && readers.size() > 1 && r.isExclusive() && !prev.map(PCSCReader::isExclusive).orElse(true)) {
+                if (i == selectedIndex && dwimified.size() > 1 && rd.exclusive() && !prev.map(PCSCReader::exclusive).orElse(true)) {
                     logger.debug("rule 1");
                     selectedIndex = -1;
                 }
                 // Select if only reader becomes non-exclusive
-                if (!r.isExclusive() && prev.map(PCSCReader::isExclusive).orElse(true) && readers.size() == 1) {
+                if (!rd.exclusive() && prev.map(PCSCReader::exclusive).orElse(true) && dwimified.size() == 1) {
                     logger.debug("rule 2");
                     selectedIndex = i;
                 }
 
                 // main rule for non-events
-                if (r.isPreferred() && selectedIndex < 0) {
+                if (rd.preferred() && selectedIndex < 0) {
                     logger.debug("rule pref");
-
                     selectedIndex = i;
                 }
                 // Select if new reader connected
-                if (prev.isEmpty() && previousStates.size() > 0) {
+                if (prev.isEmpty() && !previousStates.isEmpty()) {
                     logger.debug("rule 3");
                     selectedIndex = i;
                 }
 
                 // Select first non-exclusive, non-ignored reader on change, unless we have a preferred one
-                if (selectedIndex == -1 && !r.isExclusive() && pref.isEmpty() && !r.isIgnore()) {
+                if (selectedIndex == -1 && !rd.exclusive() && !hasPreferred && !rd.ignored()) {
                     logger.debug("rule 4");
                     selectedIndex = i;
                 }
 
-                Optional<String> thisOptional = Optional.of(alias.extended(name));
                 // Select preferred reader, only if other rules have not applied
-                if (pref.equals(thisOptional) && selectedIndex < 0) {
+                if (rd.preferred() && selectedIndex < 0) {
                     logger.debug("rule 4.5");
                     selectedIndex = i;
                 }
 
                 // Select existing non-ignored reader if it gets a card
-                if (!prev.map(PCSCReader::isPresent).orElse(false) && r.isPresent() && !r.isExclusive() && !r.isIgnore()) {
+                if (!prev.map(PCSCReader::present).orElse(false) && rd.present() && !rd.exclusive() && !rd.ignored()) {
                     logger.debug("rule 5");
                     selectedIndex = i;
                 }
-                logger.info("{} Reader: {}, selectedIndex {}", i, r.getName(), selectedIndex);
-                i++;
+                logger.info("{} Reader: {}, selectedIndex {}", i, rd.name(), selectedIndex);
             }
 
             // Set title based on size
-            if (readers.size() == 0) {
+            if (readers.isEmpty()) {
                 mainWindow.setTitle(" Connect a reader ");
             } else {
                 mainWindow.setTitle(" Choose a reader ");
@@ -226,9 +218,9 @@ public final class FancyChooser implements Callable<Optional<CardTerminal>>, PCS
         System.err.println(t.getMessage());
     }
 
-    private FancyChooser(Terminal terminal, Screen screen, TerminalManager manager, String preferred, String ignored) {
+    private FancyChooser(Terminal terminal, Screen screen, TerminalManager manager, String preferred, List<String> ignoreFragments) {
         this.preferred = preferred;
-        this.ignored = ignored;
+        this.ignoreFragments = ignoreFragments;
         this.manager = manager;
         monitor = new Thread(new HandyTerminalsMonitor(manager, this));
         monitor.setName("FancyChooser monitor");
@@ -240,7 +232,7 @@ public final class FancyChooser implements Callable<Optional<CardTerminal>>, PCS
         // Create UI elements
         mainWindow = new BasicWindow(" apdu4j ");
         mainWindow.setCloseWindowWithEscape(true);
-        mainWindow.setHints(Arrays.asList(Window.Hint.FIT_TERMINAL_WINDOW, Window.Hint.CENTERED));
+        mainWindow.setHints(List.of(Window.Hint.FIT_TERMINAL_WINDOW, Window.Hint.CENTERED));
 
         mainPanel = new Panel();
         mainPanel.setLayoutManager(new BorderLayout());
@@ -251,7 +243,7 @@ public final class FancyChooser implements Callable<Optional<CardTerminal>>, PCS
         mainPanel.addComponent(mainActions);
         // Empty line between quit button
         mainPanel.addComponent(new EmptySpace(new TerminalSize(0, 1)));
-        quitButton = new Button("Cancel and quit", () -> mainWindow.close());
+        quitButton = new Button("Cancel and quit", mainWindow::close);
         quitButton.setLayoutData(LinearLayout.createLayoutData(LinearLayout.Alignment.End));
         mainPanel.addComponent(quitButton);
         //mainPanel.setLayoutData(LinearLayout.createLayoutData(LinearLayout.Alignment.End));
@@ -259,13 +251,14 @@ public final class FancyChooser implements Callable<Optional<CardTerminal>>, PCS
     }
 
 
-    public static Callable<Optional<CardTerminal>> forTerminals(TerminalManager manager, String preferred, String ignored) throws IOException {
+    public static Callable<Optional<CardTerminal>> forTerminals(TerminalManager manager, String preferred, List<String> ignoreFragments) throws IOException {
         // We can't do this on Windows, sorry.
-        if (TerminalManager.isWindows())
-            return () -> Optional.empty();
-        Terminal terminal = new DefaultTerminalFactory().createTerminal();
-        Screen screen = new TerminalScreen(terminal);
-        return new FancyChooser(terminal, screen, manager, preferred, ignored);
+        if (TerminalManager.isWindows()) {
+            return Optional::empty;
+        }
+        var terminal = new DefaultTerminalFactory().createTerminal();
+        var screen = new TerminalScreen(terminal);
+        return new FancyChooser(terminal, screen, manager, preferred, ignoreFragments);
     }
 
 
@@ -273,8 +266,9 @@ public final class FancyChooser implements Callable<Optional<CardTerminal>>, PCS
     public Optional<CardTerminal> call() {
         try {
             // Start monitor thread. This populates the selection window
-            if (monitor != null)
+            if (monitor != null) {
                 monitor.start();
+            }
 
             screen.startScreen();
             gui.addWindow(mainWindow);
@@ -290,15 +284,16 @@ public final class FancyChooser implements Callable<Optional<CardTerminal>>, PCS
             // on OSX at least this prevents the print from last column after UI has been closed
             System.out.println();
             logger.info("getting terminal");
-            if (nameOfChosenOne == null)
+            if (nameOfChosenOne == null) {
                 return Optional.empty();
-            CardTerminal t = manager.getTerminal(nameOfChosenOne);
+            }
+            var t = manager.terminal(nameOfChosenOne);
             logger.info("terminal received");
 
             // Exists a chance that the reader is "lost" after it has been selected and this getTerminal call.
             // Log it here at least
             if (t == null) {
-                logger.error("{} chosen but not available from CardTerminals?");
+                logger.error("{} chosen but not available from CardTerminals?", nameOfChosenOne);
             }
             return Optional.ofNullable(t);
         } catch (IOException e) {

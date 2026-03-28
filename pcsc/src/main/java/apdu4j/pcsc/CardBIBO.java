@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Martin Paljak
+ * Copyright (c) 2019-present Martin Paljak <martin@martinpaljak.net>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,7 +21,9 @@
  */
 package apdu4j.pcsc;
 
-import apdu4j.core.*;
+import apdu4j.core.BIBO;
+import apdu4j.core.BIBOException;
+import apdu4j.core.HexUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,115 +31,74 @@ import javax.smartcardio.Card;
 import javax.smartcardio.CardChannel;
 import javax.smartcardio.CardException;
 import javax.smartcardio.CommandAPDU;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.concurrent.CompletableFuture;
+import java.util.Map;
 
 /**
  * This "flattens" a javax.smartcardio.Card with logical channels API into a simple BIBO stream.
  */
-public class CardBIBO implements BIBO, AsynchronousBIBO {
+public final class CardBIBO implements BIBO {
     private static final Logger logger = LoggerFactory.getLogger(CardBIBO.class);
-    public static final String PROP_APDU4J_PSEUDOAPDU = "apdu4j.pseudoapdu";
-    public static final String PROP_APDU4J_PCSC_RESET = "apdu4j.pcsc.reset";
-
-    static String prop2env(String prop) {
-        return prop.toUpperCase().replace('.', '_');
-    }
-
-    protected final Card card;
+    private final Card card;
     private volatile boolean closed = false;
 
-    // set to false to disable pseudoapdu-s
-    private final boolean pseudo = Boolean.getBoolean(System.getProperty(PROP_APDU4J_PSEUDOAPDU, System.getenv().getOrDefault(prop2env(PROP_APDU4J_PSEUDOAPDU), Boolean.TRUE.toString())));
-    private final boolean reset;
+    private final SCard.Disconnect disconnect;
 
-    protected HashMap<Integer, CardChannel> channels = new HashMap<>();
+    private Map<Integer, CardChannel> channels = new HashMap<>();
 
-    protected CardBIBO(Card card, boolean reset) {
+    private CardBIBO(Card card, SCard.Disconnect disconnect) {
         this.card = card;
-        this.reset = reset;
+        this.disconnect = disconnect;
         channels.put(0, card.getBasicChannel());
     }
 
-    protected int getChannel(int cla) {
-        // TODO: validate this logic here.
-        if ((cla & 0x80) == 0x80) {
-            return 0;
+    int getChannel(int cla) {
+        if ((cla & 0x80) != 0) {
+            return 0; // proprietary
         }
-        if ((cla & 0xE0) == 0x00) {
-            return cla & 0x03;
-        } else if ((cla & 0x40) == 0x40) {
-            return (cla & 0x0F) + 4;
-        } else {
-            return 0;
+        if ((cla & 0x40) != 0) {
+            return (cla & 0x0F) + 4; // further interindustry, channels 4-19
         }
+        return cla & 0x03; // first interindustry, channels 0-3
     }
 
     public static CardBIBO wrap(Card card) {
-        boolean rst = Boolean.getBoolean(System.getProperty(PROP_APDU4J_PCSC_RESET, System.getenv().getOrDefault(prop2env(PROP_APDU4J_PCSC_RESET), Boolean.TRUE.toString())));
-        return new CardBIBO(card, rst);
+        return new CardBIBO(card, SCard.Disconnect.RESET);
     }
 
     public static CardBIBO wrap(Card card, boolean reset) {
-        return new CardBIBO(card, reset);
+        return new CardBIBO(card, reset ? SCard.Disconnect.RESET : SCard.Disconnect.LEAVE);
+    }
+
+    public static CardBIBO wrap(Card card, SCard.Disconnect action) {
+        return new CardBIBO(card, action);
     }
 
     @Override
     public byte[] transceive(byte[] bytes) throws BIBOException {
         if (closed) {
-            throw new BIBOException("has been closed!");
+            throw new IllegalStateException("has been closed!");
         }
         try {
-            int channel = getChannel(bytes[0] & 0xFF);
+            var channel = getChannel(bytes[0] & 0xFF);
 
             // Intercept OPEN CHANNEL
             if (bytes.length <= 5 && ((bytes[0] & 0x80) == 0x00) && bytes[1] == 0x70 && bytes[2] == 0x00 && bytes[3] == 0x00) {
                 // Call implementation, which issues a direct SCardTransmit for this
-                CardChannel l = card.openLogicalChannel();
+                var l = card.openLogicalChannel();
                 channels.put(l.getChannelNumber(), l);
                 return new byte[]{(byte) l.getChannelNumber(), (byte) 0x90, 0x00};
             }
 
-            // intercept CLOSE CHANNEL
-            if (bytes.length == 4 && bytes[1] == 0x70 && bytes[2] == (byte) 0x80 && bytes[3] == 0x00) {
-                CardChannel toClose = channels.remove(channel);
+            // intercept CLOSE CHANNEL: INS=70, P1=80, P2=channel number
+            if (bytes.length == 4 && bytes[1] == 0x70 && bytes[2] == (byte) 0x80) {
+                var channelToClose = bytes[3] & 0xFF;
+                var toClose = channels.remove(channelToClose);
                 if (toClose == null) {
-                    throw new BIBOException("channel " + channel + " not open");
+                    throw new BIBOException("channel " + channelToClose + " not open");
                 }
                 toClose.close();
                 return new byte[]{(byte) 0x90, 0x00};
-            }
-
-            if (pseudo) {
-                // Pseudo APDU - get ATR
-                if (Arrays.equals(bytes, HexUtils.hex2bin("FFCA100000"))) {
-                    byte[] atr = card.getATR().getBytes();
-                    atr = Arrays.copyOf(atr, atr.length + 2);
-                    atr[atr.length - 2] = (byte) 0x90;
-                    return atr;
-                }
-                // Pseudo APDU - get protocol
-                if (Arrays.equals(bytes, HexUtils.hex2bin("FFCA110000"))) {
-                    switch (card.getProtocol().toUpperCase()) {
-                        case "T=0":
-                            return HexUtils.hex2bin("009000");
-                        case "T=1":
-                            return HexUtils.hex2bin("019000");
-                        case "DIRECT":
-                            return HexUtils.hex2bin("109000");
-                        default:
-                            return HexUtils.hex2bin("FF9000");
-                    }
-                }
-                // Pseudo APDU - get UID
-                if (Arrays.equals(Arrays.copyOf(bytes, 5), HexUtils.hex2bin("FFCA000000"))) {
-                    // T=0 can't be contactless, thus no UID
-                    if (card.getProtocol().equals("T=0")) {
-                        return new byte[]{0x6A, (byte) 0x81}; // FIXME: source
-                    }
-                    // Passthrough, handled by reader
-                }
             }
 
             // Require channel to be open
@@ -146,17 +107,16 @@ public class CardBIBO implements BIBO, AsynchronousBIBO {
             }
             // Some readers/drivers return zero length response
             // See https://github.com/martinpaljak/GlobalPlatformPro/issues/307
-            byte[] resp = channels.get(channel).transmit(new CommandAPDU(bytes)).getBytes();
+            var resp = channels.get(channel).transmit(new CommandAPDU(bytes)).getBytes();
             if (resp.length < 2) {
                 throw new BIBOException("Broken incoming data: " + HexUtils.bin2hex(resp));
             }
             return resp;
         } catch (CardException e) {
             String r = SCard.getExceptionMessage(e);
-            // TODO: try to localize SCARD_E_NOT_TRANSACTED to possibly contactless readers
-            if (r.equals(SCard.SCARD_E_NOT_TRANSACTED) || r.equals(SCard.SCARD_E_NO_SMARTCARD)) {
+            if (SCard.SCARD_E_NOT_TRANSACTED.equals(r) || SCard.SCARD_E_NO_SMARTCARD.equals(r)) {
                 logger.debug("Assuming tag removed, because {}", r);
-                throw new TagRemovedException(r, e);
+                throw new BIBOException(r, e);
             }
             throw new BIBOException(e.getMessage(), e);
         }
@@ -166,23 +126,18 @@ public class CardBIBO implements BIBO, AsynchronousBIBO {
     public void close() {
         closed = true;
         try {
-            card.disconnect(reset);
+            if (disconnect == SCard.Disconnect.UNPOWER && card instanceof jnasmartcardio.Smartcardio.JnaCard jnaCard) {
+                jnaCard.disconnect(jnasmartcardio.Smartcardio.JnaCard.SCARD_UNPOWER_CARD);
+            } else {
+                card.disconnect(disconnect == SCard.Disconnect.RESET);
+            }
         } catch (CardException e) {
             String err = SCard.getExceptionMessage(e);
-            if (err.equals(SCard.SCARD_E_INVALID_HANDLE)) {
+            if (SCard.SCARD_E_INVALID_HANDLE.equals(err)) {
                 logger.debug("Ignoring {} during disconnect, already closed before", err);
             } else {
-                logger.warn("disconnect() failed: " + e.getMessage(), e);
+                logger.warn("disconnect() failed: {}", e.getMessage(), e);
             }
         }
-    }
-
-    @Override
-    public CompletableFuture<byte[]> transmit(byte[] command) {
-        if (closed) {
-            return CompletableFuture.failedFuture(new BIBOException("closed"));
-        }
-        // FIXME: do not execute this in common pool
-        return CompletableFuture.supplyAsync(() -> transceive(command));
     }
 }

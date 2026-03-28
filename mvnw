@@ -80,16 +80,16 @@ fi
 
 # For Cygwin, ensure paths are in UNIX format before anything is touched
 if $cygwin; then
-  [ -n "$JAVA_HOME" ] \
-    && JAVA_HOME=$(cygpath --unix "$JAVA_HOME")
-  [ -n "$CLASSPATH" ] \
-    && CLASSPATH=$(cygpath --path --unix "$CLASSPATH")
+  [ -n "$JAVA_HOME" ] &&
+    JAVA_HOME=$(cygpath --unix "$JAVA_HOME")
+  [ -n "$CLASSPATH" ] &&
+    CLASSPATH=$(cygpath --path --unix "$CLASSPATH")
 fi
 
 # For Mingw, ensure paths are in UNIX format before anything is touched
 if $mingw; then
-  [ -n "$JAVA_HOME" ] && [ -d "$JAVA_HOME" ] \
-    && JAVA_HOME="$(
+  [ -n "$JAVA_HOME" ] && [ -d "$JAVA_HOME" ] &&
+    JAVA_HOME="$(
       cd "$JAVA_HOME" || (
         echo "cannot cd into $JAVA_HOME." >&2
         exit 1
@@ -314,12 +314,12 @@ MAVEN_OPTS="$(concat_lines "$MAVEN_PROJECTBASEDIR/.mvn/jvm.config") $MAVEN_OPTS"
 
 # For Cygwin, switch paths to Windows format before running java
 if $cygwin; then
-  [ -n "$JAVA_HOME" ] \
-    && JAVA_HOME=$(cygpath --path --windows "$JAVA_HOME")
-  [ -n "$CLASSPATH" ] \
-    && CLASSPATH=$(cygpath --path --windows "$CLASSPATH")
-  [ -n "$MAVEN_PROJECTBASEDIR" ] \
-    && MAVEN_PROJECTBASEDIR=$(cygpath --path --windows "$MAVEN_PROJECTBASEDIR")
+  [ -n "$JAVA_HOME" ] &&
+    JAVA_HOME=$(cygpath --path --windows "$JAVA_HOME")
+  [ -n "$CLASSPATH" ] &&
+    CLASSPATH=$(cygpath --path --windows "$CLASSPATH")
+  [ -n "$MAVEN_PROJECTBASEDIR" ] &&
+    MAVEN_PROJECTBASEDIR=$(cygpath --path --windows "$MAVEN_PROJECTBASEDIR")
 fi
 
 # Provide a "standardized" way to retrieve the CLI args that will

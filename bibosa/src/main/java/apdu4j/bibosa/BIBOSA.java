@@ -1,0 +1,160 @@
+/*
+ * Copyright (c) 2026-present Martin Paljak <martin@martinpaljak.net>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+package apdu4j.bibosa;
+
+import apdu4j.core.BIBO;
+import apdu4j.core.BIBOException;
+import apdu4j.prefs.Preferences;
+
+import java.util.function.Function;
+
+/**
+ * BIBO Stack Application - a {@link BIBO} with a typed {@link Preferences} sidecar.
+ *
+ * <p>Inspired by WSGI's environ dict, Clojure Ring's request map, and Rust Tower's
+ * service layers. Each middleware layer can read and contribute typed preferences
+ * as it wraps the underlying transport, building a composable protocol stack with
+ * accumulated metadata visible to callers.
+ *
+ * <p>BIBOSA implements {@link BIBO} so it substitutes transparently anywhere a plain
+ * BIBO is expected. Two composition patterns are supported:
+ * <ul>
+ *   <li>{@link #then(Function)} - simple BIBO wrappers ({@code Function<BIBO, BIBO>}),
+ *       preferences pass through unchanged</li>
+ *   <li>{@link #then(BIBOMiddleware)} - full middleware that can both wrap the transport
+ *       and add typed preferences to the stack</li>
+ * </ul>
+ *
+ * <p>Example: building a secure channel stack with metadata propagation:
+ * <pre>{@code
+ * var stack = new BIBOSA(transport)
+ *     .then(GetResponseWrapper::wrap)       // simple wrapper
+ *     .then(secureChannelMiddleware);        // adds blockSize preference
+ * int blockSize = stack.preferences().get(BLOCK_SIZE);
+ * }</pre>
+ *
+ * @see BIBO
+ * @see BIBOMiddleware
+ * @see Preferences
+ */
+public final class BIBOSA implements BIBO {
+    private final BIBO bibo;
+    private final Preferences preferences;
+
+    /**
+     * Wraps a BIBO with an empty preferences sidecar.
+     *
+     * @param bibo the underlying transport
+     */
+    public BIBOSA(BIBO bibo) {
+        this(bibo, new Preferences());
+    }
+
+    /**
+     * Wraps a BIBO with the given preferences sidecar.
+     *
+     * @param bibo        the underlying transport
+     * @param preferences typed metadata accumulated by middleware layers
+     */
+    public BIBOSA(BIBO bibo, Preferences preferences) {
+        this.bibo = bibo;
+        this.preferences = preferences;
+    }
+
+    @Override
+    public byte[] transceive(byte[] bytes) throws BIBOException {
+        return bibo.transceive(bytes);
+    }
+
+    @Override
+    public void close() {
+        bibo.close();
+    }
+
+    /**
+     * Applies a simple BIBO wrapper, preserving preferences unchanged.
+     *
+     * <p>Use this for stateless wrappers like {@code GetResponseWrapper::wrap}
+     * that only transform the transport without contributing metadata.
+     *
+     * @param wrapper function that wraps the underlying BIBO
+     * @return a new BIBOSA with the wrapped transport and the same preferences
+     */
+    @Override
+    public BIBOSA then(Function<BIBO, BIBO> wrapper) {
+        return new BIBOSA(wrapper.apply(bibo), preferences);
+    }
+
+    /**
+     * Applies a full middleware layer that can wrap the transport and add preferences.
+     *
+     * <p>Unlike {@link #then(Function)}, the middleware receives the entire BIBOSA
+     * (transport + accumulated preferences) and returns a new stack with potentially
+     * updated transport and enriched preferences.
+     *
+     * @param middleware the middleware to apply
+     * @return the BIBOSA returned by the middleware
+     */
+    public BIBOSA then(BIBOMiddleware middleware) {
+        return middleware.wrap(this);
+    }
+
+    /**
+     * Adapts the stack using a preference-driven middleware factory. The factory
+     * receives the accumulated preferences and returns a middleware to apply.
+     *
+     * <p>This enables runtime-adaptive stacks where earlier layers set
+     * preferences that influence which middleware gets applied later:
+     * <pre>{@code
+     * stack.then(initUpdateMiddleware)                            // sets SCP_VERSION
+     *      .adapt(prefs -> createWrapper(prefs.get(SCP_VERSION))); // picks SCP02 vs SCP03
+     * }</pre>
+     *
+     * <p>Named {@code adapt} rather than {@code then} to avoid erasure clash
+     * with {@link #then(Function)}.
+     *
+     * @param factory function that reads preferences and returns a middleware
+     * @return the BIBOSA produced by the selected middleware
+     */
+    public BIBOSA adapt(Function<Preferences, BIBOMiddleware> factory) {
+        return factory.apply(preferences).wrap(this);
+    }
+
+    /**
+     * Returns the underlying BIBO transport.
+     *
+     * @return the wrapped BIBO
+     */
+    public BIBO bibo() {
+        return bibo;
+    }
+
+    /**
+     * Returns the accumulated preferences. Preferences are immutable,
+     * so this returns the instance directly without defensive copying.
+     *
+     * @return the preferences sidecar
+     */
+    public Preferences preferences() {
+        return preferences;
+    }
+}

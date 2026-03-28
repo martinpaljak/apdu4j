@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-present Martin Paljak
+ * Copyright (c) 2014-present Martin Paljak <martin@martinpaljak.net>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,13 +22,19 @@
 package apdu4j.pcsc;
 
 import java.util.Optional;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-// Random SCard interface constants.
+// PC/SC constants and helpers.
 public final class SCard {
     private SCard() {
     }
+
+    public enum Disconnect {
+        RESET,   // SCARD_RESET_CARD (default)
+        LEAVE,   // SCARD_LEAVE_CARD
+        UNPOWER  // SCARD_UNPOWER_CARD
+    }
+
     public static final String SCARD_E_SHARING_VIOLATION = "SCARD_E_SHARING_VIOLATION";
     public static final String SCARD_E_NO_READERS_AVAILABLE = "SCARD_E_NO_READERS_AVAILABLE";
     public static final String SCARD_E_NOT_TRANSACTED = "SCARD_E_NOT_TRANSACTED";
@@ -41,21 +47,24 @@ public final class SCard {
     public static final String SCARD_E_TIMEOUT = "SCARD_E_TIMEOUT";
     public static final String SCARD_E_INVALID_HANDLE = "SCARD_E_INVALID_HANDLE";
     public static final String SCARD_E_UNKNOWN_READER = "SCARD_E_UNKNOWN_READER";
+    public static final String SCARD_E_READER_UNAVAILABLE = "SCARD_E_READER_UNAVAILABLE";
 
     public static int CARD_CTL_CODE(int c) {
-        String os = System.getProperty("os.name", "unknown").toLowerCase();
-        if (os.indexOf("windows") != -1) {
+        var os = System.getProperty("os.name", "unknown").toLowerCase();
+        if (os.contains("windows")) {
             return 0x31 << 16 | c << 2;
         } else {
             return 0x42000000 + c;
         }
     }
 
-    public static Optional<String> getscard(String s) {
-        if (s == null)
+    private static final Pattern SCARD_PATTERN = Pattern.compile("SCARD_\\w+");
+
+    private static Optional<String> getscard(String s) {
+        if (s == null) {
             return Optional.empty();
-        Pattern p = Pattern.compile("SCARD_\\w+");
-        Matcher m = p.matcher(s);
+        }
+        var m = SCARD_PATTERN.matcher(s);
         if (m.find()) {
             return Optional.ofNullable(m.group());
         }
@@ -65,14 +74,15 @@ public final class SCard {
     // Given an instance of some Exception from a PC/SC system
     // return a meaningful PC/SC error name, if found in any of the exception messages.
     public static String getExceptionMessage(Throwable e) {
-        return getPCSCError(e).orElse(e.getMessage());
+        return getPCSCError(e).orElse(e.getClass().getSimpleName() + ": " + e.getMessage());
     }
 
     public static Optional<String> getPCSCError(Throwable e) {
         while (e != null) {
-            Optional<String> m = getscard(e.getMessage());
-            if (m.isPresent())
+            var m = getscard(e.getMessage());
+            if (m.isPresent()) {
                 return m;
+            }
             e = e.getCause();
         }
         return Optional.empty();

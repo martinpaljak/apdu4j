@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-present Martin Paljak
+ * Copyright (c) 2021-present Martin Paljak <martin@martinpaljak.net>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,9 +21,12 @@
  */
 package apdu4j.core;
 
+import java.io.Serial;
+
 // Not unlike CardException - happens between "here" and "secure element", for whatever reasons
 public class BIBOException extends RuntimeException {
-    public static final long serialVersionUID = 6710240956038548175L;
+    @Serial
+    private static final long serialVersionUID = 6710240956038548175L;
 
     public BIBOException(String message) {
         super(message);

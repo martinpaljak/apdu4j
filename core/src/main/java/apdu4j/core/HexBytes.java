@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-present Martin Paljak
+ * Copyright (c) 2021-present Martin Paljak <martin@martinpaljak.net>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -52,7 +52,7 @@ public final class HexBytes {
     }
 
     public static HexBytes f(String f, HexBytes a) {
-        return v(f.replace(" ", "").replace("%s", a.s()).replace("%l", String.format("%02X", a.len())));
+        return v(f.replace(" ", "").replace("%s", a.s()).replace("%l", "%02X".formatted(a.len())));
     }
 
     public int len() {
@@ -73,9 +73,13 @@ public final class HexBytes {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        HexBytes bytesKey = (HexBytes) o;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        var bytesKey = (HexBytes) o;
         return Arrays.equals(v, bytesKey.v);
     }
 
@@ -86,12 +90,13 @@ public final class HexBytes {
 
     @Override
     public String toString() {
-        return "HexBytes[" + HexUtils.bin2hex(v) + ']';
+        return "HexBytes[" + s() + ']';
     }
 
     // Misc utils
     public static byte[] concatenate(byte[]... args) {
-        int length = 0, pos = 0;
+        var length = 0;
+        var pos = 0;
         for (byte[] arg : args) {
             length += arg.length;
         }
@@ -101,14 +106,5 @@ public final class HexBytes {
             pos += arg.length;
         }
         return result;
-    }
-
-    public static boolean isHex(String s) {
-        try {
-            HexUtils.hex2bin(s);
-            return true;
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-present Martin Paljak
+ * Copyright (c) 2014-present Martin Paljak <martin@martinpaljak.net>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,19 +30,18 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public final class ATRList {
     private final Map<String, List<String>> map;
     private final String source;
 
     public static ATRList from(InputStream in, String path) throws IOException {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
-            Map<String, List<String>> entries = new HashMap<>();
+        try (var reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+            var entries = new HashMap<String, List<String>>();
 
-            List<String> allLines = reader.lines().collect(Collectors.toList());
+            List<String> allLines = reader.lines().toList();
             String atrmask = null;
-            ArrayList<String> desc = new ArrayList<>();
+            var desc = new ArrayList<String>();
             for (String line : allLines) {
                 if (line.length() == 0) {
                     if (atrmask != null && desc != null) {
@@ -79,7 +78,7 @@ public final class ATRList {
     }
 
     public Optional<Map.Entry<String, List<String>>> match(byte[] atr) {
-        String q = HexUtils.bin2hex(atr).toUpperCase();
+        var q = HexUtils.bin2hex(atr).toUpperCase();
         return map.entrySet().stream().filter(e -> q.matches(e.getKey())).findFirst();
     }
 

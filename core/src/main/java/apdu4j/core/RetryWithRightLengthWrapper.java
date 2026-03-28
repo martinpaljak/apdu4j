@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Martin Paljak
+ * Copyright (c) 2019-present Martin Paljak <martin@martinpaljak.net>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,27 +21,36 @@
  */
 package apdu4j.core;
 
-import java.util.concurrent.CompletableFuture;
+// Retries with correct Le when card responds with SW1=0x6C (wrong length)
+public final class RetryWithRightLengthWrapper implements BIBO {
+    private final BIBO wrapped;
 
-public final class RetryWithRightLengthWrapper implements AsynchronousBIBO {
-    AsynchronousBIBO wrapped;
-
-    public static RetryWithRightLengthWrapper wrap(AsynchronousBIBO bibo) {
+    public static RetryWithRightLengthWrapper wrap(BIBO bibo) {
         return new RetryWithRightLengthWrapper(bibo);
     }
 
-    public RetryWithRightLengthWrapper(AsynchronousBIBO bibo) {
+    public RetryWithRightLengthWrapper(BIBO bibo) {
         this.wrapped = bibo;
     }
 
     @Override
-    public CompletableFuture<byte[]> transmit(byte[] command) throws BIBOException {
-        return wrapped.transmit(command).thenComposeAsync((response) -> {
-            ResponseAPDU res = new ResponseAPDU(response);
-            if (res.getSW1() == 0x6C) {
-                return wrapped.transmit(new CommandAPDU(command[0], command[1], command[2], command[3], res.getSW2()).getBytes());
-            } else
-                return CompletableFuture.completedFuture(response);
-        });
+    public byte[] transceive(byte[] command) throws BIBOException {
+        try {
+            var response = new ResponseAPDU(wrapped.transceive(command));
+            if (response.getSW1() == 0x6C) {
+                var orig = new CommandAPDU(command);
+                var data = orig.getNc() > 0 ? orig.getData() : null;
+                var cmd = new CommandAPDU(orig.getCLA(), orig.getINS(), orig.getP1(), orig.getP2(), data, response.getSW2());
+                return wrapped.transceive(cmd.getBytes());
+            }
+            return response.getBytes();
+        } catch (IllegalArgumentException e) {
+            throw new BIBOException("Invalid response APDU", e);
+        }
+    }
+
+    @Override
+    public void close() {
+        wrapped.close();
     }
 }

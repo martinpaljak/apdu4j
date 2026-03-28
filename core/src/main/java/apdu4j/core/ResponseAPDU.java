@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Martin Paljak
+ * Copyright (c) 2019-present Martin Paljak <martin@martinpaljak.net>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,22 +23,28 @@ package apdu4j.core;
 
 import java.util.Arrays;
 
-public class ResponseAPDU {
-    final byte[] apdu;
+public record ResponseAPDU(byte[] apdu) {
 
-    public ResponseAPDU(byte[] bytes) {
-        if (bytes.length < 2) {
-            throw new IllegalArgumentException("APDU must be at least 2 bytes!");
+    private static final int MAX_LENGTH = 65538; // 65536 data + 2 SW
+
+    public ResponseAPDU {
+        if (apdu.length < 2 || apdu.length > MAX_LENGTH) {
+            throw new IllegalArgumentException("Response APDU length must be 2..%d, got %d".formatted(MAX_LENGTH, apdu.length));
         }
-        this.apdu = bytes.clone();
+        apdu = apdu.clone();
+    }
+
+    @Override
+    public byte[] apdu() { // defensive clone; prefer getBytes()
+        return apdu.clone();
     }
 
     public int getSW1() {
-        return apdu[apdu.length - 2] & 0xff;
+        return Byte.toUnsignedInt(apdu[apdu.length - 2]);
     }
 
     public int getSW2() {
-        return apdu[apdu.length - 1] & 0xff;
+        return Byte.toUnsignedInt(apdu[apdu.length - 1]);
     }
 
     public int getSW() {
@@ -55,5 +61,27 @@ public class ResponseAPDU {
 
     public byte[] getSWBytes() {
         return Arrays.copyOfRange(apdu, apdu.length - 2, apdu.length);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return obj instanceof ResponseAPDU other && Arrays.equals(this.apdu, other.apdu);
+    }
+
+    @Override
+    public int hashCode() {
+        return Arrays.hashCode(apdu);
+    }
+
+    @Override
+    public String toString() {
+        return "ResponseAPDU[" + toLogString() + "]";
+    }
+
+    public String toLogString() {
+        if (apdu.length > 2) {
+            return HexUtils.bin2hex(getData()) + " " + HexUtils.bin2hex(getSWBytes());
+        }
+        return HexUtils.bin2hex(apdu);
     }
 }

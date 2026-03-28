@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Martin Paljak
+ * Copyright (c) 2019-present Martin Paljak <martin@martinpaljak.net>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,27 +21,27 @@
  */
 package apdu4j.core;
 
-// Extension on top of BIBO, not unline CardChannel, which allows
+// Extension on top of BIBO, not unlike CardChannel, which allows
 // to transmit APDU-s back and forth over BIBO. Drop-in replacement for
 // code that currently uses javax.smartcardio *APDU, with a new import for *APDU
-public class APDUBIBO implements BIBO {
-    final BIBO bibo;
+public final class APDUBIBO implements BIBO {
+    private final BIBO bibo;
 
     public APDUBIBO(BIBO bibo) {
         this.bibo = bibo;
     }
 
     public ResponseAPDU transmit(CommandAPDU command) throws BIBOException {
-        return new ResponseAPDU(bibo.transceive(command.getBytes()));
+        try {
+            return new ResponseAPDU(bibo.transceive(command.getBytes()));
+        } catch (IllegalArgumentException e) {
+            throw new BIBOException("Invalid response APDU", e);
+        }
     }
 
     @Override
     public byte[] transceive(byte[] bytes) throws BIBOException {
         return bibo.transceive(bytes);
-    }
-
-    public ResponseAPDU transceive(CommandAPDU command) throws BIBOException {
-        return new ResponseAPDU(bibo.transceive(command.getBytes()));
     }
 
     @Override

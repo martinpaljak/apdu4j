@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.github.martinpaljak</groupId>
         <artifactId>apdu4j</artifactId>
-        <version>26.03.16-SNAPSHOT</version>
+        <version>26.03.23-SNAPSHOT</version>
     </parent>
 
     <artifactId>apdu4j-pcsc</artifactId>
@@ -19,23 +19,35 @@
             <artifactId>apdu4j-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!-- Preferences -->
+        <dependency>
+            <groupId>com.github.martinpaljak</groupId>
+            <artifactId>apdu4j-prefs</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!-- BIBO + Preferences sidecar -->
+        <dependency>
+            <groupId>com.github.martinpaljak</groupId>
+            <artifactId>apdu4j-bibosa</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!-- Synthesized terminals -->
+        <dependency>
+            <groupId>com.github.martinpaljak</groupId>
+            <artifactId>apdu4j-pcsc-sim</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <!-- PC/SC access -->
         <dependency>
             <groupId>com.github.martinpaljak</groupId>
             <artifactId>apdu4j-jnasmartcardio</artifactId>
-            <version>26.01.12</version>
+            <version>26.03.28</version>
         </dependency>
         <!-- Config file for aliases -->
         <dependency>
             <groupId>org.yaml</groupId>
             <artifactId>snakeyaml</artifactId>
             <version>2.6</version>
-        </dependency>
-        <!-- lazy plugins -->
-        <dependency>
-            <groupId>com.google.auto.service</groupId>
-            <artifactId>auto-service-annotations</artifactId>
-            <version>1.1.1</version>
         </dependency>
         <!-- Logging -->
         <dependency>
@@ -48,45 +60,29 @@
             <artifactId>testng</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-java</artifactId>
+            <version>7.34.3</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-testng</artifactId>
+            <version>7.34.3</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
     <build>
         <resources>
             <resource>
-                <directory>target/generated-resources</directory>
-            </resource>
-            <resource>
                 <directory>src/main/resources</directory>
             </resource>
         </resources>
-        <plugins>
-            <plugin>
-                <groupId>io.github.git-commit-id</groupId>
-                <artifactId>git-commit-id-maven-plugin</artifactId>
-                <version>9.0.2</version>
-                <executions>
-                    <execution>
-                        <id>store-git-info</id>
-                        <phase>validate</phase>
-                        <goals>
-                            <goal>revision</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <runOnlyOnce>false</runOnlyOnce>
-                    <offline>true</offline>
-                    <generateGitPropertiesFile>true</generateGitPropertiesFile>
-                    <generateGitPropertiesFilename>${project.build.directory}/generated-resources/apdu4j/pcsc/git.properties</generateGitPropertiesFilename>
-                    <includeOnlyProperties>
-                        <includeOnlyProperty>^git.commit.id.describe$</includeOnlyProperty>
-                    </includeOnlyProperties>
-                    <commitIdGenerationMode>full</commitIdGenerationMode>
-                    <gitDescribe>
-                        <tags>true</tags>
-                        <always>true</always>
-                    </gitDescribe>
-                </configuration>
-            </plugin>
-        </plugins>
     </build>
 </project>

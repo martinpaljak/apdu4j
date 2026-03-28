@@ -7,10 +7,22 @@
     <parent>
         <groupId>com.github.martinpaljak</groupId>
         <artifactId>apdu4j</artifactId>
-        <version>26.03.16-SNAPSHOT</version>
+        <version>26.03.23-SNAPSHOT</version>
     </parent>
 
     <artifactId>apdu4j-core</artifactId>
-    <version>26.03.16-SNAPSHOT</version>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.testng</groupId>
+            <artifactId>testng</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 
 </project>
