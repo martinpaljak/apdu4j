@@ -36,6 +36,10 @@ import java.util.Objects;
  */
 public record CommandAPDU(byte[] apdu) {
 
+    public static CommandAPDU of(String hex) {
+        return new CommandAPDU(hex);
+    }
+
     // Compact canonical constructor -defensive clone + validate
     public CommandAPDU {
         apdu = apdu.clone();

@@ -12,8 +12,7 @@ access are stackable `BIBO` decorators chained with `then()`.
 Most users need two modules: `apdu4j-core` has the `BIBO` interface, APDU types, decorators, and protocol handlers with
 no `javax.smartcardio` dependency - works on Android, in tests, or anywhere Java runs. `apdu4j-pcsc` adds PC/SC hardware
 access with thread-safe readers and a fluent `Readers.select().withCard().run(apdu -> ...)` API.
-Typed `Preferences`, BIBO middleware stacking (`apdu4j-bibosa`), and lazy APDU composition (`apdu4j-apdulette`, Java 21)
-are available as separate modules.
+Lazy APDU composition (`apdu4j-apdulette`, Java 21) is available as a separate module.
 A [command line tool](#usage-from-command-line) is included for reader listing and APDU scripting.
 
 Record sessions with `DumpingBIBO`, replay in tests with `MockBIBO.fromDump()` - no physical card reader needed.
@@ -64,8 +63,6 @@ Readers.select().withCard()
 ```
 apdu4j-pcsc        PC/SC readers, fluent API, thread safety     (Java 17)
     |
-apdu4j-bibosa      BIBO + typed Preferences middleware          (Java 17)
-    |
 apdu4j-core        BIBO interface, APDU types, decorators       (Java 17)
 apdu4j-prefs       Typed Preference/Preferences system          (Java 17)
 
@@ -83,8 +80,9 @@ embedded, or test-only scenarios where `javax.smartcardio` is not available.
 Apdulette            Recipe, Chef, Cookbook (declarative APDU)    -- apdu4j-apdulette (Java 21)
 Fluent Reader API    Readers.select()...run(apdu -> ...)         -- apdu4j-pcsc
 PC/SC Integration    TerminalManager, CardBIBO, PCSCReader       -- apdu4j-pcsc
+Stateful Sessions    StatefulBIBO (wrap/unwrap state threading)  -- apdu4j-core
 Protocol Handlers    GetResponseWrapper, RetryWithRightLength    -- apdu4j-core
-Middleware           BIBOSA, BIBOMiddleware (BIBO+Preferences)   -- apdu4j-bibosa
+Middleware           BIBOSA, BIBOMiddleware (BIBO+Preferences)   -- apdu4j-core
 BIBO Decorators      LoggingBIBO, DumpingBIBO, APDUBIBO, Mock   -- apdu4j-core
 Core Types           BIBO, CommandAPDU, ResponseAPDU, HexBytes   -- apdu4j-core
 Preferences          Preference, Preferences, PreferenceProvider -- apdu4j-prefs
@@ -139,6 +137,7 @@ var apdu = new APDUBIBO(bibo);
 | `RetryWithRightLengthWrapper.wrap(bibo)` | Retries with correct Le on SW1=6C                   |
 | `APDUBIBO(bibo)`                         | Typed `CommandAPDU` / `ResponseAPDU` over raw BIBO  |
 | `MockBIBO`                               | Test stub with fluent builder and dump file replay  |
+| `StatefulBIBO`                           | Threads session state through wrap/unwrap per APDU  |
 | `BIBOSA`                                 | BIBO + typed `Preferences` sidecar for middleware   |
 
 `APDUBIBO` is a drop-in for code using `javax.smartcardio` APDU types - just change imports. The fluent Reader API
@@ -180,28 +179,43 @@ BIBO transport = getTransportFromSomewhere();
 var apdu = new APDUBIBO(LoggingBIBO.wrap(transport, System.out));
 ```
 
-### Apdulette (`apdu4j-apdulette`, Java 21)
+### Stateful Sessions
 
-Lazy, composable APDU interaction framework. Describe card interactions as `Recipe` values, compose them with
-`then`/`map`/`and`, execute with a `Chef`. No I/O happens until a chef runs the recipe.
+Protocol handlers like `GetResponseWrapper` are stateless - they transform one APDU at a time with no memory between
+calls. Secure channels (SCP02/03, PACE, BAC) need the opposite: state that evolves with every command-response cycle.
+Encryption counters increment, chaining values update, MACs accumulate.
+
+`StatefulBIBO<S>` threads a typed state value `S` through pluggable `Wrap` and `Unwrap` functions on each `transceive`.
+Wrap transforms the outgoing command (add MAC, encrypt data, set CLA=0x84) and evolves state. Unwrap transforms the
+incoming response (verify MAC, decrypt) and evolves state again. The two together form one atomic state step:
 
 ```java
-// SELECT applet, read FCI length, use it in a follow-up READ BINARY
-var recipe = Cookbook.selectFCI(aid)
-        .map(fci -> fci.getData().length)
-        .then(len -> Cookbook.raw(new CommandAPDU(0x00, 0xB0, 0x00, 0x00, len)));
+record SCPState(int counter, byte[] chainingValue, byte[] macKey) implements AutoCloseable {
+    @Override
+    public void close() { Arrays.fill(macKey, (byte) 0); }
+}
 
-var response = chef.cook(recipe, prefs);
+var scp = new StatefulBIBO<>(transport,
+    new SCPState(0, new byte[16], sessionMacKey),
+    (cmd, state) -> { /* wrap: compute MAC, increment counter, return Stateful<CommandAPDU, SCPState> */ },
+    (resp, state) -> { /* unwrap: verify RMAC, return Stateful<ResponseAPDU, SCPState> */ });
 ```
 
-`Cookbook` provides common building blocks -- `selectFCI()`, `send()`, `raw()`, `uid()` -- and taster functions
-(`expect()`, `data()`, `check()`) for evaluating card responses. Recipes read typed `Preferences` at prepare-time,
-so the same recipe adapts to different card configurations without rewriting.
+State is committed only after the full wrap-send-unwrap cycle completes - if the transport throws or unwrap fails, the
+counter stays at its pre-cycle value. This prevents desynchronizing with the card on transport errors.
 
-Error handling is built in: `orElse()` for fallback on SW mismatch, `recover()` for SW-aware recovery,
-`validate()` for short-circuit checks. Errors from the current step don't leak into downstream continuations.
+`StatefulBIBO` does not own the underlying transport - closing a session zeros keys (via `AutoCloseable` state) but
+leaves the `BIBO` open for further use. Multiple secure channel sessions can run sequentially over the same transport.
+In practice, the SCP factory wraps the result in `BIBOSA` to attach block size and other session metadata:
 
-`SousChef` is the real-time executor that transmits APDUs over a `BIBO` transport.
+```java
+var scp = new StatefulBIBO<>(transport, initialState, wrap, unwrap);
+var stack = new BIBOSA(scp, prefs.with(BLOCK_SIZE, computeBlockSize(session)));
+```
+
+### Apdulette (`apdu4j-apdulette`, Java 21)
+
+Ongoing work on lazy, composable APDU interaction recipes - see [apdulette/README.md](apdulette/README.md).
 
 ### Testing with MockBIBO
 
@@ -225,8 +239,7 @@ var mock = MockBIBO.fromDump(getClass().getResourceAsStream("/card.dump"));
 ### Fluent Reader API (`apdu4j-pcsc`)
 
 - **Select** - `Readers.select()`, `.select("Yubikey")`, `.ignore("CCID")`, `.filter(...)`, `.withCard()`
-- **Configure** - `.protocol("T=1")`, `.exclusive()`, `.onDisconnect(...)`, `.log(out)`, `.dump(out)`,
-  `.transactions(false)`
+- **Configure** - `.protocol("T=1")`, `.exclusive()`, `.log(out)`, `.dump(out)`, `.transactions(false)`
 - **Query** - `Readers.list()`, `.list()` - `List<PCSCReader>` snapshot of available readers
 - **Execute** - `.run(apdu -> ...)`, `.accept(apdu -> ...)`, `.whenReady(fn)`, `.whenReady(timeout, fn)`
 

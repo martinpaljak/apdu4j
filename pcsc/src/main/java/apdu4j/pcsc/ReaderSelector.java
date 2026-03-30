@@ -21,8 +21,8 @@
  */
 package apdu4j.pcsc;
 
-import apdu4j.bibosa.BIBOSA;
 import apdu4j.core.APDUBIBO;
+import apdu4j.core.BIBOSA;
 import apdu4j.prefs.Preference;
 import apdu4j.prefs.Preferences;
 

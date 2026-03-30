@@ -28,7 +28,7 @@ import apdu4j.prefs.Preferences;
  * with all {@link Preferences} accumulated during the recipe chain.
  *
  * <p>Returned by {@link Chef#serve}. This is the APDU-construction counterpart
- * of {@link apdu4j.bibosa.BIBOSA}, which pairs transport with accumulated
+ * of {@link apdu4j.core.BIBOSA}, which pairs transport with accumulated
  * middleware preferences on the transport axis.
  *
  * <p>Example: extracting session metadata contributed by a recipe via

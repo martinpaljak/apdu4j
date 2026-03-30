@@ -21,6 +21,7 @@
  */
 package apdu4j.apdulette;
 
+import apdu4j.apdulette.PreparationStep.Failed;
 import apdu4j.apdulette.PreparationStep.Ingredients;
 import apdu4j.apdulette.PreparationStep.Premade;
 import apdu4j.apdulette.Verdict.Error;
@@ -30,10 +31,8 @@ import apdu4j.prefs.Preferences;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
+import java.util.Optional;
+import java.util.function.*;
 
 /**
  * A lazy, composable description of a card interaction that produces a value of type {@code T}.
@@ -60,12 +59,13 @@ import java.util.function.Supplier;
 public interface Recipe<T> {
 
     /**
-     * Resolves this recipe against the given preferences, producing either a
-     * pure value ({@link PreparationStep.Premade}) or commands to transmit
-     * ({@link PreparationStep.Ingredients}).
+     * Resolves this recipe against the given preferences, producing a pure
+     * value ({@link PreparationStep.Premade}), commands to transmit
+     * ({@link PreparationStep.Ingredients}), or a known failure
+     * ({@link PreparationStep.Failed}).
      *
      * @param prefs typed configuration available to the recipe at prepare-time
-     * @return the preparation step - ready value or commands + taster
+     * @return the preparation step - ready value, commands + taster, or failure
      */
     PreparationStep<T> prepare(Preferences prefs);
 
@@ -84,16 +84,16 @@ public interface Recipe<T> {
     }
 
     /**
-     * Creates a recipe that always fails with the given reason and status word.
-     * The {@link Chef} will throw {@link SpoiledIngredient} when executing this.
+     * Creates a recipe that always fails with the given reason.
+     * The {@link Chef} will throw {@link KitchenDisaster} when executing this.
+     * No I/O is performed - the failure is known at prepare-time.
      *
      * @param reason human-readable error description
-     * @param sw     status word to carry in the exception
      * @param <T>    the nominal result type (never actually produced)
      * @return a recipe that always fails
      */
-    static <T> Recipe<T> error(String reason, int sw) {
-        return prefs -> new Ingredients<>(List.of(), responses -> new Error<>(reason, sw));
+    static <T> Recipe<T> error(String reason) {
+        return prefs -> new Failed<>(reason);
     }
 
     /**
@@ -110,11 +110,12 @@ public interface Recipe<T> {
     default <U> Recipe<U> then(Function<T, Recipe<U>> f) {
         return prefs -> switch (prepare(prefs)) {
             case Premade<T>(var v) -> f.apply(v).prepare(prefs);
-            case Ingredients<T> ing -> new Ingredients<>(ing.commands(), responses ->
+            case Failed<T>(var reason) -> new Failed<>(reason);
+            case Ingredients<T> ing -> new Ingredients<>(ing.commands(), ing.expected(), responses ->
                     switch (ing.taster().apply(responses)) {
-                        case Ready<T>(var v) -> new NextStep<>(f.apply(v));
+                        case Ready<T>(var v, var p) -> new NextStep<>(f.apply(v), p);
                         case NextStep<T>(var r, var p) -> new NextStep<>(r.then(f), p);
-                        case Error<T>(var reason, var sw) -> new Error<>(reason, sw);
+                        case Error<T> err -> new Error<>(err.response(), err.message());
                     });
         };
     }
@@ -146,7 +147,7 @@ public interface Recipe<T> {
      * Falls back to {@code fallback} if this step produces an {@link Verdict.Error}.
      *
      * <p>Scoped to this step only - does not catch errors from downstream
-     * {@link #then} continuations. Those propagate as {@link SpoiledIngredient}.
+     * {@link #then} continuations. Those propagate as {@link KitchenDisaster}.
      *
      * @param fallback the recipe to try on error
      * @return a recipe with fallback behavior
@@ -154,11 +155,14 @@ public interface Recipe<T> {
     default Recipe<T> orElse(Recipe<T> fallback) {
         return prefs -> switch (prepare(prefs)) {
             case Premade<T> p -> p;
-            case Ingredients<T> ing -> new Ingredients<>(ing.commands(), responses ->
-                    switch (ing.taster().apply(responses)) {
-                        case Error<T> e -> new NextStep<>(fallback);
-                        default -> ing.taster().apply(responses);
-                    });
+            case Failed<T> f -> fallback.prepare(prefs);
+            case Ingredients<T> ing -> new Ingredients<>(ing.commands(), ing.expected(), responses -> {
+                var verdict = ing.taster().apply(responses);
+                return switch (verdict) {
+                    case Error<T> e -> new NextStep<>(fallback);
+                    default -> verdict;
+                };
+            });
         };
     }
 
@@ -168,6 +172,8 @@ public interface Recipe<T> {
      * status word to decide how to recover.
      *
      * <p>Scoped to this step only - does not catch downstream errors.
+     * Does not catch {@link PreparationStep.Failed} - those propagate as-is
+     * because they carry no status word to inspect.
      *
      * @param handler function that receives the error and returns a recovery recipe
      * @return a recipe with error recovery
@@ -175,11 +181,14 @@ public interface Recipe<T> {
     default Recipe<T> recover(Function<Error<T>, Recipe<T>> handler) {
         return prefs -> switch (prepare(prefs)) {
             case Premade<T> p -> p;
-            case Ingredients<T> ing -> new Ingredients<>(ing.commands(), responses ->
-                    switch (ing.taster().apply(responses)) {
-                        case Error<T> err -> new NextStep<>(handler.apply(err));
-                        default -> ing.taster().apply(responses);
-                    });
+            case Failed<T> f -> f;
+            case Ingredients<T> ing -> new Ingredients<>(ing.commands(), ing.expected(), responses -> {
+                var verdict = ing.taster().apply(responses);
+                return switch (verdict) {
+                    case Error<T> err -> new NextStep<>(handler.apply(err));
+                    default -> verdict;
+                };
+            });
         };
     }
 
@@ -211,6 +220,32 @@ public interface Recipe<T> {
             action.accept(t);
             return premade(t);
         });
+    }
+
+    /**
+     * Wraps this recipe so card errors produce {@link Optional#empty()} instead of failing.
+     * Only catches {@link Verdict.Error} (the card said no), not {@link PreparationStep.Failed}
+     * (prepare-time failure). Useful for probing card features without aborting the recipe chain.
+     *
+     * @return a recipe that produces {@code Optional.of(result)} on success, {@code Optional.empty()} on card error
+     */
+    default Recipe<Optional<T>> optional() {
+        return this.map(Optional::of)
+                .recover(err -> premade(Optional.empty()));
+    }
+
+    /**
+     * Short-circuits with a prepare-time failure if the result fails the predicate.
+     * Unlike {@link #validate} which throws a runtime exception, this stays within
+     * the recipe error model - the failure is a {@link PreparationStep.Failed} that
+     * propagates as a {@link KitchenDisaster} but does not bypass the Chef trampoline.
+     *
+     * @param test     predicate to check the result
+     * @param errorMsg error message when {@code test} returns false
+     * @return a recipe that filters its result, failing on predicate mismatch
+     */
+    default Recipe<T> filter(Predicate<T> test, String errorMsg) {
+        return then(v -> test.test(v) ? premade(v) : error(errorMsg));
     }
 
 }

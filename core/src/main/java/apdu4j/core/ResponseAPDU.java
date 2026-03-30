@@ -25,6 +25,17 @@ import java.util.Arrays;
 
 public record ResponseAPDU(byte[] apdu) {
 
+    public static final ResponseAPDU OK = of(0x9000);
+
+    // SW int to ResponseAPDU
+    public static ResponseAPDU of(int sw) {
+        return new ResponseAPDU(new byte[]{(byte) (sw >> 8), (byte) sw});
+    }
+
+    public static ResponseAPDU of(String hex) {
+        return new ResponseAPDU(HexUtils.hex2bin(hex.replace(" ", "")));
+    }
+
     private static final int MAX_LENGTH = 65538; // 65536 data + 2 SW
 
     public ResponseAPDU {

@@ -25,9 +25,15 @@ import apdu4j.core.CommandAPDU;
 import apdu4j.core.ResponseAPDU;
 import apdu4j.prefs.Preferences;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Static factory methods for common {@link Recipe recipes} and taster functions.
@@ -50,6 +56,30 @@ public final class Cookbook {
     }
 
     // === Recipe factories ===
+
+    /**
+     * Creates a recipe from a factory that reads {@link Preferences} at prepare-time
+     * and returns another recipe. The returned recipe is immediately prepared with
+     * the same preferences - eliminating the manual {@code .prepare(prefs)} tail-call
+     * that would otherwise be required.
+     *
+     * <p>Use this when the recipe to build depends on preferences but produces
+     * more than a single command (where {@link #simple} suffices):
+     * <pre>{@code
+     * var recipe = Cookbook.deferred(prefs -> {
+     *     var blockSize = prefs.get(BLOCK_SIZE);
+     *     var commands = splitIntoBlocks(data, blockSize);
+     *     return Cookbook.send(commands, 0x9000);
+     * });
+     * }</pre>
+     *
+     * @param factory function that reads preferences and returns a recipe
+     * @param <T>     the result type
+     * @return a recipe that defers construction to prepare-time
+     */
+    public static <T> Recipe<T> deferred(Function<Preferences, Recipe<T>> factory) {
+        return prefs -> factory.apply(prefs).prepare(prefs);
+    }
 
     /**
      * Creates a recipe that builds a single command from {@link Preferences} at
@@ -95,7 +125,8 @@ public final class Cookbook {
      * @return a recipe that produces the response, or fails on SW mismatch
      */
     public static Recipe<ResponseAPDU> send(CommandAPDU cmd, int expectedSW) {
-        return prefs -> new PreparationStep.Ingredients<>(List.of(cmd), expect(expectedSW));
+        var expected = List.of(ResponseAPDU.of(expectedSW));
+        return prefs -> new PreparationStep.Ingredients<>(List.of(cmd), expected, expect(expectedSW));
     }
 
     /**
@@ -173,7 +204,28 @@ public final class Cookbook {
             var r = responses.getFirst();
             return r.getSW() == sw
                     ? new Verdict.Ready<>(r)
-                    : new Verdict.Error<>("expected %04X".formatted(sw), r.getSW());
+                    : new Verdict.Error<>(r, "expected %04X".formatted(sw));
+        };
+    }
+
+    /**
+     * Taster that accepts any of the given status words. Returns the first
+     * response on match, error on mismatch. Useful for commands like SELECT
+     * that succeed with multiple SWs (e.g. {@code 9000} or {@code 6283}).
+     *
+     * @param sws the acceptable status words
+     * @return taster function - {@link Verdict.Ready} on any match, {@link Verdict.Error} on mismatch
+     */
+    public static Function<List<ResponseAPDU>, Verdict<ResponseAPDU>> expect(int... sws) {
+        return responses -> {
+            var r = responses.getFirst();
+            for (int sw : sws) {
+                if (r.getSW() == sw) {
+                    return new Verdict.Ready<>(r);
+                }
+            }
+            return new Verdict.Error<>(r, "expected one of " +
+                    Arrays.stream(sws).mapToObj("%04X"::formatted).collect(Collectors.joining(", ")));
         };
     }
 
@@ -201,11 +253,11 @@ public final class Cookbook {
         return responses -> {
             var r = responses.getFirst();
             if (r.getSW() != sw) {
-                return new Verdict.Error<>("expected %04X".formatted(sw), r.getSW());
+                return new Verdict.Error<>(r, "expected %04X".formatted(sw));
             }
             return test.test(r)
                     ? new Verdict.Ready<>(r)
-                    : new Verdict.Error<>(errorMsg, r.getSW());
+                    : new Verdict.Error<>(r, errorMsg);
         };
     }
 
@@ -222,7 +274,7 @@ public final class Cookbook {
             var r = responses.getFirst();
             return test.test(r)
                     ? new Verdict.Ready<>(r)
-                    : new Verdict.Error<>(errorMsg, r.getSW());
+                    : new Verdict.Error<>(r, errorMsg);
         };
     }
 
@@ -236,7 +288,7 @@ public final class Cookbook {
             var r = responses.getFirst();
             return r.getSW() == 0x9000
                     ? new Verdict.Ready<>(r.getData())
-                    : new Verdict.Error<>("expected 9000", r.getSW());
+                    : new Verdict.Error<>(r, "expected 9000");
         };
     }
 
@@ -254,11 +306,163 @@ public final class Cookbook {
         return responses -> {
             var r = responses.getFirst();
             if (r.getSW() != 0x9000) {
-                return new Verdict.Error<>("expected 9000", r.getSW());
+                return new Verdict.Error<>(r, "expected 9000");
             }
             return test.test(r.getData())
                     ? new Verdict.Ready<>(r.getData())
-                    : new Verdict.Error<>(errorMsg, r.getSW());
+                    : new Verdict.Error<>(r, errorMsg);
         };
+    }
+
+    /**
+     * Taster that checks every response for the expected status word,
+     * returning the last response on success. Multi-response companion to {@link #expect}.
+     *
+     * @param sw the expected status word
+     * @return taster function - {@link Verdict.Ready} with last response on all-match,
+     * {@link Verdict.Error} on first mismatch
+     */
+    public static Function<List<ResponseAPDU>, Verdict<ResponseAPDU>> expectAll(int sw) {
+        return responses -> {
+            for (var r : responses) {
+                if (r.getSW() != sw) {
+                    return new Verdict.Error<>(r, "expected %04X".formatted(sw));
+                }
+            }
+            return new Verdict.Ready<>(responses.getLast());
+        };
+    }
+
+    /**
+     * Sends multiple commands in a single step and evaluates all responses
+     * with a custom taster. Unlike chaining individual {@link #send(CommandAPDU, int)}
+     * recipes with {@link Recipe#and}, this produces one {@link PreparationStep.Ingredients}
+     * step with all commands.
+     *
+     * @param commands the commands to send
+     * @param taster   function that evaluates all responses into a verdict
+     * @param <T>      the result type
+     * @return a recipe that sends all commands and evaluates responses together
+     */
+    public static <T> Recipe<T> send(List<CommandAPDU> commands,
+                                     Function<List<ResponseAPDU>, Verdict<T>> taster) {
+        return prefs -> new PreparationStep.Ingredients<>(List.copyOf(commands), taster);
+    }
+
+    /**
+     * Sends multiple commands in a single step, checking each response for the
+     * expected status word. Returns the last response on success. Handles empty
+     * command lists by returning a synthetic {@code 9000} response.
+     *
+     * @param commands   the commands to send
+     * @param expectedSW the expected status word for every response (e.g. {@code 0x9000})
+     * @return a recipe that sends all commands and checks all responses
+     */
+    public static Recipe<ResponseAPDU> send(List<CommandAPDU> commands, int expectedSW) {
+        if (commands.isEmpty()) {
+            throw new IllegalArgumentException("commands must not be empty");
+        }
+        var expected = Collections.nCopies(commands.size(), ResponseAPDU.of(expectedSW));
+        return prefs -> new PreparationStep.Ingredients<>(List.copyOf(commands), expected, expectAll(expectedSW));
+    }
+
+    // === Recipe combinators ===
+
+    /**
+     * Tries each recipe in order, returning the first success. If all fail,
+     * the error from the last recipe propagates. Useful for AID or protocol discovery
+     * where multiple alternatives may be valid.
+     *
+     * @param alternatives the recipes to try, in order of preference
+     * @param <T>          the result type
+     * @return a recipe that produces the result of the first successful alternative
+     */
+    public static <T> Recipe<T> firstOf(List<Recipe<T>> alternatives) {
+        if (alternatives.isEmpty()) {
+            return Recipe.error("No alternatives");
+        }
+        var result = alternatives.getFirst();
+        for (int i = 1; i < alternatives.size(); i++) {
+            result = result.orElse(alternatives.get(i));
+        }
+        return result;
+    }
+
+    /**
+     * Runs all recipes in order and collects their results into a list.
+     * If any recipe fails, the entire sequence fails. Results preserve
+     * the order of the input list.
+     *
+     * @param recipes the recipes to execute sequentially
+     * @param <T>     the result type of each recipe
+     * @return a recipe that produces a list of all results
+     */
+    public static <T> Recipe<List<T>> sequence(List<Recipe<T>> recipes) {
+        if (recipes.isEmpty()) {
+            return Recipe.premade(List.of());
+        }
+        var result = recipes.getFirst().map(v -> {
+            var list = new ArrayList<T>();
+            list.add(v);
+            return list;
+        });
+        for (int i = 1; i < recipes.size(); i++) {
+            var r = recipes.get(i);
+            result = result.then(list -> r.map(v -> {
+                list.add(v);
+                return list;
+            }));
+        }
+        return result.map(List::copyOf);
+    }
+
+    /**
+     * Applies a function to each item, producing a recipe per item, then
+     * runs all recipes sequentially and collects the results.
+     * Equivalent to {@code sequence(items.stream().map(f).toList())}.
+     *
+     * @param items the input items
+     * @param f     function that produces a recipe for each item
+     * @param <A>   the input type
+     * @param <B>   the result type of each recipe
+     * @return a recipe that produces a list of all results
+     */
+    public static <A, B> Recipe<List<B>> traverse(List<A> items, Function<A, Recipe<B>> f) {
+        return sequence(items.stream().map(f).toList());
+    }
+
+    /**
+     * Monadic fold: threads an accumulator through a list of items, applying
+     * a step function that returns a recipe for each. Each step receives the
+     * accumulated value from all previous steps.
+     *
+     * @param initial the starting accumulator value
+     * @param items   the items to fold over
+     * @param step    function taking (accumulator, item) and returning a recipe for the next accumulator
+     * @param <A>     the item type
+     * @param <B>     the accumulator type
+     * @return a recipe that produces the final accumulated value
+     */
+    public static <A, B> Recipe<B> foldLeft(B initial, List<A> items, BiFunction<B, A, Recipe<B>> step) {
+        var result = Recipe.premade(initial);
+        for (var item : items) {
+            result = result.then(acc -> step.apply(acc, item));
+        }
+        return result;
+    }
+
+    /**
+     * Converts a recipe that produces {@link Optional#empty()} into a failure.
+     * Inverse of {@link Recipe#optional()} - requires the optional value to be present.
+     *
+     * @param recipe   the recipe that may produce an empty optional
+     * @param errorMsg error message if the optional is empty
+     * @param <T>      the value type inside the optional
+     * @return a recipe that produces the unwrapped value, or fails if empty
+     */
+    public static <T> Recipe<T> require(Recipe<Optional<T>> recipe, String errorMsg) {
+        return recipe.then(opt -> opt.isPresent()
+                ? Recipe.premade(opt.get())
+                : Recipe.error(errorMsg));
     }
 }

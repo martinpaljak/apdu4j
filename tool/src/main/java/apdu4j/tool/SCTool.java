@@ -22,8 +22,9 @@
 package apdu4j.tool;
 
 import apdu4j.apdulette.Cookbook;
+import apdu4j.apdulette.KitchenDisaster;
+import apdu4j.apdulette.Recipe;
 import apdu4j.apdulette.SousChef;
-import apdu4j.apdulette.SpoiledIngredient;
 import apdu4j.core.APDUBIBO;
 import apdu4j.core.BIBOException;
 import apdu4j.core.HexUtils;
@@ -260,13 +261,11 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
         Runtime.getRuntime().addShutdownHook(exiter);
         selector().fresh(true).onCard((reader, bibo) -> {
             var n = counter.incrementAndGet();
-            try {
-                var uid = new SousChef(bibo).cook(Cookbook.uid());
-                System.out.printf("%d: %s UID: %s%n", n, reader.name(), HexUtils.bin2hex(uid));
-            } catch (SpoiledIngredient e) {
-                var atr = reader.getATR().map(HexUtils::bin2hex).orElse("no ATR");
-                System.out.printf("%d: %s ATR: %s%n", n, reader.name(), atr);
-            }
+            var atr = reader.getATR().map(HexUtils::bin2hex).orElse("no ATR");
+            var recipe = Cookbook.uid()
+                    .map(uid -> "UID: " + HexUtils.bin2hex(uid))
+                    .recover(err -> Recipe.premade("ATR: " + atr));
+            System.out.printf("%d: %s %s%n", n, reader.name(), new SousChef(bibo).cook(recipe));
         });
         try {
             Thread.sleep(Long.MAX_VALUE);
@@ -303,7 +302,7 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
                     : sel.whenReady(bibo -> new SousChef(bibo).cook(recipe));
             System.out.println(cplc.toPrettyString());
             return 0;
-        } catch (SpoiledIngredient e) {
+        } catch (KitchenDisaster e) {
             return fail("Card error: " + e.getMessage());
         } catch (BIBOException e) {
             return fail(e.getMessage());

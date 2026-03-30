@@ -10,28 +10,30 @@
         <version>26.03.23-SNAPSHOT</version>
     </parent>
 
-    <artifactId>apdu4j-bibosa</artifactId>
+    <artifactId>apdu4j-apdulette-pcsc</artifactId>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <release>21</release>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 
     <dependencies>
         <dependency>
             <groupId>com.github.martinpaljak</groupId>
-            <artifactId>apdu4j-core</artifactId>
+            <artifactId>apdu4j-apdulette</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>com.github.martinpaljak</groupId>
-            <artifactId>apdu4j-prefs</artifactId>
+            <artifactId>apdu4j-pcsc</artifactId>
             <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.testng</groupId>
-            <artifactId>testng</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-simple</artifactId>
-            <scope>test</scope>
         </dependency>
     </dependencies>
 

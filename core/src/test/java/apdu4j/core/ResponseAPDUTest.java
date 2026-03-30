@@ -32,7 +32,7 @@ public class ResponseAPDUTest {
 
     @Test
     void testStatusWord() {
-        var r = new ResponseAPDU(HexUtils.hex2bin("6A88"));
+        var r = ResponseAPDU.of(0x6A88);
         assertEquals(r.getSW(), 0x6A88);
         assertEquals(r.getSW1(), 0x6A);
         assertEquals(r.getSW2(), 0x88);

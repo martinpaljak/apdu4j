@@ -36,10 +36,27 @@ public sealed interface PreparationStep<T> {
     // Commands to transmit + function to evaluate responses into a verdict
     record Ingredients<T>(
             List<CommandAPDU> commands,
+            List<ResponseAPDU> expected,
             Function<List<ResponseAPDU>, Verdict<T>> taster
     ) implements PreparationStep<T> {
+        // Backward-compatible: no expectations
+        public Ingredients(List<CommandAPDU> commands,
+                           Function<List<ResponseAPDU>, Verdict<T>> taster) {
+            this(commands, List.of(), taster);
+        }
+
         public Ingredients {
             commands = List.copyOf(commands);
+            expected = List.copyOf(expected);
+            if (!expected.isEmpty() && expected.size() != commands.size()) {
+                throw new IllegalArgumentException(
+                        "Expected %d responses for %d commands"
+                                .formatted(expected.size(), commands.size()));
+            }
         }
+    }
+
+    // Known failure at prepare-time, no I/O needed
+    record Failed<T>(String reason) implements PreparationStep<T> {
     }
 }

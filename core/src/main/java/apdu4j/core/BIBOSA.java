@@ -19,10 +19,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package apdu4j.bibosa;
+package apdu4j.core;
 
-import apdu4j.core.BIBO;
-import apdu4j.core.BIBOException;
 import apdu4j.prefs.Preferences;
 
 import java.util.function.Function;
@@ -30,8 +28,7 @@ import java.util.function.Function;
 /**
  * BIBO Stack Application - a {@link BIBO} with a typed {@link Preferences} sidecar.
  *
- * <p>Inspired by WSGI's environ dict, Clojure Ring's request map, and Rust Tower's
- * service layers. Each middleware layer can read and contribute typed preferences
+ * <p>Inspired by WSGI's environ dict. Each middleware layer can read and contribute typed preferences
  * as it wraps the underlying transport, building a composable protocol stack with
  * accumulated metadata visible to callers.
  *

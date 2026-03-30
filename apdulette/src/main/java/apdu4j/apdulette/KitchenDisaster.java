@@ -21,14 +21,12 @@
  */
 package apdu4j.apdulette;
 
-import apdu4j.core.BIBOException;
-
 import java.io.Serial;
 
 // Unrecoverable failure during recipe execution
-public class KitchenDisaster extends BIBOException {
+public class KitchenDisaster extends RuntimeException {
     @Serial
-    private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = -2048227635135284568L;
 
     public KitchenDisaster(String message) {
         super(message);

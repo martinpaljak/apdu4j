@@ -30,6 +30,8 @@ import apdu4j.prefs.Preferences;
 import org.testng.annotations.Test;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.testng.Assert.*;
@@ -154,27 +156,26 @@ public class ApduletteTest {
         var mock = MockBIBO.of("6A82");
         var chef = new SousChef(mock);
 
-        // Recover from error: wrap the SW into a synthetic response
+        // Recover from error: pass through the actual card response
         var recipe = Cookbook.selectFCI(HexUtils.hex2bin("A000000003"))
-                .recover(err -> Recipe.premade(
-                        new ResponseAPDU(new byte[]{(byte) (err.sw() >> 8), (byte) err.sw()})));
+                .recover(err -> Recipe.premade(err.response()));
 
         var result = chef.cook(recipe, new Preferences());
         assertEquals(result.getSW(), 0x6A82);
     }
 
-    // === SpoiledIngredient carries the status word ===
+    // === Unhandled card error includes SW in message ===
 
     @Test
-    void spoiledIngredientCarriesSW() {
+    void unhandledErrorIncludesSWInMessage() {
         var mock = MockBIBO.of("6A82");
         var chef = new SousChef(mock);
 
         try {
             chef.cook(Cookbook.selectFCI(HexUtils.hex2bin("A000000003")), new Preferences());
-            fail("Expected SpoiledIngredient");
-        } catch (SpoiledIngredient e) {
-            assertEquals(e.sw(), 0x6A82);
+            fail("Expected KitchenDisaster");
+        } catch (KitchenDisaster e) {
+            assertTrue(e.getMessage().contains("6A82"));
         }
     }
 
@@ -207,9 +208,9 @@ public class ApduletteTest {
                 ),
                 responses -> {
                     var allOk = responses.stream().allMatch(r -> r.getSW() == 0x9000);
-                    return allOk
-                            ? new Verdict.Ready<>(responses.size())
-                            : new Verdict.Error<>("STORE DATA failed", 0x6F00);
+                    var bad = responses.stream().filter(r -> r.getSW() != 0x9000).findFirst();
+                    return bad.<Verdict<Integer>>map(r -> new Verdict.Error<>(r, "STORE DATA failed"))
+                            .orElse(new Verdict.Ready<>(responses.size()));
                 }
         );
 
@@ -294,10 +295,10 @@ public class ApduletteTest {
 
     // === Recipe.error always fails ===
 
-    @Test(expectedExceptions = SpoiledIngredient.class)
+    @Test(expectedExceptions = KitchenDisaster.class)
     void errorRecipeAlwaysFails() {
         var chef = new SousChef(MockBIBO.of());
-        chef.cook(Recipe.error("impossible", 0x6F00), new Preferences());
+        chef.cook(Recipe.error("impossible"), new Preferences());
     }
 
     // === Monadic composition: chain three operations ===
@@ -333,7 +334,7 @@ public class ApduletteTest {
         assertEquals(result.getSW(), 0x9000);
     }
 
-    @Test(expectedExceptions = SpoiledIngredient.class)
+    @Test(expectedExceptions = KitchenDisaster.class)
     void sendRejectsUnexpectedSW() {
         var mock = MockBIBO.of("6A82");
         var chef = new SousChef(mock);
@@ -416,5 +417,316 @@ public class ApduletteTest {
         var result = chef.cook(recipe, new Preferences());
         assertEquals(result.getSW(), 0x9000);
         assertEquals(HexUtils.bin2hex(result.getData()), "AABB");
+    }
+
+    // === optional() absorbs card errors, propagates Failed ===
+
+    @Test
+    void optionalAbsorbsCardError() {
+        var chef = new SousChef(MockBIBO.of("6A82"));
+
+        // Card error -> Optional.empty()
+        var recipe = Cookbook.selectFCI(HexUtils.hex2bin("A000000003")).optional();
+        assertEquals(chef.cook(recipe, new Preferences()), Optional.empty());
+
+        // Success -> Optional.of(value)
+        var chef2 = new SousChef(MockBIBO.of("9000"));
+        var result = chef2.cook(
+                Cookbook.selectFCI(HexUtils.hex2bin("A000000003")).optional(),
+                new Preferences());
+        assertTrue(result.isPresent());
+        assertEquals(result.get().getSW(), 0x9000);
+
+        // Failed (prepare-time error) still throws
+        assertThrows(KitchenDisaster.class,
+                () -> new SousChef(MockBIBO.of()).cook(Recipe.error("nope").optional(), new Preferences()));
+    }
+
+    // === firstOf() tries alternatives in order ===
+
+    @Test
+    void firstOfTriesAlternatives() {
+        // First SELECT fails, second succeeds
+        var mock = MockBIBO.of("6A82", "9000");
+        var chef = new SousChef(mock);
+
+        var recipe = Cookbook.firstOf(List.of(
+                Cookbook.selectFCI(HexUtils.hex2bin("A000000151")),
+                Cookbook.selectFCI(HexUtils.hex2bin("A0000000030000"))
+        ));
+        assertEquals(chef.cook(recipe, new Preferences()).getSW(), 0x9000);
+
+        // First succeeds - second never tried
+        var mock2 = MockBIBO.of("9000");
+        assertEquals(new SousChef(mock2).cook(recipe, new Preferences()).getSW(), 0x9000);
+
+        // All fail - last error propagates
+        var mock3 = MockBIBO.of("6A82", "6A82");
+        assertThrows(KitchenDisaster.class, () -> new SousChef(mock3).cook(recipe, new Preferences()));
+
+        // Empty list
+        assertThrows(KitchenDisaster.class,
+                () -> new SousChef(MockBIBO.of()).cook(Cookbook.firstOf(List.of()), new Preferences()));
+    }
+
+    // === Cookbook batch send ===
+
+    @Test
+    void batchSendChecksAllResponses() {
+        var cmds = List.of(
+                new CommandAPDU(0x80, 0xE8, 0x00, 0x00, new byte[]{0x01}),
+                new CommandAPDU(0x80, 0xE8, 0x80, 0x01, new byte[]{0x02})
+        );
+
+        // All 9000 - returns last response
+        var mock = MockBIBO.of("9000", "9000");
+        var result = new SousChef(mock).cook(Cookbook.send(cmds, 0x9000), new Preferences());
+        assertEquals(result.getSW(), 0x9000);
+
+        // Second fails - error
+        var mock2 = MockBIBO.of("9000", "6A80");
+        assertThrows(KitchenDisaster.class,
+                () -> new SousChef(mock2).cook(Cookbook.send(cmds, 0x9000), new Preferences()));
+
+        // Empty list - rejected
+        assertThrows(IllegalArgumentException.class, () -> Cookbook.send(List.of(), 0x9000));
+    }
+
+    // === orElse/recover taster called exactly once (double-eval regression) ===
+
+    @Test
+    void tasterCalledExactlyOnce() {
+        var count = new AtomicInteger(0);
+
+        // Taster that counts invocations; returns Ready on 9000
+        Recipe<ResponseAPDU> recipe = prefs -> new PreparationStep.Ingredients<>(
+                List.of(new CommandAPDU(0x00, 0xA4, 0x04, 0x00)),
+                responses -> {
+                    count.incrementAndGet();
+                    var r = responses.getFirst();
+                    return r.getSW() == 0x9000
+                            ? new Verdict.Ready<>(r)
+                            : new Verdict.Error<>(r, "bad SW");
+                });
+
+        // orElse on success path - taster must be called exactly once
+        var mock = MockBIBO.of("9000");
+        var fallback = Cookbook.raw(new CommandAPDU(0x00, 0x00, 0x00, 0x00));
+        new SousChef(mock).cook(recipe.orElse(fallback), new Preferences());
+        assertEquals(count.get(), 1);
+
+        // recover on success path - taster must be called exactly once
+        count.set(0);
+        var mock2 = MockBIBO.of("9000");
+        new SousChef(mock2).cook(recipe.recover(err -> Recipe.premade(err.response())), new Preferences());
+        assertEquals(count.get(), 1);
+    }
+
+    // === Failed propagates through then, recoverable via orElse ===
+
+    @Test
+    void failedPropagation() {
+        var chef = new SousChef(MockBIBO.of());
+
+        // Failed propagates through then - continuation never runs
+        assertThrows(KitchenDisaster.class,
+                () -> chef.cook(Recipe.error("nope").then(v -> Recipe.premade("ok")), new Preferences()));
+
+        // Failed recoverable via orElse
+        var result = chef.cook(
+                Recipe.<String>error("nope").orElse(Recipe.premade("recovered")),
+                new Preferences());
+        assertEquals(result, "recovered");
+    }
+
+    // === Expected responses: early termination ===
+
+    @Test
+    void earlyTerminationOnExpectationMismatch() {
+        // 3 commands, 2nd response has wrong SW. Only 2 responses provided -
+        // if SousChef tried to send command 3, MockBIBO would throw "depleted"
+        var mock = MockBIBO.of("9000", "6A80");
+        var chef = new SousChef(mock);
+
+        var cmds = List.of(
+                new CommandAPDU(0x80, 0xE8, 0x00, 0x00, new byte[]{0x01}),
+                new CommandAPDU(0x80, 0xE8, 0x00, 0x01, new byte[]{0x02}),
+                new CommandAPDU(0x80, 0xE8, 0x80, 0x02, new byte[]{0x03})
+        );
+        var recipe = Cookbook.send(cmds, 0x9000);
+        assertThrows(KitchenDisaster.class,
+                () -> chef.cook(recipe, new Preferences()));
+    }
+
+    // === Expected responses: SW + optional data matching ===
+
+    @Test
+    void swOnlyExpectationMatchesAnyData() {
+        // SW-only expected (no data): matches any response with that SW
+        var expected = List.of(ResponseAPDU.OK);
+        var cmd = List.of(new CommandAPDU(0x00, 0xB0, 0x00, 0x00, 256));
+        Recipe<ResponseAPDU> recipe = prefs -> new PreparationStep.Ingredients<>(cmd, expected, Cookbook.expect(0x9000));
+
+        // Response with data + 9000 - passes (SW matches, no data check)
+        var mock = MockBIBO.of("AABBCAFE9000");
+        var result = new SousChef(mock).cook(recipe, new Preferences());
+        assertEquals(result.getSW(), 0x9000);
+
+        // Response with wrong SW - fails
+        var mock2 = MockBIBO.of("AABB6A82");
+        assertThrows(KitchenDisaster.class,
+                () -> new SousChef(mock2).cook(recipe, new Preferences()));
+    }
+
+    @Test
+    void dataExpectationRequiresExactMatch() {
+        // Expected data=CAFE, SW=9000: must match both
+        var expected = List.of(ResponseAPDU.of("CAFE9000"));
+        var cmd = List.of(new CommandAPDU(0x00, 0xB0, 0x00, 0x00, 256));
+        Recipe<ResponseAPDU> recipe = prefs -> new PreparationStep.Ingredients<>(cmd, expected, Cookbook.expect(0x9000));
+
+        // Exact data match - passes
+        var mock = MockBIBO.of("CAFE9000");
+        var result = new SousChef(mock).cook(recipe, new Preferences());
+        assertEquals(result.getSW(), 0x9000);
+
+        // Different data, same SW - fails
+        var mock2 = MockBIBO.of("DEAD9000");
+        assertThrows(KitchenDisaster.class,
+                () -> new SousChef(mock2).cook(recipe, new Preferences()));
+    }
+
+    @Test
+    void expectationsPassAllCommandsSent() {
+        // All 3 match - taster should see all 3 responses
+        var mock = MockBIBO.of("9000", "9000", "9000");
+        var chef = new SousChef(mock);
+
+        var cmds = List.of(
+                new CommandAPDU(0x80, 0xE8, 0x00, 0x00, new byte[]{0x01}),
+                new CommandAPDU(0x80, 0xE8, 0x00, 0x01, new byte[]{0x02}),
+                new CommandAPDU(0x80, 0xE8, 0x80, 0x02, new byte[]{0x03})
+        );
+        var result = chef.cook(Cookbook.send(cmds, 0x9000), new Preferences());
+        assertEquals(result.getSW(), 0x9000);
+    }
+
+    // === MiseEnPlaceChef: pre-computation without I/O ===
+
+    @Test
+    void miseEnPlaceExecutesWithExpectations() {
+        var chef = new MiseEnPlaceChef();
+
+        var cmds = List.of(
+                new CommandAPDU(0x80, 0xE8, 0x00, 0x00, new byte[]{0x01}),
+                new CommandAPDU(0x80, 0xE8, 0x80, 0x01, new byte[]{0x02})
+        );
+        var result = chef.cook(Cookbook.send(cmds, 0x9000), new Preferences());
+        assertEquals(result.getSW(), 0x9000);
+    }
+
+    @Test
+    void miseEnPlaceThrowsWithoutExpectations() {
+        var chef = new MiseEnPlaceChef();
+        // selectFCI has no expectations
+        assertThrows(KitchenDisaster.class,
+                () -> chef.cook(Cookbook.selectFCI(HexUtils.hex2bin("A000000003")), new Preferences()));
+    }
+
+    @Test
+    void miseEnPlaceThrowsOnExpectedMismatch() {
+        var chef = new MiseEnPlaceChef();
+        var cmds = List.of(new CommandAPDU(0x80, 0xE8, 0x00, 0x00, new byte[]{0x01}));
+        // Expected 6A80, taster checks for 9000 - mismatch -> Error verdict -> KitchenDisaster
+        var expected = List.of(ResponseAPDU.of(0x6A80));
+        Recipe<ResponseAPDU> recipe = prefs -> new PreparationStep.Ingredients<>(cmds, expected, Cookbook.expect(0x9000));
+        assertThrows(KitchenDisaster.class, () -> chef.cook(recipe, new Preferences()));
+    }
+
+    @Test
+    void miseEnPlaceChainsThroughNextStep() {
+        var chef = new MiseEnPlaceChef();
+        var sessionId = apdu4j.prefs.Preference.parameter("sid", String.class, true);
+
+        // Batch with expectations -> NextStep -> premade value using preferences
+        var cmds = List.of(new CommandAPDU(0x80, 0x50, 0x00, 0x00, 8));
+        var expected = List.of(ResponseAPDU.OK);
+
+        Recipe<String> recipe = prefs -> new PreparationStep.Ingredients<>(cmds, expected,
+                responses -> new Verdict.NextStep<>(
+                        p -> new PreparationStep.Premade<>(p.valueOf(sessionId).orElseThrow()),
+                        new Preferences().with(sessionId, "ABC")));
+
+        assertEquals(chef.cook(recipe, new Preferences()), "ABC");
+    }
+
+    // === Combinators preserve expectations ===
+
+    @Test
+    void thenPreservesExpectations() {
+        var chef = new MiseEnPlaceChef();
+        var cmds = List.of(new CommandAPDU(0x80, 0xE8, 0x00, 0x00, new byte[]{0x01}));
+        var expected = List.of(ResponseAPDU.OK);
+
+        // Recipe with expectations, chained via then
+        Recipe<ResponseAPDU> base = prefs -> new PreparationStep.Ingredients<>(cmds, expected, Cookbook.expect(0x9000));
+        var recipe = base.then(r -> Recipe.premade(r.getSW()));
+
+        // MiseEnPlaceChef can execute - expectations survived then()
+        assertEquals(chef.cook(recipe, new Preferences()), Integer.valueOf(0x9000));
+    }
+
+    @Test
+    void orElsePreservesExpectations() {
+        var chef = new MiseEnPlaceChef();
+        var cmds = List.of(new CommandAPDU(0x80, 0xE8, 0x00, 0x00, new byte[]{0x01}));
+        var expected = List.of(ResponseAPDU.OK);
+
+        Recipe<ResponseAPDU> base = prefs -> new PreparationStep.Ingredients<>(cmds, expected, Cookbook.expect(0x9000));
+        var recipe = base.orElse(Recipe.premade(ResponseAPDU.of(0x6A82)));
+
+        assertEquals(chef.cook(recipe, new Preferences()).getSW(), 0x9000);
+    }
+
+    @Test
+    void recoverPreservesExpectations() {
+        var chef = new MiseEnPlaceChef();
+        var cmds = List.of(new CommandAPDU(0x80, 0xE8, 0x00, 0x00, new byte[]{0x01}));
+        var expected = List.of(ResponseAPDU.OK);
+
+        Recipe<ResponseAPDU> base = prefs -> new PreparationStep.Ingredients<>(cmds, expected, Cookbook.expect(0x9000));
+        var recipe = base.recover(err -> Recipe.premade(err.response()));
+
+        assertEquals(chef.cook(recipe, new Preferences()).getSW(), 0x9000);
+    }
+
+    // === Cookbook.send(List, int) produces expectations ===
+
+    @Test
+    void batchSendGeneratesExpectations() {
+        var cmds = List.of(
+                new CommandAPDU(0x80, 0xE8, 0x00, 0x00, new byte[]{0x01}),
+                new CommandAPDU(0x80, 0xE8, 0x80, 0x01, new byte[]{0x02})
+        );
+        var recipe = Cookbook.send(cmds, 0x9000);
+        var step = recipe.prepare(new Preferences());
+
+        // Verify it's Ingredients with expectations
+        assertTrue(step instanceof PreparationStep.Ingredients<?>);
+        var ing = (PreparationStep.Ingredients<?>) step;
+        assertEquals(ing.expected().size(), 2);
+        assertEquals(ing.expected().get(0).getSW(), 0x9000);
+        assertEquals(ing.expected().get(1).getSW(), 0x9000);
+    }
+
+    // === Ingredients size invariant ===
+
+    @Test
+    void ingredientsSizeInvariant() {
+        var cmds = List.of(new CommandAPDU(0x00, 0xA4, 0x04, 0x00));
+        var expected = List.of(ResponseAPDU.OK, ResponseAPDU.OK);
+        // 1 command, 2 expected - must throw
+        assertThrows(IllegalArgumentException.class,
+                () -> new PreparationStep.Ingredients<>(cmds, expected, Cookbook.expect(0x9000)));
     }
 }

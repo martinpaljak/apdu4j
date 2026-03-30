@@ -23,8 +23,6 @@ package apdu4j.apdulette;
 
 import apdu4j.prefs.Preferences;
 
-import java.util.List;
-
 /**
  * Executes a {@link Recipe}, driving the prepare-transmit-evaluate loop until
  * a final result (or error) is produced.
@@ -51,8 +49,7 @@ public interface Chef {
      * @param prefs  initial preferences available to the recipe
      * @param <T>    the result type
      * @return the plated dish with result and accumulated preferences
-     * @throws SpoiledIngredient if the card returns an unexpected status word
-     * @throws KitchenDisaster   if execution fails (transport error, iteration limit)
+     * @throws KitchenDisaster if the recipe fails (unhandled card error, iteration limit)
      */
     <T> Dish<T> serve(Recipe<T> recipe, Preferences prefs);
 
@@ -62,8 +59,7 @@ public interface Chef {
      * @param recipe the recipe to execute
      * @param <T>    the result type
      * @return the plated dish with result and accumulated preferences
-     * @throws SpoiledIngredient if the card returns an unexpected status word
-     * @throws KitchenDisaster   if execution fails (transport error, iteration limit)
+     * @throws KitchenDisaster if the recipe fails (unhandled card error, iteration limit)
      */
     default <T> Dish<T> serve(Recipe<T> recipe) {
         return serve(recipe, new Preferences());
@@ -77,8 +73,7 @@ public interface Chef {
      * @param prefs  initial preferences available to the recipe
      * @param <T>    the result type
      * @return the recipe's result
-     * @throws SpoiledIngredient if the card returns an unexpected status word
-     * @throws KitchenDisaster   if execution fails (transport error, iteration limit)
+     * @throws KitchenDisaster if the recipe fails (unhandled card error, iteration limit)
      */
     default <T> T cook(Recipe<T> recipe, Preferences prefs) {
         return serve(recipe, prefs).value();
@@ -90,29 +85,10 @@ public interface Chef {
      * @param recipe the recipe to execute
      * @param <T>    the result type
      * @return the recipe's result
-     * @throws SpoiledIngredient if the card returns an unexpected status word
-     * @throws KitchenDisaster   if execution fails (transport error, iteration limit)
+     * @throws KitchenDisaster if the recipe fails (unhandled card error, iteration limit)
      */
     default <T> T cook(Recipe<T> recipe) {
         return cook(recipe, new Preferences());
     }
 
-    /**
-     * Executes a list of recipes serially, threading preferences through
-     * each step. Each recipe sees the accumulated preferences from all
-     * previous recipes. Individual result values are discarded.
-     *
-     * @param recipes the recipes to execute in order
-     * @param prefs   initial preferences
-     * @return the accumulated preferences after all recipes have executed
-     * @throws SpoiledIngredient if any recipe fails
-     * @throws KitchenDisaster   if execution fails
-     */
-    default Preferences runAll(List<Recipe<?>> recipes, Preferences prefs) {
-        var current = prefs;
-        for (var r : recipes) {
-            current = current.merge(serve(r, current).preferences());
-        }
-        return current;
-    }
 }

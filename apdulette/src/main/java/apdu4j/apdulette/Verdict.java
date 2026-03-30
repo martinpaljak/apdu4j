@@ -21,12 +21,16 @@
  */
 package apdu4j.apdulette;
 
+import apdu4j.core.ResponseAPDU;
 import apdu4j.prefs.Preferences;
 
 // What the taster decides after examining responses
 public sealed interface Verdict<T> {
-    // Done, here's the result
-    record Ready<T>(T value) implements Verdict<T> {
+    // Done, here's the result, optionally enriching preferences
+    record Ready<T>(T value, Preferences prefs) implements Verdict<T> {
+        public Ready(T value) {
+            this(value, new Preferences());
+        }
     }
 
     // Continue with a new recipe, optionally enriching preferences
@@ -36,7 +40,10 @@ public sealed interface Verdict<T> {
         }
     }
 
-    // Error - carry reason and status word for diagnostics
-    record Error<T>(String reason, int sw) implements Verdict<T> {
+    // Error - carry the actual response for diagnostics and recovery
+    record Error<T>(ResponseAPDU response, String message) implements Verdict<T> {
+        public int sw() {
+            return response.getSW();
+        }
     }
 }

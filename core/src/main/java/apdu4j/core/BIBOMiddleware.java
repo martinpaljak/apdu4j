@@ -19,7 +19,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package apdu4j.bibosa;
+package apdu4j.core;
 
 /**
  * A composable BIBO middleware layer that can wrap the transport and contribute

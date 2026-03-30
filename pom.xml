@@ -45,7 +45,7 @@
     <modules>
         <module>prefs</module>
         <module>core</module>
-        <module>bibosa</module>
+
         <module>pcsc-sim</module>
         <module>pcsc</module>
         <module>report</module>
@@ -356,6 +356,7 @@
             </activation>
             <modules>
                 <module>apdulette</module>
+                <module>apdulette-pcsc</module>
                 <module>tool</module>
             </modules>
         </profile>

@@ -42,13 +42,19 @@ public final class DumpingBIBO implements BIBO {
 
     @Override
     public byte[] transceive(byte[] bytes) throws BIBOException {
-        var start = System.nanoTime();
-        var response = bibo.transceive(bytes);
-        var elapsed = (System.nanoTime() - start) / 1_000_000;
         out.println(HexUtils.bin2hex(bytes));
-        out.println("# %dms".formatted(elapsed));
-        out.println(HexUtils.bin2hex(response));
-        return response;
+        var start = System.nanoTime();
+        try {
+            var response = bibo.transceive(bytes);
+            var elapsed = (System.nanoTime() - start) / 1_000_000;
+            out.println("# %dms".formatted(elapsed));
+            out.println(HexUtils.bin2hex(response));
+            return response;
+        } catch (BIBOException e) {
+            var elapsed = (System.nanoTime() - start) / 1_000_000;
+            out.println("# %dms %s".formatted(elapsed, e.getMessage()));
+            throw e;
+        }
     }
 
     @Override

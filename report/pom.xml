@@ -28,11 +28,6 @@
         </dependency>
         <dependency>
             <groupId>com.github.martinpaljak</groupId>
-            <artifactId>apdu4j-bibosa</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.github.martinpaljak</groupId>
             <artifactId>apdu4j-pcsc-sim</artifactId>
             <version>${project.version}</version>
         </dependency>

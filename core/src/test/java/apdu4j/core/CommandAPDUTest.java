@@ -67,10 +67,10 @@ public class CommandAPDUTest {
             assertEquals(cm.getP2(), p2);
         }
 
-        // String constructor: hex, spaces, case-insensitive
-        assertEquals(new CommandAPDU("00A4040007A000000062810100"), fromBytes);
-        assertEquals(new CommandAPDU("00a4040007a000000062810100"), fromBytes);
-        assertEquals(new CommandAPDU("00A40400 07 A0000000628101 00"), fromBytes);
+        // String factory: hex, spaces, case-insensitive
+        assertEquals(CommandAPDU.of("00A4040007A000000062810100"), fromBytes);
+        assertEquals(CommandAPDU.of("00a4040007a000000062810100"), fromBytes);
+        assertEquals(CommandAPDU.of("00A40400 07 A0000000628101 00"), fromBytes);
 
         // stringToBin handles copy-paste formats: colons, 0x prefix, Java source
         assertEquals(new CommandAPDU(HexUtils.stringToBin("00A4:04:00\n\t07\nA000000062810100")), fromBytes);
@@ -241,8 +241,8 @@ public class CommandAPDUTest {
         assertThrows(IllegalArgumentException.class, () ->
                 new CommandAPDU(new byte[]{0x00, (byte) 0xA4, 0x04, 0x00, 0x00, 0x00, 0x01, 0x42, 0x42}));
         // Invalid hex string
-        assertThrows(IllegalArgumentException.class, () -> new CommandAPDU("ZZZZ"));
-        assertThrows(IllegalArgumentException.class, () -> new CommandAPDU("00A")); // odd length
+        assertThrows(IllegalArgumentException.class, () -> CommandAPDU.of("ZZZZ"));
+        assertThrows(IllegalArgumentException.class, () -> CommandAPDU.of("00A")); // odd length
     }
 
     @Test

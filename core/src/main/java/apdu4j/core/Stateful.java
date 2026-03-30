@@ -19,23 +19,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package apdu4j.apdulette;
+package apdu4j.core;
 
-import java.io.Serial;
-
-// Card returned unexpected/error status word
-public class SpoiledIngredient extends KitchenDisaster {
-    @Serial
-    private static final long serialVersionUID = 1L;
-
-    private final int sw;
-
-    public SpoiledIngredient(String reason, int sw) {
-        super("%s (SW=%04X)".formatted(reason, sw));
-        this.sw = sw;
-    }
-
-    public int sw() {
-        return sw;
-    }
+// A value paired with evolved state, returned by wrap/unwrap functions
+public record Stateful<T, S>(T value, S state) {
 }

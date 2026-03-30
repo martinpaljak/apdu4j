@@ -25,12 +25,6 @@
             <artifactId>apdu4j-prefs</artifactId>
             <version>${project.version}</version>
         </dependency>
-        <!-- BIBO + Preferences sidecar -->
-        <dependency>
-            <groupId>com.github.martinpaljak</groupId>
-            <artifactId>apdu4j-bibosa</artifactId>
-            <version>${project.version}</version>
-        </dependency>
         <!-- Synthesized terminals -->
         <dependency>
             <groupId>com.github.martinpaljak</groupId>

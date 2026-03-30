@@ -403,6 +403,6 @@ public class SimTests {
         }
         var dumpStr = dump.toString();
         Assert.assertTrue(dumpStr.contains("# ATR:"), "Dump header written before transceive");
-        Assert.assertFalse(dumpStr.contains("00A4040000"), "Failed command not in dump");
+        Assert.assertTrue(dumpStr.contains("00A4040000"), "Failed command logged before error");
     }
 }

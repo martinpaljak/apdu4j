@@ -19,9 +19,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package apdu4j.bibosa;
+package apdu4j.core;
 
-import apdu4j.core.*;
 import apdu4j.prefs.Preference;
 import apdu4j.prefs.Preferences;
 import org.testng.annotations.Test;
@@ -89,7 +88,6 @@ public class BIBOSATest {
     void testPreferencesAreImmutable() {
         var prefs = new Preferences().with(KEY, "original");
         var stack = new BIBOSA(MockBIBO.of(), prefs);
-        // Preferences are immutable - the original and the stack's copy are the same object
         assertEquals(stack.preferences().get(KEY), "original");
     }
 
@@ -101,7 +99,6 @@ public class BIBOSATest {
 
     @Test
     void testExistingWrappersComposeViaFunction() {
-        // GetResponseWrapper chains 61xx, preferences survive
         var mock = MockBIBO.of("AA6102", "BBCC9000");
         var prefs = new Preferences().with(TEST, "yes");
         var stack = new BIBOSA(mock, prefs)
@@ -131,7 +128,6 @@ public class BIBOSATest {
 
     @Test
     void testFactorySelectedMiddlewareAddsPreferences() {
-        // First layer sets protocol hint, factory reads it to select middleware
         BIBOMiddleware first = s -> new BIBOSA(s.bibo(), s.preferences().with(A, "SCP03"));
         var stack = new BIBOSA(MockBIBO.of())
                 .then(first)
@@ -153,7 +149,6 @@ public class BIBOSATest {
 
     @Test
     void testMiddlewareCanWrapBIBO() {
-        // Middleware that wraps BIBO with GetResponseWrapper and adds a preference
         BIBOMiddleware mw = s -> new BIBOSA(GetResponseWrapper.wrap(s.bibo()), s.preferences().with(WRAPPED, "true"));
         var mock = MockBIBO.of("AA6102", "BBCC9000");
         var stack = new BIBOSA(mock).then(mw);

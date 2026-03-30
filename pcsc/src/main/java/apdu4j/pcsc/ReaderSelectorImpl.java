@@ -21,7 +21,6 @@
  */
 package apdu4j.pcsc;
 
-import apdu4j.bibosa.BIBOSA;
 import apdu4j.core.*;
 import apdu4j.pcsc.sim.SynthesizedTerminalsProvider;
 import apdu4j.pcsc.terminals.LoggingCardTerminal;
