@@ -21,6 +21,7 @@
  */
 package apdu4j.apdulette;
 
+import apdu4j.core.BIBO;
 import apdu4j.prefs.Preferences;
 
 /**
@@ -40,6 +41,11 @@ import apdu4j.prefs.Preferences;
  * @see Dish
  */
 public interface Chef {
+
+    // Default Chef for a BIBO channel
+    static Chef of(BIBO bibo) {
+        return new SousChef(bibo);
+    }
 
     /**
      * Executes the recipe and serves the plated result: value plus

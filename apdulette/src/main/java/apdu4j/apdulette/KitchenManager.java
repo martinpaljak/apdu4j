@@ -54,9 +54,7 @@ public interface KitchenManager extends AutoCloseable {
     // For each tap: create Chef, serve recipe, deliver Dish.
     // Errors per tap go to onError (not propagated).
     // Blocks until close() or interrupt.
-    <T> void kitchenPass(Recipe<T> recipe,
-                         Consumer<Dish<T>> consumer,
-                         BiConsumer<Preferences, Exception> onError);
+    <T> void kitchenPass(Recipe<T> recipe, Consumer<Dish<T>> consumer, BiConsumer<Preferences, Exception> onError);
 
     @Override
     void close();

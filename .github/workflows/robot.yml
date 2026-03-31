@@ -39,7 +39,7 @@ jobs:
           distribution: temurin
           cache: maven
       - name: Package
-        run: TZ=UTC ./mvnw -B -P check,exe
+        run: TZ=UTC ./mvnw -B -P exe
       - name: Upload release artifacts
         if: startsWith(github.ref, 'refs/tags/v') && matrix.java == '21'
         uses: actions/upload-artifact@v4

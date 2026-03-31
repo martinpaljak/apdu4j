@@ -12,13 +12,13 @@ no I/O - it builds a data structure. Execution happens only when a `Chef` runs i
 // SELECT applet, read FCI length, use it in a follow-up READ BINARY
 var recipe = Cookbook.selectFCI(aid)
         .map(fci -> fci.getData().length)
-        .then(len -> Cookbook.raw(new CommandAPDU(0x00, 0xB0, 0x00, 0x00, len)));
+        .then(len -> Cookbook.send(new CommandAPDU(0x00, 0xB0, 0x00, 0x00, len)));
 
 var response = chef.cook(recipe);
 ```
 
-`Cookbook` provides building blocks for common operations: `selectFCI()`, `send()`, `raw()`, `data()`, `uid()`.
-It also provides taster functions (`expect()`, `data()`, `check()`, `expectAll()`) for evaluating card responses.
+`Cookbook` provides building blocks for common operations: `selectFCI()`, `send()`, `data()`, `uid()`.
+It also provides taster functions (`expect()`, `data()`, `check()`, `any()`, `all()`) for evaluating card responses.
 
 ### Composition
 
@@ -31,14 +31,14 @@ var recipe = Cookbook.selectFCI(aid)
         .map(HexUtils::bin2hex);         // format as hex string
 ```
 
-Recipes read typed `Preferences` at prepare-time, so the same recipe adapts to different card configurations
-without rewriting. `Cookbook.simple()` defers APDU construction to `prepare()`:
+Recipes read typed `Preferences` at prepare-time, and tasters receive them at evaluate-time, so the same
+recipe adapts to different card configurations without rewriting. `Cookbook.send()` defers APDU construction to `prepare()`:
 
 ```java
 var le = Preference.of("le", Integer.class, 256, false);
-var recipe = Cookbook.simple(
+var recipe = Cookbook.send(
         prefs -> new CommandAPDU(0x00, 0xB0, 0x00, 0x00, prefs.get(le)),
-        Cookbook.expect_9000());
+        Cookbook.expect(0x9000));
 ```
 
 ### Error handling
@@ -81,7 +81,7 @@ var recipe = Cookbook.send(cmds, 0x9000);  // checks all responses
 ## Execution
 
 `SousChef` is the real-time executor. It transmits APDUs over a `BIBO` transport using a trampoline loop -
-each `prepare()` call produces commands to send, responses come back, the taster decides what happens next
+each `prepare()` call produces commands to send, responses come back, the taster examines them alongside the current preferences and decides what happens next
 (`Ready`, `NextStep`, or `Error`):
 
 ```java
@@ -104,7 +104,7 @@ of real card I/O - useful for pre-validating recipe structure or generating APDU
 - `Ingredients<T>` - commands to send + a taster function that evaluates responses
 - `Failed<T>` - known failure at prepare-time (from `Recipe.error()`)
 
-The taster returns a `Verdict`:
+The taster receives the card responses and the current `Preferences`, then returns a `Verdict`:
 
 - `Ready<T>` - done, here's the result
 - `NextStep<T>` - continue with a new recipe (optionally enriching preferences)

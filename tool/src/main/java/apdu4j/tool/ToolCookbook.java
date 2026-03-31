@@ -37,7 +37,7 @@ final class ToolCookbook {
      * SELECT with empty AID (selects the ISD/OPEN on GlobalPlatform cards).
      */
     static Recipe<ResponseAPDU> selectOpen() {
-        return Cookbook.selectFCI(new byte[0]);
+        return Cookbook.send(new CommandAPDU(0x00, 0xA4, 0x04, 0x00, 256));
     }
 
     /**

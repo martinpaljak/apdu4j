@@ -39,29 +39,18 @@ import static org.testng.Assert.*;
 // Usage examples that double as tests. Each test shows a realistic scenario.
 public class ApduletteTest {
 
-    // === Basic: send a raw APDU and inspect the response ===
+    // === Basic: send an APDU and inspect the response ===
 
     @Test
-    void sendRawApdu() {
+    void sendApdu() {
         var mock = MockBIBO.of("CAFE9000");
         var chef = new SousChef(mock);
 
-        var recipe = Cookbook.raw(new CommandAPDU(0x00, 0xB0, 0x00, 0x00, 256));
+        var recipe = Cookbook.send(new CommandAPDU(0x00, 0xB0, 0x00, 0x00, 256));
         var response = chef.cook(recipe, new Preferences());
 
         assertEquals(response.getSW(), 0x9000);
         assertEquals(HexUtils.bin2hex(response.getData()), "CAFE");
-    }
-
-    // === Basic: send raw bytes, get raw bytes back ===
-
-    @Test
-    void sendRawBytes() {
-        var mock = MockBIBO.of("CAFE9000");
-        var chef = new SousChef(mock);
-
-        var result = chef.cook(Cookbook.raw(HexUtils.hex2bin("00B0000000")), new Preferences());
-        assertEquals(HexUtils.bin2hex(result), "CAFE9000");
     }
 
     // === SELECT applet by AID, then read UID ===
@@ -71,7 +60,7 @@ public class ApduletteTest {
         var mock = MockBIBO.of("9000", "010203040506079000");
         var chef = new SousChef(mock);
 
-        var recipe = Cookbook.selectFCI(HexUtils.hex2bin("A000000003"))
+        var recipe = Cookbook.send(new CommandAPDU(0x00, 0xA4, 0x04, 0x00))
                 .and(Cookbook.uid());
 
         var uid = chef.cook(recipe, new Preferences());
@@ -86,9 +75,9 @@ public class ApduletteTest {
         var chef = new SousChef(mock);
 
         // Select, extract FCI data length, use it in a follow-up READ BINARY
-        var recipe = Cookbook.selectFCI(HexUtils.hex2bin("A000000003"))
+        var recipe = Cookbook.send(new CommandAPDU(0x00, 0xA4, 0x04, 0x00))
                 .map(fci -> fci.getData().length)
-                .then(len -> Cookbook.raw(new CommandAPDU(0x00, 0xB0, 0x00, 0x00, len)));
+                .then(len -> Cookbook.send(new CommandAPDU(0x00, 0xB0, 0x00, 0x00, len)));
 
         var response = chef.cook(recipe, new Preferences());
         assertEquals(response.getSW(), 0x9000);
@@ -101,7 +90,7 @@ public class ApduletteTest {
         var mock = MockBIBO.of("DEADBEEF9000");
         var chef = new SousChef(mock);
 
-        var recipe = Cookbook.raw(new CommandAPDU(0x00, 0xCA, 0x00, 0x00, 256))
+        var recipe = Cookbook.send(new CommandAPDU(0x00, 0xCA, 0x00, 0x00, 256))
                 .map(r -> r.getData().length);
 
         assertEquals(chef.cook(recipe, new Preferences()), Integer.valueOf(4));
@@ -124,7 +113,7 @@ public class ApduletteTest {
         var chef = new SousChef(mock);
         var observed = new AtomicReference<ResponseAPDU>();
 
-        var recipe = Cookbook.selectFCI(HexUtils.hex2bin("A000000003"))
+        var recipe = Cookbook.send(new CommandAPDU(0x00, 0xA4, 0x04, 0x00))
                 .consume(observed::set)
                 .and(Cookbook.uid());
 
@@ -142,8 +131,8 @@ public class ApduletteTest {
         var mock = MockBIBO.of("6A82", "9000");
         var chef = new SousChef(mock);
 
-        var recipe = Cookbook.selectFCI(HexUtils.hex2bin("A000000151"))
-                .orElse(Cookbook.selectFCI(HexUtils.hex2bin("A0000000030000")));
+        var recipe = Cookbook.send(new CommandAPDU(0x00, 0xA4, 0x04, 0x00))
+                .orElse(Cookbook.send(new CommandAPDU(0x00, 0xA4, 0x04, 0x00)));
 
         var response = chef.cook(recipe, new Preferences());
         assertEquals(response.getSW(), 0x9000);
@@ -157,7 +146,7 @@ public class ApduletteTest {
         var chef = new SousChef(mock);
 
         // Recover from error: pass through the actual card response
-        var recipe = Cookbook.selectFCI(HexUtils.hex2bin("A000000003"))
+        var recipe = Cookbook.send(new CommandAPDU(0x00, 0xA4, 0x04, 0x00))
                 .recover(err -> Recipe.premade(err.response()));
 
         var result = chef.cook(recipe, new Preferences());
@@ -172,7 +161,7 @@ public class ApduletteTest {
         var chef = new SousChef(mock);
 
         try {
-            chef.cook(Cookbook.selectFCI(HexUtils.hex2bin("A000000003")), new Preferences());
+            chef.cook(Cookbook.send(new CommandAPDU(0x00, 0xA4, 0x04, 0x00)), new Preferences());
             fail("Expected KitchenDisaster");
         } catch (KitchenDisaster e) {
             assertTrue(e.getMessage().contains("6A82"));
@@ -187,7 +176,7 @@ public class ApduletteTest {
         var chef = new SousChef(mock);
 
         // Select succeeds but response data is empty - validation fails
-        var recipe = Cookbook.selectFCI(HexUtils.hex2bin("A000000003"))
+        var recipe = Cookbook.send(new CommandAPDU(0x00, 0xA4, 0x04, 0x00))
                 .validate(r -> r.getData().length > 0, () -> new IllegalStateException("empty FCI"));
 
         chef.cook(recipe, new Preferences());
@@ -206,7 +195,8 @@ public class ApduletteTest {
                         new CommandAPDU(0x80, 0xE8, 0x00, 0x00, new byte[]{0x01}),
                         new CommandAPDU(0x80, 0xE8, 0x80, 0x01, new byte[]{0x02})
                 ),
-                responses -> {
+                List.of(),
+                (responses, p) -> {
                     var allOk = responses.stream().allMatch(r -> r.getSW() == 0x9000);
                     var bad = responses.stream().filter(r -> r.getSW() != 0x9000).findFirst();
                     return bad.<Verdict<Integer>>map(r -> new Verdict.Error<>(r, "STORE DATA failed"))
@@ -245,10 +235,11 @@ public class ApduletteTest {
         // First step: send INIT UPDATE, extract session ID, pass it downstream
         Recipe<String> recipe = prefs -> new PreparationStep.Ingredients<>(
                 List.of(new CommandAPDU(0x80, 0x50, 0x00, 0x00, 8)),
-                responses -> {
+                List.of(),
+                (responses, p) -> {
                     var sid = HexUtils.bin2hex(responses.get(0).getData());
                     return new Verdict.NextStep<>(
-                            p -> new PreparationStep.Premade<>(p.valueOf(sessionId).orElseThrow()),
+                            pp -> new PreparationStep.Premade<>(pp.valueOf(sessionId).orElseThrow()),
                             new Preferences().with(sessionId, sid)
                     );
                 }
@@ -267,10 +258,11 @@ public class ApduletteTest {
 
         Recipe<String> recipe = prefs -> new PreparationStep.Ingredients<>(
                 List.of(new CommandAPDU(0x80, 0x50, 0x00, 0x00, 8)),
-                responses -> {
+                List.of(),
+                (responses, p) -> {
                     var sid = HexUtils.bin2hex(responses.get(0).getData());
                     return new Verdict.NextStep<>(
-                            p -> new PreparationStep.Premade<>(p.valueOf(sessionId).orElseThrow()),
+                            pp -> new PreparationStep.Premade<>(pp.valueOf(sessionId).orElseThrow()),
                             new Preferences().with(sessionId, sid)
                     );
                 }
@@ -309,8 +301,8 @@ public class ApduletteTest {
         var mock = MockBIBO.of("9000", "0102030405060708090A9000");
         var chef = new SousChef(mock);
 
-        var recipe = Cookbook.selectFCI(HexUtils.hex2bin("A000000003"))
-                .and(Cookbook.raw(new CommandAPDU(0x00, 0xB0, 0x00, 0x00, 256)))
+        var recipe = Cookbook.send(new CommandAPDU(0x00, 0xA4, 0x04, 0x00))
+                .and(Cookbook.send(new CommandAPDU(0x00, 0xB0, 0x00, 0x00, 256)))
                 .map(r -> r.getData().length);
 
         assertEquals(chef.cook(recipe, new Preferences()), Integer.valueOf(10));
@@ -330,7 +322,7 @@ public class ApduletteTest {
         var mock = MockBIBO.of("9000");
         var chef = new SousChef(mock);
 
-        var result = chef.cook(Cookbook.send(0x00, 0xA4, 0x04, 0x00), new Preferences());
+        var result = chef.cook(Cookbook.send(new CommandAPDU(0x00, 0xA4, 0x04, 0x00)), new Preferences());
         assertEquals(result.getSW(), 0x9000);
     }
 
@@ -350,6 +342,7 @@ public class ApduletteTest {
         // Accept SW=6110 explicitly
         Recipe<ResponseAPDU> recipe = prefs -> new PreparationStep.Ingredients<>(
                 List.of(new CommandAPDU(0x00, 0xA4, 0x04, 0x00)),
+                List.of(),
                 Cookbook.expect(0x6110));
         var result = chef.cook(recipe, new Preferences());
         assertEquals(result.getSW(), 0x6110);
@@ -363,6 +356,7 @@ public class ApduletteTest {
         var chef = new SousChef(mock);
         Recipe<ResponseAPDU> recipe = prefs -> new PreparationStep.Ingredients<>(
                 List.of(new CommandAPDU(0x00, 0xB0, 0x00, 0x00, 256)),
+                List.of(),
                 Cookbook.check(r -> r.getData().length > 0, "empty response"));
         var result = chef.cook(recipe, new Preferences());
         assertEquals(HexUtils.bin2hex(result.getData()), "AABB");
@@ -378,16 +372,16 @@ public class ApduletteTest {
         assertEquals(HexUtils.bin2hex(uid), "DEADBEEF");
     }
 
-    // === simple() defers APDU construction to Preferences ===
+    // === send(prefs->cmd, taster) defers APDU construction to Preferences ===
 
     @Test
-    void simpleBuildsApduFromPreferences() {
+    void sendBuildsApduFromPreferences() {
         var le = Preference.of("le", Integer.class, 256, false);
 
         // Recipe adapts Le from Preferences at prepare-time
-        var recipe = Cookbook.simple(
+        var recipe = Cookbook.send(
                 prefs -> new CommandAPDU(0x00, 0xA4, 0x04, 0x00, new byte[]{(byte) 0xA0}, prefs.get(le)),
-                Cookbook.expect_9000());
+                Cookbook.expect(0x9000));
 
         // With default Le=256: SELECT A0 with Le=0x00 (short encoding of 256)
         var mock256 = MockBIBO.with("00A40400" + "01" + "A0" + "00", "9000");
@@ -407,9 +401,9 @@ public class ApduletteTest {
         var chef = new SousChef(mock);
 
         var cmd = new CommandAPDU(0x00, 0xA4, 0x04, 0x00);
-        var recipe = Cookbook.raw(cmd).then(r -> {
+        var recipe = Cookbook.send(List.of(cmd), Cookbook.any()).then(r -> {
             if (r.getSW1() == 0x61) {
-                return Cookbook.raw(new CommandAPDU(cmd.getCLA(), 0xC0, 0x00, 0x00, r.getSW2()));
+                return Cookbook.send(new CommandAPDU(cmd.getCLA(), 0xC0, 0x00, 0x00, r.getSW2()));
             }
             return Recipe.premade(r);
         });
@@ -426,13 +420,13 @@ public class ApduletteTest {
         var chef = new SousChef(MockBIBO.of("6A82"));
 
         // Card error -> Optional.empty()
-        var recipe = Cookbook.selectFCI(HexUtils.hex2bin("A000000003")).optional();
+        var recipe = Cookbook.send(new CommandAPDU(0x00, 0xA4, 0x04, 0x00)).optional();
         assertEquals(chef.cook(recipe, new Preferences()), Optional.empty());
 
         // Success -> Optional.of(value)
         var chef2 = new SousChef(MockBIBO.of("9000"));
         var result = chef2.cook(
-                Cookbook.selectFCI(HexUtils.hex2bin("A000000003")).optional(),
+                Cookbook.send(new CommandAPDU(0x00, 0xA4, 0x04, 0x00)).optional(),
                 new Preferences());
         assertTrue(result.isPresent());
         assertEquals(result.get().getSW(), 0x9000);
@@ -451,8 +445,8 @@ public class ApduletteTest {
         var chef = new SousChef(mock);
 
         var recipe = Cookbook.firstOf(List.of(
-                Cookbook.selectFCI(HexUtils.hex2bin("A000000151")),
-                Cookbook.selectFCI(HexUtils.hex2bin("A0000000030000"))
+                Cookbook.send(new CommandAPDU(0x00, 0xA4, 0x04, 0x00)),
+                Cookbook.send(new CommandAPDU(0x00, 0xA4, 0x04, 0x00))
         ));
         assertEquals(chef.cook(recipe, new Preferences()).getSW(), 0x9000);
 
@@ -501,7 +495,8 @@ public class ApduletteTest {
         // Taster that counts invocations; returns Ready on 9000
         Recipe<ResponseAPDU> recipe = prefs -> new PreparationStep.Ingredients<>(
                 List.of(new CommandAPDU(0x00, 0xA4, 0x04, 0x00)),
-                responses -> {
+                List.of(),
+                (responses, p) -> {
                     count.incrementAndGet();
                     var r = responses.getFirst();
                     return r.getSW() == 0x9000
@@ -511,7 +506,7 @@ public class ApduletteTest {
 
         // orElse on success path - taster must be called exactly once
         var mock = MockBIBO.of("9000");
-        var fallback = Cookbook.raw(new CommandAPDU(0x00, 0x00, 0x00, 0x00));
+        var fallback = Cookbook.send(new CommandAPDU(0x00, 0x00, 0x00, 0x00));
         new SousChef(mock).cook(recipe.orElse(fallback), new Preferences());
         assertEquals(count.get(), 1);
 
@@ -626,11 +621,11 @@ public class ApduletteTest {
     }
 
     @Test
-    void miseEnPlaceThrowsWithoutExpectations() {
+    void miseEnPlaceDefaultsToOkWithoutExpectations() {
         var chef = new MiseEnPlaceChef();
-        // selectFCI has no expectations
-        assertThrows(KitchenDisaster.class,
-                () -> chef.cook(Cookbook.selectFCI(HexUtils.hex2bin("A000000003")), new Preferences()));
+        // No expectations - MiseEnPlaceChef assumes 9000 for each command
+        var result = chef.cook(Cookbook.send(new CommandAPDU(0x00, 0xA4, 0x04, 0x00)), new Preferences());
+        assertEquals(result.getSW(), 0x9000);
     }
 
     @Test
@@ -653,8 +648,8 @@ public class ApduletteTest {
         var expected = List.of(ResponseAPDU.OK);
 
         Recipe<String> recipe = prefs -> new PreparationStep.Ingredients<>(cmds, expected,
-                responses -> new Verdict.NextStep<>(
-                        p -> new PreparationStep.Premade<>(p.valueOf(sessionId).orElseThrow()),
+                (responses, p) -> new Verdict.NextStep<>(
+                        pp -> new PreparationStep.Premade<>(pp.valueOf(sessionId).orElseThrow()),
                         new Preferences().with(sessionId, "ABC")));
 
         assertEquals(chef.cook(recipe, new Preferences()), "ABC");

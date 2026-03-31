@@ -26,7 +26,10 @@ import apdu4j.apdulette.PreparationStep.Ingredients;
 import apdu4j.apdulette.PreparationStep.Premade;
 import apdu4j.apdulette.Verdict.NextStep;
 import apdu4j.apdulette.Verdict.Ready;
+import apdu4j.core.ResponseAPDU;
 import apdu4j.prefs.Preferences;
+
+import java.util.Collections;
 
 // Pre-computation executor: feeds expected responses to taster, no I/O
 public final class MiseEnPlaceChef implements Chef {
@@ -42,10 +45,9 @@ public final class MiseEnPlaceChef implements Chef {
                 }
                 case Failed<T>(var reason) -> throw new KitchenDisaster(reason);
                 case Ingredients<T> ing -> {
-                    if (ing.expected().isEmpty()) {
-                        throw new KitchenDisaster("Cannot pre-compute: no expected responses");
-                    }
-                    switch (ing.taster().apply(ing.expected())) {
+                    // Use explicit expectations, or assume 9000 for each command
+                    var responses = ing.expected().isEmpty() ? Collections.nCopies(ing.commands().size(), ResponseAPDU.OK) : ing.expected();
+                    switch (ing.taster().apply(responses, currentPrefs)) {
                         case Ready<T>(var v, var p) -> {
                             return new Dish<>(v, currentPrefs.merge(p));
                         }
@@ -53,8 +55,8 @@ public final class MiseEnPlaceChef implements Chef {
                             current = r;
                             currentPrefs = currentPrefs.merge(p);
                         }
-                        case Verdict.Error<T> err -> throw new KitchenDisaster(
-                                "%s (SW=%04X)".formatted(err.message(), err.sw()));
+                        case Verdict.Error<T> err ->
+                                throw new KitchenDisaster("%s (SW=%04X)".formatted(err.message(), err.sw()));
                     }
                 }
             }

@@ -25,7 +25,6 @@ import apdu4j.core.CommandAPDU;
 import apdu4j.core.ResponseAPDU;
 
 import java.util.List;
-import java.util.function.Function;
 
 // What recipe.prepare(prefs) returns: either a pure value or APDUs to send
 public sealed interface PreparationStep<T> {
@@ -34,24 +33,13 @@ public sealed interface PreparationStep<T> {
     }
 
     // Commands to transmit + function to evaluate responses into a verdict
-    record Ingredients<T>(
-            List<CommandAPDU> commands,
-            List<ResponseAPDU> expected,
-            Function<List<ResponseAPDU>, Verdict<T>> taster
-    ) implements PreparationStep<T> {
-        // Backward-compatible: no expectations
-        public Ingredients(List<CommandAPDU> commands,
-                           Function<List<ResponseAPDU>, Verdict<T>> taster) {
-            this(commands, List.of(), taster);
-        }
-
+    record Ingredients<T>(List<CommandAPDU> commands, List<ResponseAPDU> expected,
+                          Taster<T> taster) implements PreparationStep<T> {
         public Ingredients {
             commands = List.copyOf(commands);
             expected = List.copyOf(expected);
             if (!expected.isEmpty() && expected.size() != commands.size()) {
-                throw new IllegalArgumentException(
-                        "Expected %d responses for %d commands"
-                                .formatted(expected.size(), commands.size()));
+                throw new IllegalArgumentException("Expected %d responses for %d commands".formatted(expected.size(), commands.size()));
             }
         }
     }

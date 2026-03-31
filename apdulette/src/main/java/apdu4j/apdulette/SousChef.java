@@ -59,7 +59,7 @@ public final class SousChef implements Chef {
                 }
                 case Failed<T>(var reason) -> throw new KitchenDisaster(reason);
                 case Ingredients<T> ing -> {
-                    switch (transmit(ing)) {
+                    switch (transmit(ing, currentPrefs)) {
                         case Ready<T>(var v, var p) -> {
                             return new Dish<>(v, currentPrefs.merge(p));
                         }
@@ -78,7 +78,7 @@ public final class SousChef implements Chef {
 
     // Transmit commands, short-circuiting on expectation mismatch.
     // Taster only runs when all expectations pass (or none exist).
-    private <T> Verdict<T> transmit(Ingredients<T> ing) {
+    private <T> Verdict<T> transmit(Ingredients<T> ing, Preferences prefs) {
         var responses = new ArrayList<ResponseAPDU>(ing.commands().size());
         for (int i = 0; i < ing.commands().size(); i++) {
             var response = bibo.transmit(ing.commands().get(i));
@@ -94,6 +94,6 @@ public final class SousChef implements Chef {
                 }
             }
         }
-        return ing.taster().apply(List.copyOf(responses));
+        return ing.taster().apply(List.copyOf(responses), prefs);
     }
 }

@@ -29,7 +29,6 @@ import apdu4j.apdulette.Verdict.NextStep;
 import apdu4j.apdulette.Verdict.Ready;
 import apdu4j.prefs.Preferences;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.*;
@@ -41,8 +40,8 @@ import java.util.function.*;
  * real when a {@link Chef} executes it. This separation means you can build,
  * transform, and combine card interaction sequences before touching a card:
  * <pre>{@code
- * var recipe = Cookbook.selectFCI(aid)
- *     .and(Cookbook.raw(new CommandAPDU(0x00, 0xB0, 0x00, 0x00, 256)))
+ * var recipe = Cookbook.send(new CommandAPDU(0x00, 0xA4, 0x04, 0x00))
+ *     .and(Cookbook.send(new CommandAPDU(0x00, 0xB0, 0x00, 0x00, 256)))
  *     .map(r -> r.getData().length);
  * int len = chef.cook(recipe, prefs);
  * }</pre>
@@ -111,8 +110,8 @@ public interface Recipe<T> {
         return prefs -> switch (prepare(prefs)) {
             case Premade<T>(var v) -> f.apply(v).prepare(prefs);
             case Failed<T>(var reason) -> new Failed<>(reason);
-            case Ingredients<T> ing -> new Ingredients<>(ing.commands(), ing.expected(), responses ->
-                    switch (ing.taster().apply(responses)) {
+            case Ingredients<T> ing ->
+                    new Ingredients<>(ing.commands(), ing.expected(), (responses, tp) -> switch (ing.taster().apply(responses, tp)) {
                         case Ready<T>(var v, var p) -> new NextStep<>(f.apply(v), p);
                         case NextStep<T>(var r, var p) -> new NextStep<>(r.then(f), p);
                         case Error<T> err -> new Error<>(err.response(), err.message());
@@ -156,8 +155,8 @@ public interface Recipe<T> {
         return prefs -> switch (prepare(prefs)) {
             case Premade<T> p -> p;
             case Failed<T> f -> fallback.prepare(prefs);
-            case Ingredients<T> ing -> new Ingredients<>(ing.commands(), ing.expected(), responses -> {
-                var verdict = ing.taster().apply(responses);
+            case Ingredients<T> ing -> new Ingredients<>(ing.commands(), ing.expected(), (responses, p) -> {
+                var verdict = ing.taster().apply(responses, p);
                 return switch (verdict) {
                     case Error<T> e -> new NextStep<>(fallback);
                     default -> verdict;
@@ -182,8 +181,8 @@ public interface Recipe<T> {
         return prefs -> switch (prepare(prefs)) {
             case Premade<T> p -> p;
             case Failed<T> f -> f;
-            case Ingredients<T> ing -> new Ingredients<>(ing.commands(), ing.expected(), responses -> {
-                var verdict = ing.taster().apply(responses);
+            case Ingredients<T> ing -> new Ingredients<>(ing.commands(), ing.expected(), (responses, p) -> {
+                var verdict = ing.taster().apply(responses, p);
                 return switch (verdict) {
                     case Error<T> err -> new NextStep<>(handler.apply(err));
                     default -> verdict;
@@ -230,8 +229,7 @@ public interface Recipe<T> {
      * @return a recipe that produces {@code Optional.of(result)} on success, {@code Optional.empty()} on card error
      */
     default Recipe<Optional<T>> optional() {
-        return this.map(Optional::of)
-                .recover(err -> premade(Optional.empty()));
+        return this.map(Optional::of).recover(err -> premade(Optional.empty()));
     }
 
     /**
