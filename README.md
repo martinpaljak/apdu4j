@@ -88,8 +88,6 @@ Core Types           BIBO, CommandAPDU, ResponseAPDU, HexBytes   -- apdu4j-core
 Preferences          Preference, Preferences, PreferenceProvider -- apdu4j-prefs
 ```
 
-Decorators and protocol handlers are all `BIBO` implementations chained via `then()`.
-
 ### Core Types (`apdu4j-core`)
 
 `BIBO` - `byte[] transceive(byte[])`, extending `AutoCloseable`. Equivalent to Android's `IsoDep.transceive()`, PC/SC
@@ -145,10 +143,7 @@ delivers `APDUBIBO` directly from `run()`, `accept()`, and `whenReady()`, so typ
 
 ### Middleware with Preferences
 
-`BIBOSA` (BIBO Stack Application) -- mix BIBO layers like a mimosa: each one adds its own flavor.
-
-Where `BIBO` decorators combine like Unix pipes -- just bytes, no shared context -- `BIBOSA` layers combine like WSGI
-middleware: the same byte pipe, plus a typed `Preferences` sidecar that accumulates through the stack. Each
+`BIBOSA` combines like WSGI middleware: the same byte pipe as `BIBO`, plus a typed `Preferences` sidecar. Each
 `BIBOMiddleware` layer can wrap the transport and contribute typed preferences -- effective block size, protocol version,
 security parameters -- that downstream layers and callers query after the stack is built:
 
@@ -180,10 +175,6 @@ var apdu = new APDUBIBO(LoggingBIBO.wrap(transport, System.out));
 ```
 
 ### Stateful Sessions
-
-Protocol handlers like `GetResponseWrapper` are stateless - they transform one APDU at a time with no memory between
-calls. Secure channels (SCP02/03, PACE, BAC) need the opposite: state that evolves with every command-response cycle.
-Encryption counters increment, chaining values update, MACs accumulate.
 
 `StatefulBIBO<S>` threads a typed state value `S` through pluggable `Wrap` and `Unwrap` functions on each `transceive`.
 Wrap transforms the outgoing command (add MAC, encrypt data, set CLA=0x84) and evolves state. Unwrap transforms the
@@ -238,10 +229,10 @@ var mock = MockBIBO.fromDump(getClass().getResourceAsStream("/card.dump"));
 
 ### Fluent Reader API (`apdu4j-pcsc`)
 
-- **Select** - `Readers.select()`, `.select("Yubikey")`, `.ignore("CCID")`, `.filter(...)`, `.withCard()`
-- **Configure** - `.protocol("T=1")`, `.exclusive()`, `.log(out)`, `.dump(out)`, `.transactions(false)`
-- **Query** - `Readers.list()`, `.list()` - `List<PCSCReader>` snapshot of available readers
-- **Execute** - `.run(apdu -> ...)`, `.accept(apdu -> ...)`, `.whenReady(fn)`, `.whenReady(timeout, fn)`
+* `Readers.select()`, `.select("Yubikey")`, `.ignore("CCID")`, `.filter(...)`, `.withCard()`
+* `.protocol("T=1")`, `.exclusive()`, `.log(out)`, `.dump(out)`, `.transactions(false)`
+* `Readers.list()`, `.list()` - `List<PCSCReader>` snapshot of available readers
+* `.run(apdu -> ...)`, `.accept(apdu -> ...)`, `.whenReady(fn)`, `.whenReady(timeout, fn)`
 
 Reader selection via environment variables:
 
@@ -254,14 +245,6 @@ Readers.fromEnvironment("READER", "READER_IGNORE")
 ```
 
 For raw `javax.smartcardio` access, use `.terminal()` and `.card()`.
-
-### Protocol Handlers
-
-`BIBO` wrappers in `apdu4j-core` for common protocol patterns:
-
-- `GetResponseWrapper` - chains GET RESPONSE on SW1=0x61
-- `GetMoreDataWrapper` - chains on SW1=0x9F (ETSI TS 102.221)
-- `RetryWithRightLengthWrapper` - retries with correct Le on SW1=0x6C
 
 ### Get it now!
 
