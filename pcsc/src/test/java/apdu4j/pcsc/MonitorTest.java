@@ -84,21 +84,23 @@ public class MonitorTest {
 
         try (var mgr = new TerminalManager(terminals.toFactory())) {
             var callCount = new AtomicInteger(0);
+            var firstSeen = new CountDownLatch(1);
             var secondSeen = new CountDownLatch(1);
 
             Readers.select(mgr).onCard((reader, bibo) -> {
                 bibo.transceive(HexUtils.hex2bin("00A4040000"));
-                if (callCount.incrementAndGet() == 2) {
+                var c = callCount.incrementAndGet();
+                if (c == 1) {
+                    firstSeen.countDown();
+                }
+                if (c == 2) {
                     secondSeen.countDown();
                 }
             });
 
-            terminal.present(MockBIBO.of("9000"));
-            // Wait for first tap to be processed
-            Assert.assertTrue(mgr.awaitReaders(
-                    readers -> readers.stream().anyMatch(PCSCReader::present),
-                    Duration.ofSeconds(5)));
-            Thread.sleep(300); // let onCard dispatch complete
+            // Factory mode: card stays present until explicit yank()
+            terminal.present(proto -> MockBIBO.of("9000"), SynthesizedCardTerminal.defaultAtr());
+            Assert.assertTrue(firstSeen.await(5, TimeUnit.SECONDS), "First card event should fire");
 
             terminal.yank();
             Assert.assertTrue(mgr.awaitReaders(
