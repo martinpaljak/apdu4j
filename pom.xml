@@ -142,7 +142,6 @@
                             <recipe>org.openrewrite.staticanalysis.UnnecessaryParentheses</recipe>
                             <recipe>org.openrewrite.staticanalysis.NoToStringOnStringType</recipe>
                             <recipe>org.openrewrite.staticanalysis.NoValueOfOnStringType</recipe>
-                            <recipe>org.openrewrite.java.RemoveUnusedImports</recipe>
                             <!-- Strings / equality -->
                             <recipe>org.openrewrite.staticanalysis.EqualsAvoidsNull</recipe>
                             <recipe>org.openrewrite.staticanalysis.StringLiteralEquality</recipe>

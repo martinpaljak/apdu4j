@@ -48,6 +48,16 @@
         <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
     </Match>
 
+    <!-- sealed gather records: byte[] flows through internal pattern matching only -->
+    <Match>
+        <Class name="apdu4j.apdulette.Cookbook$Gather$Done"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="apdu4j.apdulette.Cookbook$Gather$More"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+
     <!-- disconnect cleanup on beginExclusive() failure -best effort -->
     <Match>
         <Class name="apdu4j.pcsc.ReaderSelectorImpl"/>
