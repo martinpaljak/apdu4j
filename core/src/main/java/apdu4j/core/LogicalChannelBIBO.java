@@ -92,13 +92,13 @@ public final class LogicalChannelBIBO implements BIBO {
     // Matches JDK's ChannelImpl.setChannel() encoding.
     static void encodeChannel(byte[] cmd, int channel) {
         int cla = cmd[0] & 0xFF;
-        if ((cla & 0x80) != 0) {
+        if ((cla & 0b1000_0000) != 0) { // 0x80
             return; // proprietary class - don't modify
         }
         if (channel <= 3) {
-            cmd[0] = (byte) ((cla & 0xBC) | channel);
+            cmd[0] = (byte) ((cla & 0b1011_1100) | channel); // 0xBC
         } else {
-            cmd[0] = (byte) ((cla & 0xB0) | 0x40 | (channel - 4));
+            cmd[0] = (byte) ((cla & 0b1011_0000) | 0b0100_0000 | (channel - 4)); // 0xB0 | 0x40
         }
     }
 }

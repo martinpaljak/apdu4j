@@ -53,13 +53,13 @@ public final class CardBIBO implements BIBO {
     }
 
     int getChannel(int cla) {
-        if ((cla & 0x80) != 0) {
+        if ((cla & 0b1000_0000) != 0) { // 0x80
             return 0; // proprietary
         }
-        if ((cla & 0x40) != 0) {
-            return (cla & 0x0F) + 4; // further interindustry, channels 4-19
+        if ((cla & 0b0100_0000) != 0) { // 0x40
+            return (cla & 0b0000_1111) + 4; // 0x0F - further interindustry, channels 4-19
         }
-        return cla & 0x03; // first interindustry, channels 0-3
+        return cla & 0b0000_0011; // 0x03 - first interindustry, channels 0-3
     }
 
     public static CardBIBO wrap(Card card) {
