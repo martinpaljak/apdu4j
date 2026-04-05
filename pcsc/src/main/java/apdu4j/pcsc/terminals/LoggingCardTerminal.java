@@ -86,7 +86,7 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
 
 
     public final class LoggingCard extends Card {
-        private final long startTime = System.currentTimeMillis();
+        private final long startTime = System.nanoTime();
         private long transactionStartTime;
         private long inBytes = 0;
         private long outBytes = 0;
@@ -111,22 +111,22 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
         public void beginExclusive() throws CardException {
             log.println("# SCardBeginTransaction(\"%s\")".formatted(terminal.getName()));
             card.beginExclusive();
-            transactionStartTime = System.currentTimeMillis();
+            transactionStartTime = System.nanoTime();
         }
 
         @Override
         public void disconnect(boolean arg0) throws CardException {
-            var duration = System.currentTimeMillis() - startTime;
-            log.println("# SCardDisconnect(\"%s\", %s) tx:%d/rx:%d in %s".formatted(terminal.getName(), arg0, outBytes, inBytes, LoggingBIBO.time(duration)));
+            var duration = System.nanoTime() - startTime;
+            log.println("# SCardDisconnect(\"%s\", %s) tx:%d/rx:%d in %s".formatted(terminal.getName(), arg0, outBytes, inBytes, LoggingBIBO.nanoTime(duration)));
             inBytes = outBytes = 0;
             card.disconnect(arg0);
         }
 
         @Override
         public void endExclusive() throws CardException {
-            var duration = System.currentTimeMillis() - transactionStartTime;
+            var duration = System.nanoTime() - transactionStartTime;
             transactionStartTime = 0;
-            log.println("# SCardEndTransaction(\"%s\") in %s".formatted(terminal.getName(), LoggingBIBO.time(duration)));
+            log.println("# SCardEndTransaction(\"%s\") in %s".formatted(terminal.getName(), LoggingBIBO.nanoTime(duration)));
             card.endExclusive();
         }
 
@@ -169,7 +169,7 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
             var sb = new StringBuilder();
             sb.append("# SCardControl(\"%s\", 0x%08X, %s)".formatted(terminal.getName(), arg0, nil(arg1) ? "null" : HexUtils.bin2hex(arg1)));
             final byte[] result;
-            var t = System.currentTimeMillis();
+            var t = System.nanoTime();
             try {
                 result = card.transmitControlCommand(arg0, arg1);
                 sb.append(" -> " + (nil(result) ? "null" : HexUtils.bin2hex(result)));
@@ -178,7 +178,7 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
                 sb.append(" -> " + SCard.getExceptionMessage(e));
                 throw e;
             } finally {
-                sb.append(" (%s)".formatted(LoggingBIBO.time(System.currentTimeMillis() - t)));
+                sb.append(" (%s)".formatted(LoggingBIBO.nanoTime(System.nanoTime() - t)));
                 log.println(sb);
             }
         }
@@ -244,10 +244,10 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
                 } catch (IllegalArgumentException e) {
                     cmdLog = HexUtils.bin2hex(commandBytes) + " [malformed]";
                 }
-                log.println("%s%s>> (4+%d) %s".formatted(prefix, ch, nc, cmdLog));
+                log.println("%s%s>> %-8s %s".formatted(prefix, ch, "(4+%04d)".formatted(nc), cmdLog));
                 log.flush();
 
-                var t = System.currentTimeMillis();
+                var t = System.nanoTime();
                 try {
                     final byte[] rb;
                     if (apduPath) {
@@ -263,10 +263,10 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
                     outBytes += commandBytes.length;
                     inBytes += rb.length;
                     var resp = new apdu4j.core.ResponseAPDU(rb);
-                    log.println("%s%s<< (%d+2) %s (%s)".formatted(prefix, ch, resp.getData().length, resp.toLogString(), LoggingBIBO.time(System.currentTimeMillis() - t)));
+                    log.println("%s%s<< %-8s (%s) %s".formatted(prefix, ch, "(%04d+2)".formatted(resp.getData().length), LoggingBIBO.nanoTime(System.nanoTime() - t), resp.toLogString()));
                     return rb;
                 } catch (Exception e) {
-                    log.println("<< %s (%s)".formatted(SCard.getExceptionMessage(e), LoggingBIBO.time(System.currentTimeMillis() - t)));
+                    log.println("<< %s (%s)".formatted(SCard.getExceptionMessage(e), LoggingBIBO.nanoTime(System.nanoTime() - t)));
                     throw e;
                 }
             }

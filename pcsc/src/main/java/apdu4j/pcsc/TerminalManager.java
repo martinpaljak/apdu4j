@@ -295,7 +295,11 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
                         }
                     } finally {
                         if (c != null) {
-                            c.disconnect(false);
+                            try {
+                                c.disconnect(false);
+                            } catch (CardException ignored) {
+                                // Probe cleanup - may fail if another thread holds exclusive
+                            }
                         }
                     }
                 } else {
@@ -312,7 +316,11 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
                             logger.debug("Could not connect to reader in direct mode: {}", err, e);
                         } finally {
                             if (c != null) {
-                                c.disconnect(false);
+                                try {
+                                    c.disconnect(false);
+                                } catch (CardException ignored) {
+                                    // Probe cleanup - may fail if another thread holds exclusive
+                                }
                             }
                         }
                     }

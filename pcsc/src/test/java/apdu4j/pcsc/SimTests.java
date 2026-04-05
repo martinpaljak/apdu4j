@@ -299,9 +299,10 @@ public class SimTests {
             );
         }
         var logStr = log.toString();
-        Assert.assertTrue(logStr.contains("A>> (4+0) 00A40400 00"), "Command APDU format");
-        Assert.assertTrue(logStr.contains("A<< (102+2) "), "Response APDU length format");
-        Assert.assertTrue(logStr.contains(" 9000 ("), "Response SW and timing");
+        Assert.assertTrue(logStr.contains("A>> (4+0000) 00A40400 00"), "Command APDU format");
+        Assert.assertTrue(logStr.contains("A<< (0102+2)"), "Response APDU length format");
+        Assert.assertTrue(logStr.contains("ms)"), "Response timing present");
+        Assert.assertTrue(logStr.contains("9000"), "Response SW present");
         Assert.assertTrue(dump.toString().contains("# ATR:"), "Dump should contain ATR header");
     }
 

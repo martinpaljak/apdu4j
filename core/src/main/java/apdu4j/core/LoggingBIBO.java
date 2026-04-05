@@ -64,19 +64,22 @@ public final class LoggingBIBO implements BIBO {
         var start = System.nanoTime();
         try {
             var response = bibo.transceive(bytes);
-            var elapsed = (System.nanoTime() - start) / 1_000_000;
-            sink.accept("%s<< %s (%s)".formatted(prefix, new ResponseAPDU(response).toLogString(), time(elapsed)));
+            sink.accept("%s<< %s (%s)".formatted(prefix, new ResponseAPDU(response).toLogString(), nanoTime(System.nanoTime() - start)));
             return response;
         } catch (BIBOException e) {
-            var elapsed = (System.nanoTime() - start) / 1_000_000;
-            sink.accept("%s<< [error] %s (%s)".formatted(prefix, e.getMessage(), time(elapsed)));
+            sink.accept("%s<< [error] %s (%s)".formatted(prefix, e.getMessage(), nanoTime(System.nanoTime() - start)));
             throw e;
         }
     }
 
-    public static String time(long ms) {
+    public static String nanoTime(long nanos) {
+        long ms = nanos / 1_000_000;
         if (ms > 1000) {
             return "%ds%dms".formatted(ms / 1000, ms % 1000);
+        }
+        if (ms < 3) {
+            long us = nanos / 10_000;
+            return "%d.%02dms".formatted(us / 100, us % 100);
         }
         return ms + "ms";
     }
