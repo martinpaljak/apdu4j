@@ -55,6 +55,33 @@ public final class Cookbook {
     private Cookbook() {
     }
 
+    // === Preference injection ===
+
+    /**
+     * Creates a recipe that injects preferences into the execution context and
+     * produces the given value. The {@link Chef} trampoline merges the preferences
+     * before continuing with downstream recipes.
+     *
+     * <p>Use inside {@link Recipe#then} when mid-recipe code discovers a value
+     * that downstream steps should see as a preference:
+     * <pre>{@code
+     * Cookbook.send(initUpdate).then(response -> {
+     *     var keys = computeKeys(response.getData());
+     *     return Cookbook.season(keys, Preferences.of(SCP02_I, response.getData()[11]))
+     *         .then(k -> Cookbook.send(buildExtAuth(k)));
+     * })
+     * }</pre>
+     *
+     * @param value the value to produce
+     * @param prefs the preferences to inject
+     * @param <T>   the value type
+     * @return a recipe that injects preferences and produces the value
+     * @see Recipe#season(Function)
+     */
+    public static <T> Recipe<T> season(T value, Preferences prefs) {
+        return p -> new PreparationStep.Seasoned<>(Recipe.premade(value), prefs);
+    }
+
     // === Recipe factories ===
 
     /**
@@ -79,19 +106,6 @@ public final class Cookbook {
      */
     public static <T> Recipe<T> deferred(Function<Preferences, Recipe<T>> factory) {
         return prefs -> factory.apply(prefs).prepare(prefs);
-    }
-
-    /**
-     * Creates a recipe that builds a single command from {@link Preferences} at
-     * prepare-time and evaluates the response with the given taster.
-     *
-     * @param cmd    function that builds the command from preferences
-     * @param taster evaluates the response into a verdict
-     * @param <T>    the result type
-     * @return a deferred single-command recipe
-     */
-    public static <T> Recipe<T> send(Function<Preferences, CommandAPDU> cmd, Taster<T> taster) {
-        return prefs -> new PreparationStep.Ingredients<>(List.of(cmd.apply(prefs)), List.of(), taster);
     }
 
     /**
@@ -202,18 +216,6 @@ public final class Cookbook {
     }
 
     /**
-     * Taster that checks for a status word then applies a predicate.
-     *
-     * @param sw       the expected status word
-     * @param test     predicate applied after SW check passes
-     * @param errorMsg error message if the predicate fails
-     * @return taster - {@link Verdict.Ready} on pass, {@link Verdict.Error} on mismatch or predicate failure
-     */
-    public static Taster<ResponseAPDU> expect(int sw, Predicate<ResponseAPDU> test, String errorMsg) {
-        return expect(sw).refine(test, errorMsg);
-    }
-
-    /**
      * Taster that checks the first response with a custom predicate.
      *
      * @param test     predicate applied to the first response
@@ -222,18 +224,6 @@ public final class Cookbook {
      */
     public static Taster<ResponseAPDU> check(Predicate<ResponseAPDU> test, String errorMsg) {
         return Taster.of(test, errorMsg);
-    }
-
-    /**
-     * Taster that checks for {@code 9000}, extracts data bytes, and validates
-     * them with a predicate. Composes SW check, extraction, and validation.
-     *
-     * @param test     predicate applied to the extracted data bytes
-     * @param errorMsg error message if the predicate fails
-     * @return taster that produces validated data bytes
-     */
-    public static Taster<byte[]> data(Predicate<byte[]> test, String errorMsg) {
-        return expect(0x9000).map(ResponseAPDU::getData).refine(test, errorMsg);
     }
 
     /**

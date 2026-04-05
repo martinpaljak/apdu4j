@@ -24,6 +24,7 @@ package apdu4j.apdulette;
 import apdu4j.apdulette.PreparationStep.Failed;
 import apdu4j.apdulette.PreparationStep.Ingredients;
 import apdu4j.apdulette.PreparationStep.Premade;
+import apdu4j.apdulette.PreparationStep.Seasoned;
 import apdu4j.apdulette.Verdict.NextStep;
 import apdu4j.apdulette.Verdict.Ready;
 import apdu4j.core.APDUBIBO;
@@ -56,6 +57,10 @@ public final class SousChef implements Chef {
             switch (current.prepare(currentPrefs)) {
                 case Premade<T>(var v) -> {
                     return new Dish<>(v, currentPrefs);
+                }
+                case Seasoned<T>(var r, var p) -> {
+                    current = r;
+                    currentPrefs = currentPrefs.merge(p);
                 }
                 case Failed<T>(var reason) -> throw new KitchenDisaster(reason);
                 case Ingredients<T> ing -> {

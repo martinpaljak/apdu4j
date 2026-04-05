@@ -372,16 +372,16 @@ public class ApduletteTest {
         assertEquals(HexUtils.bin2hex(uid), "DEADBEEF");
     }
 
-    // === send(prefs->cmd, taster) defers APDU construction to Preferences ===
+    // === deferred() defers APDU construction to Preferences ===
 
     @Test
     void sendBuildsApduFromPreferences() {
         var le = Preference.of("le", Integer.class, 256, false);
 
         // Recipe adapts Le from Preferences at prepare-time
-        var recipe = Cookbook.send(
-                prefs -> new CommandAPDU(0x00, 0xA4, 0x04, 0x00, new byte[]{(byte) 0xA0}, prefs.get(le)),
-                Cookbook.expect(0x9000));
+        var recipe = Cookbook.deferred(prefs -> Cookbook.send(
+                new CommandAPDU(0x00, 0xA4, 0x04, 0x00, new byte[]{(byte) 0xA0}, prefs.get(le)),
+                Cookbook.expect(0x9000)));
 
         // With default Le=256: SELECT A0 with Le=0x00 (short encoding of 256)
         var mock256 = MockBIBO.with("00A40400" + "01" + "A0" + "00", "9000");
@@ -712,6 +712,83 @@ public class ApduletteTest {
         assertEquals(ing.expected().size(), 2);
         assertEquals(ing.expected().get(0).getSW(), 0x9000);
         assertEquals(ing.expected().get(1).getSW(), 0x9000);
+    }
+
+    // === Seasoned: mid-recipe preference injection ===
+
+    @Test
+    void seasonInjectsPreferencesFromMidRecipeCode() {
+        var discovered = Preference.parameter("discovered", String.class, true);
+        var extra = Preference.parameter("extra", Integer.class, false);
+
+        // Basic: Cookbook.season() emits preferences visible in Dish
+        var chef = new SousChef(MockBIBO.throwing());
+        var dish = chef.serve(Cookbook.season("hello", Preferences.of(discovered, "world")));
+        assertEquals(dish.value(), "hello");
+        assertEquals(dish.preferences().valueOf(discovered).orElseThrow(), "world");
+
+        // Single-key combinator: .season(key, extractor)
+        dish = chef.serve(Recipe.premade("CAFE").season(discovered, v -> v.substring(0, 2)));
+        assertEquals(dish.value(), "CAFE");
+        assertEquals(dish.preferences().valueOf(discovered).orElseThrow(), "CA");
+
+        // Multi-key combinator: .season(Function<T, Preferences>)
+        var intDish = chef.serve(Recipe.premade(42).season(v -> Preferences.of(discovered, v.toString(), extra, v)));
+        assertEquals(intDish.value(), Integer.valueOf(42));
+        assertEquals(intDish.preferences().valueOf(discovered).orElseThrow(), "42");
+        assertEquals(intDish.preferences().valueOf(extra).orElseThrow(), Integer.valueOf(42));
+
+        // Chained through then(): preferences visible to downstream recipe
+        dish = chef.serve(
+                Recipe.premade("ABC")
+                        .season(discovered, v -> v)
+                        .then(v -> Cookbook.deferred(prefs ->
+                                Recipe.premade(prefs.valueOf(discovered).orElse("missing")))));
+        assertEquals(dish.value(), "ABC");
+        assertEquals(dish.preferences().valueOf(discovered).orElseThrow(), "ABC");
+
+        // Nested season: both preferences accumulate
+        intDish = chef.serve(
+                Recipe.premade("A")
+                        .season(discovered, v -> v)
+                        .then(v -> Cookbook.season(99, Preferences.of(extra, 99))));
+        assertEquals(intDish.value(), Integer.valueOf(99));
+        assertEquals(intDish.preferences().valueOf(discovered).orElseThrow(), "A");
+        assertEquals(intDish.preferences().valueOf(extra).orElseThrow(), Integer.valueOf(99));
+
+        // With real I/O: season in a then() chain after card interaction
+        var ioChef = new SousChef(MockBIBO.of("AABB9000", "9000"));
+        var ioDish = ioChef.serve(
+                Cookbook.send(new CommandAPDU(0x80, 0x50, 0x00, 0x00, 8))
+                        .season(discovered, r -> HexUtils.bin2hex(r.getData()))
+                        .and(Cookbook.send(new CommandAPDU(0x00, 0x00, 0x00, 0x00))));
+        assertEquals(ioDish.preferences().valueOf(discovered).orElseThrow(), "AABB");
+
+        // orElse propagates Seasoned
+        dish = chef.serve(
+                Recipe.premade("ok")
+                        .season(discovered, v -> v)
+                        .orElse(Recipe.premade("fallback")));
+        assertEquals(dish.value(), "ok");
+        assertEquals(dish.preferences().valueOf(discovered).orElseThrow(), "ok");
+
+        // recover propagates Seasoned
+        dish = chef.serve(
+                Recipe.premade("ok")
+                        .season(discovered, v -> v)
+                        .recover(err -> Recipe.premade("recovered")));
+        assertEquals(dish.value(), "ok");
+        assertEquals(dish.preferences().valueOf(discovered).orElseThrow(), "ok");
+
+        // MiseEnPlaceChef handles Seasoned identically
+        var mepChef = new MiseEnPlaceChef();
+        dish = mepChef.serve(
+                Recipe.premade("test")
+                        .season(discovered, v -> v)
+                        .then(v -> Cookbook.deferred(prefs ->
+                                Recipe.premade(prefs.valueOf(discovered).orElse("missing")))));
+        assertEquals(dish.value(), "test");
+        assertEquals(dish.preferences().valueOf(discovered).orElseThrow(), "test");
     }
 
     // === Ingredients size invariant ===

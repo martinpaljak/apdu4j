@@ -24,9 +24,11 @@ package apdu4j.apdulette;
 import apdu4j.apdulette.PreparationStep.Failed;
 import apdu4j.apdulette.PreparationStep.Ingredients;
 import apdu4j.apdulette.PreparationStep.Premade;
+import apdu4j.apdulette.PreparationStep.Seasoned;
 import apdu4j.apdulette.Verdict.Error;
 import apdu4j.apdulette.Verdict.NextStep;
 import apdu4j.apdulette.Verdict.Ready;
+import apdu4j.prefs.Preference;
 import apdu4j.prefs.Preferences;
 
 import java.util.Objects;
@@ -109,6 +111,7 @@ public interface Recipe<T> {
     default <U> Recipe<U> then(Function<T, Recipe<U>> f) {
         return prefs -> switch (prepare(prefs)) {
             case Premade<T>(var v) -> f.apply(v).prepare(prefs);
+            case Seasoned<T>(var r, var p) -> new Seasoned<>(r.then(f), p);
             case Failed<T>(var reason) -> new Failed<>(reason);
             case Ingredients<T> ing ->
                     new Ingredients<>(ing.commands(), ing.expected(), (responses, tp) -> switch (ing.taster().apply(responses, tp)) {
@@ -154,6 +157,7 @@ public interface Recipe<T> {
     default Recipe<T> orElse(Recipe<T> fallback) {
         return prefs -> switch (prepare(prefs)) {
             case Premade<T> p -> p;
+            case Seasoned<T>(var r, var p) -> new Seasoned<>(r.orElse(fallback), p);
             case Failed<T> f -> fallback.prepare(prefs);
             case Ingredients<T> ing -> new Ingredients<>(ing.commands(), ing.expected(), (responses, p) -> {
                 var verdict = ing.taster().apply(responses, p);
@@ -180,6 +184,7 @@ public interface Recipe<T> {
     default Recipe<T> recover(Function<Error<T>, Recipe<T>> handler) {
         return prefs -> switch (prepare(prefs)) {
             case Premade<T> p -> p;
+            case Seasoned<T>(var r, var p) -> new Seasoned<>(r.recover(handler), p);
             case Failed<T> f -> f;
             case Ingredients<T> ing -> new Ingredients<>(ing.commands(), ing.expected(), (responses, p) -> {
                 var verdict = ing.taster().apply(responses, p);
@@ -244,6 +249,31 @@ public interface Recipe<T> {
      */
     default Recipe<T> filter(Predicate<T> test, String errorMsg) {
         return then(v -> test.test(v) ? premade(v) : error(errorMsg));
+    }
+
+    /**
+     * Injects preferences derived from this recipe's result into the execution
+     * context. Downstream recipes (and tasters) see the injected preferences
+     * merged into the accumulated {@link Preferences}.
+     *
+     * @param seasoning function that extracts preferences from the result
+     * @return a recipe that produces the same value but enriches the preference context
+     */
+    default Recipe<T> season(Function<T, Preferences> seasoning) {
+        return then(v -> Cookbook.season(v, seasoning.apply(v)));
+    }
+
+    /**
+     * Single-key shorthand for {@link #season(Function)}. Injects one preference
+     * derived from this recipe's result.
+     *
+     * @param key       the preference key to set
+     * @param extractor function that extracts the preference value from the result
+     * @param <V>       the preference value type
+     * @return a recipe that produces the same value but adds the preference
+     */
+    default <V> Recipe<T> season(Preference<V> key, Function<T, V> extractor) {
+        return season(v -> Preferences.of(key, extractor.apply(v)));
     }
 
 }
