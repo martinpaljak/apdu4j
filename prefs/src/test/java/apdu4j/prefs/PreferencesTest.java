@@ -24,6 +24,9 @@ package apdu4j.prefs;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import java.util.ArrayList;
+import java.util.Map;
+
 public class PreferencesTest {
 
     static final Preference.Default<String> NAME = Preference.of("name", String.class, "default", false);
@@ -51,6 +54,22 @@ public class PreferencesTest {
         // Different type, same name - NOT equal
         var intPref = Preference.of("name", Integer.class, 0, false);
         Assert.assertNotEquals(NAME, intPref);
+    }
+
+    @Test
+    void preferenceTypeIsClass() {
+        // type() returns Class<V>, not java.lang.reflect.Type
+        Class<String> stringType = NAME.type();
+        Assert.assertEquals(stringType, String.class);
+
+        var intPref = Preference.of("port", Integer.class, 8080, false);
+        Class<Integer> intType = intPref.type();
+        Assert.assertEquals(intType, Integer.class);
+
+        var bytesPref = Preference.of("key", byte[].class, new byte[0], false);
+        Class<byte[]> bytesType = bytesPref.type();
+        Assert.assertEquals(bytesType, byte[].class);
+        Assert.assertEquals(bytesType.getTypeName(), "byte[]");
     }
 
     @Test
@@ -187,5 +206,108 @@ public class PreferencesTest {
         var bytes = Preference.of("key", byte[].class, new byte[0], false);
         Assert.assertEquals(new Preferences().with(bytes, new byte[]{(byte) 0xCA, (byte) 0xFE}).toString(),
                 "Preferences{key(byte[])=cafe;}");
+    }
+
+    // === Lazy provider resolution ===
+
+    @Test
+    void providerConsultedWhenNoExplicitValue() {
+        var provider = PreferenceProvider.map(Map.of("name", "from_provider"));
+        var prefs = new Preferences().withProvider(provider);
+
+        // No explicit value - provider is consulted
+        Assert.assertEquals(prefs.get(NAME), "from_provider");
+        Assert.assertEquals(prefs.valueOf(NAME).orElseThrow(), "from_provider");
+
+        // Explicit value takes precedence over provider
+        prefs = prefs.with(NAME, "explicit");
+        Assert.assertEquals(prefs.get(NAME), "explicit");
+    }
+
+    @Test
+    void providerWithTypeCoercion() {
+        var timeout = Preference.of("timeout", Integer.class, 5000, false);
+        var provider = PreferenceProvider.map(Map.of("timeout", "3000"));
+        var prefs = new Preferences().withProvider(provider);
+
+        // String "3000" coerced to Integer 3000
+        Assert.assertEquals(prefs.get(timeout), Integer.valueOf(3000));
+        Assert.assertEquals(prefs.valueOf(timeout).orElseThrow(), Integer.valueOf(3000));
+    }
+
+    @Test
+    void providerValidationRejectsAndFallsToDefault() {
+        var bounded = Preference.of("port", Integer.class, 8080, false, p -> p > 0 && p < 65536);
+        var provider = PreferenceProvider.map(Map.of("port", "99999"));
+        var prefs = new Preferences().withProvider(provider);
+
+        // Coercion succeeds but validator rejects - falls back to default
+        Assert.assertEquals(prefs.get(bounded), Integer.valueOf(8080));
+        // valueOf returns empty
+        Assert.assertTrue(prefs.valueOf(bounded).isEmpty());
+    }
+
+    @Test
+    void providerCoercionFailureFallsToDefault() {
+        var timeout = Preference.of("timeout", Integer.class, 5000, false);
+        var provider = PreferenceProvider.map(Map.of("timeout", "notanumber"));
+        var prefs = new Preferences().withProvider(provider);
+
+        // Coercion fails - falls back to default
+        Assert.assertEquals(prefs.get(timeout), Integer.valueOf(5000));
+        Assert.assertTrue(prefs.valueOf(timeout).isEmpty());
+    }
+
+    @Test
+    void providerPropagatesThroughWithAndWithout() {
+        var other = Preference.of("other", String.class, "d", false);
+        var provider = PreferenceProvider.map(Map.of("name", "from_provider"));
+        var prefs = new Preferences().withProvider(provider);
+
+        // Provider survives with()
+        var prefs2 = prefs.with(other, "something");
+        Assert.assertEquals(prefs2.get(NAME), "from_provider");
+
+        // Provider survives without()
+        var prefs3 = prefs2.without(other);
+        Assert.assertEquals(prefs3.get(NAME), "from_provider");
+    }
+
+    @Test
+    void providerSurvivesMerge() {
+        var provider = PreferenceProvider.map(Map.of("name", "from_provider"));
+        var base = new Preferences().withProvider(provider);
+        var extra = new Preferences().with(Preference.of("extra", String.class, "d", false), "val");
+
+        // Base provider survives merge
+        var merged = base.merge(extra);
+        Assert.assertEquals(merged.get(NAME), "from_provider");
+    }
+
+    @Test
+    void typedProviderSkipsCoercion() {
+        // Provider returning already-typed values - no string coercion needed
+        var timeout = Preference.of("timeout", Integer.class, 5000, false);
+        var provider = PreferenceProvider.typed(Map.of(timeout, 3000));
+        var prefs = new Preferences().withProvider(provider);
+
+        Assert.assertEquals(prefs.get(timeout), Integer.valueOf(3000));
+    }
+
+    // === Deterministic ordering ===
+
+    @Test
+    void keysOrderedDeterministically() {
+        var a = Preference.of("aaa", String.class, "d", false);
+        var b = Preference.of("bbb", String.class, "d", false);
+        var c = Preference.of("ccc", String.class, "d", false);
+
+        // Add in reverse order
+        var prefs = new Preferences().with(c, "3").with(a, "1").with(b, "2");
+        var keys = new ArrayList<>(prefs.keys());
+
+        Assert.assertEquals(keys.get(0).name(), "aaa");
+        Assert.assertEquals(keys.get(1).name(), "bbb");
+        Assert.assertEquals(keys.get(2).name(), "ccc");
     }
 }

@@ -21,7 +21,6 @@
  */
 package apdu4j.prefs;
 
-import java.lang.reflect.Type;
 import java.util.*;
 import java.util.function.Function;
 
@@ -30,11 +29,12 @@ import java.util.function.Function;
  * system properties, properties files, or custom sources like user prompts).
  *
  * <p>Providers compose via {@link #orElse(PreferenceProvider)} to form priority
- * chains, and produce immutable {@link Preferences} snapshots via {@link #resolve}:
+ * chains and attach to {@link Preferences} for lazy resolution:
  * <pre>{@code
  * var provider = PreferenceProvider.environment()
  *     .orElse(PreferenceProvider.systemProperties());
- * var prefs = provider.resolve(Readers.PROTOCOL, Readers.EXCLUSIVE);
+ * var prefs = new Preferences().withProvider(provider);
+ * var timeout = prefs.get(Readers.TIMEOUT); // resolved on demand
  * }</pre>
  *
  * <p>Custom providers (including interactive user prompts) implement the single
@@ -46,18 +46,20 @@ import java.util.function.Function;
  * };
  * }</pre>
  *
- * @see Preferences#fromEnvironment(Preference[])
+ * @see Preferences#fromEnvironment()
  */
 @FunctionalInterface
 public interface PreferenceProvider {
 
     /**
-     * Resolves a raw string value for the given preference, or empty if not available.
+     * Resolves a value for the given preference, or empty if not available.
+     * The value may already be the preference's declared type, or a raw string
+     * that will be coerced during resolution.
      *
      * @param key the preference to resolve
-     * @return the raw string value, or empty
+     * @return the resolved value (typed or raw string), or empty
      */
-    Optional<String> resolve(Preference<?> key);
+    Optional<?> resolve(Preference<?> key);
 
     /**
      * Chains this provider with a fallback. This provider is tried first;
@@ -67,48 +69,10 @@ public interface PreferenceProvider {
      * @return a composite provider
      */
     default PreferenceProvider orElse(PreferenceProvider fallback) {
-        return key -> resolve(key).or(() -> fallback.resolve(key));
-    }
-
-    /**
-     * Resolves the given preferences into an immutable snapshot.
-     * Values are coerced from strings to the preference's declared type.
-     * Preferences whose values fail validation are silently skipped.
-     *
-     * @param keys the preferences to resolve
-     * @return an immutable Preferences containing resolved values
-     */
-    default Preferences resolve(Preference<?>... keys) {
-        return resolve(List.of(keys));
-    }
-
-    /**
-     * Resolves the given preferences into an immutable snapshot.
-     *
-     * @param keys the preferences to resolve
-     * @return an immutable Preferences containing resolved values
-     */
-    default Preferences resolve(List<Preference<?>> keys) {
-        var result = new Preferences();
-        for (var key : keys) {
-            var raw = resolve(key);
-            if (raw.isPresent()) {
-                result = trySet(result, key, raw.get());
-            }
-        }
-        return result;
-    }
-
-    // Captures the wildcard into a named type variable so with() type-checks
-    @SuppressWarnings("unchecked")
-    private static <V> Preferences trySet(Preferences prefs, Preference<V> key, String raw) {
-        try {
-            var value = (V) coerce(key.type(), raw);
-            return prefs.with(key, value);
-        } catch (IllegalArgumentException ignored) {
-            // Validation failed or type coercion failed - skip this preference
-            return prefs;
-        }
+        return key -> {
+            var result = resolve(key);
+            return result.isPresent() ? result : fallback.resolve(key);
+        };
     }
 
     /**
@@ -151,40 +115,66 @@ public interface PreferenceProvider {
     }
 
     /**
-     * Provider backed by a {@link Map}.
+     * Provider backed by a {@link Map} with preference names as keys.
+     * Values may be strings (coerced during resolution) or already typed.
      *
      * @param map the map to read from (keys are preference names)
      * @return map-backed provider
      */
-    static PreferenceProvider map(Map<String, String> map) {
+    static PreferenceProvider map(Map<String, ?> map) {
         return key -> Optional.ofNullable(map.get(key.name()));
     }
 
     /**
-     * Coerces a raw string to the preference's declared type.
-     * Supports: String, Boolean, Integer, Long, byte[] (hex).
+     * Provider backed by a typed {@link Map} keyed by {@link Preference} instances.
+     * Values should match the preference's declared type; no coercion is needed.
+     *
+     * @param map the map to read from (keys are Preference instances)
+     * @return typed map-backed provider
+     */
+    static PreferenceProvider typed(Map<Preference<?>, ?> map) {
+        return key -> Optional.ofNullable(map.get(key));
+    }
+
+    /**
+     * Coerces a raw value to the preference's declared type.
+     * If the value is already the target type, it is returned as-is.
+     * Otherwise, string values are parsed. Supports: String, Boolean, Integer, Long, byte[] (hex).
      *
      * @param type the target type
-     * @param raw  the raw string value
+     * @param raw  the raw value (typed or String)
      * @return the coerced value
      * @throws IllegalArgumentException if the type is unsupported or parsing fails
      */
-    static Object coerce(Type type, String raw) {
-        if (type == String.class) {
+    static Object coerce(Class<?> type, Object raw) {
+        if (type.isInstance(raw)) {
             return raw;
         }
-        if (type == Boolean.class) {
-            return Boolean.parseBoolean(raw);
+        if (raw instanceof String s) {
+            s = s.strip();
+            if (type == String.class) {
+                return s;
+            }
+            if (type == Boolean.class) {
+                return Boolean.parseBoolean(s);
+            }
+            if (type == Integer.class) {
+                if (s.toLowerCase(Locale.ROOT).startsWith("0x")) {
+                    return Integer.parseInt(s.substring(2), 16);
+                }
+                return Integer.parseInt(s);
+            }
+            if (type == Long.class) {
+                if (s.toLowerCase(Locale.ROOT).startsWith("0x")) {
+                    return Long.parseLong(s.substring(2), 16);
+                }
+                return Long.parseLong(s);
+            }
+            if (type == byte[].class) {
+                return HexFormat.of().parseHex(s);
+            }
+            throw new IllegalArgumentException("Cannot coerce String to " + type.getTypeName());
         }
-        if (type == Integer.class) {
-            return Integer.parseInt(raw);
-        }
-        if (type == Long.class) {
-            return Long.parseLong(raw);
-        }
-        if (type == byte[].class) {
-            return HexFormat.of().parseHex(raw);
-        }
-        throw new IllegalArgumentException("Cannot coerce String to " + type.getTypeName());
+        throw new IllegalArgumentException("Cannot coerce " + raw.getClass().getTypeName() + " to " + type.getTypeName());
     }
 }

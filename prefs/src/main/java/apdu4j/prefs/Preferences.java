@@ -23,17 +23,36 @@ package apdu4j.prefs;
 
 import java.util.*;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public final class Preferences {
+    private static final Logger logger = LoggerFactory.getLogger(Preferences.class);
     private final Map<Preference<?>, Object> values;
+    private final PreferenceProvider provider; // optional lazy fallback
 
     public Preferences() {
-        this(Map.of());
+        this(Map.of(), null);
     }
 
-    private Preferences(final Map<Preference<?>, Object> values) {
-        var sorted = new TreeMap<Preference<?>, Object>(Preference.comparator());
+    private Preferences(final Map<Preference<?>, Object> values, final PreferenceProvider provider) {
+        var sorted = new TreeMap<>(Preference.comparator());
         sorted.putAll(values);
         this.values = Collections.unmodifiableSortedMap(sorted);
+        this.provider = provider;
+    }
+
+    /**
+     * Attach a provider for lazy fallback resolution.
+     * When {@link #get} or {@link #valueOf} finds no explicit value in the map,
+     * the provider is consulted before falling back to the preference default.
+     * The provider propagates through {@link #with}, {@link #merge}, and {@link #without}.
+     *
+     * @param provider the fallback provider (env vars, system properties, etc.)
+     * @return a new Preferences with the same explicit values and the given provider
+     */
+    public Preferences withProvider(final PreferenceProvider provider) {
+        return new Preferences(this.values, provider);
     }
 
     // Explicit set - throws on readonly overwrite
@@ -49,7 +68,7 @@ public final class Preferences {
         }
         final var newValues = new HashMap<Preference<?>, Object>(values);
         newValues.put(key, value);
-        return new Preferences(newValues);
+        return new Preferences(newValues, this.provider);
     }
 
     public <V> Preferences without(final Preference<V> key) {
@@ -61,27 +80,64 @@ public final class Preferences {
         }
         final var newValues = new HashMap<Preference<?>, Object>(values);
         newValues.remove(key);
-        return new Preferences(newValues);
+        return new Preferences(newValues, this.provider);
     }
 
-    // Always returns non-null: either the explicit override or the default outcome
+    // Always returns non-null: explicit map value, then provider (coerced + validated), then default
     @SuppressWarnings("unchecked")
     public <V> V get(final Preference.Default<V> key) {
         final var value = (V) values.get(key);
-        return value != null ? value : key.defaultValue();
+        if (value != null) {
+            return value;
+        }
+        if (provider != null) {
+            var raw = provider.resolve(key);
+            if (raw.isPresent()) {
+                try {
+                    var coerced = (V) PreferenceProvider.coerce(key.type(), raw.get());
+                    if (key.validator().test(coerced)) {
+                        return coerced;
+                    }
+                    logger.warn("Preference '{}': value '{}' fails validation - using default '{}'",
+                            key.name(), coerced, key.defaultValue());
+                } catch (IllegalArgumentException e) {
+                    logger.warn("Preference '{}': cannot coerce '{}' to {} - using default '{}'",
+                            key.name(), raw.get(), key.type().getSimpleName(), key.defaultValue());
+                }
+            }
+        }
+        return key.defaultValue();
     }
 
-    // Returns empty Optional when using default, present Optional when explicitly overridden
+    // Returns explicit map value or provider-resolved value (coerced + validated), empty if neither
     @SuppressWarnings("unchecked")
     public <V> Optional<V> valueOf(final Preference<V> key) {
-        // We don't allow null values, so the optional is empty only
-        // if the preference is not explicitly established
-        return Optional.ofNullable((V) values.get(key));
+        final var value = (V) values.get(key);
+        if (value != null) {
+            return Optional.of(value);
+        }
+        if (provider != null) {
+            var raw = provider.resolve(key);
+            if (raw.isPresent()) {
+                try {
+                    var coerced = (V) PreferenceProvider.coerce(key.type(), raw.get());
+                    if (key.validator().test(coerced)) {
+                        return Optional.of(coerced);
+                    }
+                    logger.warn("Preference '{}': value '{}' fails validation", key.name(), coerced);
+                } catch (IllegalArgumentException e) {
+                    logger.warn("Preference '{}': cannot coerce '{}' to {}",
+                            key.name(), raw.get(), key.type().getSimpleName());
+                }
+            }
+        }
+        return Optional.empty();
     }
 
-    // Bulk merge - silently skips readonly keys that already exist in this instance
+    // Bulk merge - silently skips readonly keys that already exist in this instance.
+    // This instance's provider survives (the accumulated base carries the provider).
     public Preferences merge(final Preferences other) {
-        final var newValues = new HashMap<Preference<?>, Object>(this.values);
+        final var newValues = new HashMap<>(this.values);
         for (Map.Entry<Preference<?>, Object> entry : other.values.entrySet()) {
             final Preference<?> key = entry.getKey();
             if (key.readonly() && this.values.containsKey(key)) {
@@ -89,7 +145,7 @@ public final class Preferences {
             }
             newValues.put(key, entry.getValue());
         }
-        return new Preferences(newValues);
+        return new Preferences(newValues, this.provider);
     }
 
     public Set<Preference<?>> keys() {
@@ -126,23 +182,25 @@ public final class Preferences {
     }
 
     /**
-     * Convenience: resolve preferences from environment variables.
+     * Convenience: create Preferences backed by environment variables.
      * Converts preference name "foo.bar" to env var "FOO_BAR".
+     * Values are resolved lazily on {@link #get} and {@link #valueOf}.
      *
-     * @param keys the preferences to resolve from environment
-     * @return an immutable Preferences with resolved values
+     * @return Preferences with environment provider attached
      */
-    public static Preferences fromEnvironment(Preference<?>... keys) {
-        return PreferenceProvider.environment().resolve(keys);
+    public static Preferences fromEnvironment() {
+        return new Preferences().withProvider(PreferenceProvider.environment());
     }
 
-    /**
-     * Convenience: resolve preferences from environment variables.
-     *
-     * @param keys the preferences to resolve from environment
-     * @return an immutable Preferences with resolved values
-     */
-    public static Preferences fromEnvironment(List<Preference<?>> keys) {
-        return PreferenceProvider.environment().resolve(keys);
+    public static Preferences of() {
+        return new Preferences();
+    }
+
+    public static <V> Preferences of(Preference<V> key, V value) {
+        return new Preferences().with(key, value);
+    }
+
+    public static <V1, V2> Preferences of(Preference<V1> k1, V1 v1, Preference<V2> k2, V2 v2) {
+        return new Preferences().with(k1, v1).with(k2, v2);
     }
 }

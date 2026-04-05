@@ -21,7 +21,6 @@
  */
 package apdu4j.prefs;
 
-import java.lang.reflect.Type;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -29,7 +28,7 @@ import java.util.function.Predicate;
 public sealed interface Preference<V> permits Preference.Default, Preference.Parameter {
     String name();
 
-    Type type();
+    Class<V> type();
 
     boolean readonly();
 
@@ -62,11 +61,11 @@ public sealed interface Preference<V> permits Preference.Default, Preference.Par
     // Not a record: equals/hashCode on name + type only (excludes validator and metadata)
     abstract class Base<V> {
         private final String name;
-        private final Type type;
+        private final Class<V> type;
         private final boolean readonly;
         private final Predicate<V> validator;
 
-        Base(String name, Type type, boolean readonly, Predicate<V> validator) {
+        Base(String name, Class<V> type, boolean readonly, Predicate<V> validator) {
             this.name = Objects.requireNonNull(name);
             if (name.isBlank()) {
                 throw new IllegalArgumentException("Preference name must not be blank");
@@ -80,7 +79,7 @@ public sealed interface Preference<V> permits Preference.Default, Preference.Par
             return name;
         }
 
-        public Type type() {
+        public Class<V> type() {
             return type;
         }
 
@@ -106,7 +105,7 @@ public sealed interface Preference<V> permits Preference.Default, Preference.Par
     final class Default<V> extends Base<V> implements Preference<V> {
         private final V defaultValue;
 
-        public Default(String name, Type type, V defaultValue, boolean readonly, Predicate<V> validator) {
+        public Default(String name, Class<V> type, V defaultValue, boolean readonly, Predicate<V> validator) {
             super(name, type, readonly, validator);
             this.defaultValue = Objects.requireNonNull(defaultValue, "Must have a sane default value!");
             // Default must satisfy its own validator
@@ -126,7 +125,7 @@ public sealed interface Preference<V> permits Preference.Default, Preference.Par
     }
 
     final class Parameter<V> extends Base<V> implements Preference<V> {
-        public Parameter(String name, Type type, boolean readonly, Predicate<V> validator) {
+        public Parameter(String name, Class<V> type, boolean readonly, Predicate<V> validator) {
             super(name, type, readonly, validator);
         }
 
