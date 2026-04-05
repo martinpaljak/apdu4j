@@ -205,6 +205,19 @@ public final class Cookbook {
     }
 
     /**
+     * Taster that checks the first response for a specific status word,
+     * using a complainer to produce domain-specific error messages
+     * from the actual response.
+     *
+     * @param sw         the expected status word
+     * @param complainer produces the error description from the failing response
+     * @return taster - {@link Verdict.Ready} on match, {@link Verdict.Error} on mismatch
+     */
+    public static Taster<ResponseAPDU> expect(int sw, Function<ResponseAPDU, String> complainer) {
+        return Taster.of(r -> r.getSW() == sw, complainer);
+    }
+
+    /**
      * Taster that accepts any of the given status words. Useful for commands
      * that succeed with multiple SWs (e.g. {@code 9000} or {@code 6283}).
      *
@@ -246,6 +259,20 @@ public final class Cookbook {
      */
     public static Taster<ResponseAPDU> all(int sw) {
         return Taster.every(r -> r.getSW() == sw, "expected %04X".formatted(sw));
+    }
+
+    /**
+     * Taster that checks every response for the expected status word,
+     * using a complainer for domain-specific error messages.
+     * Multi-response companion to {@link #expect(int, Function)}.
+     *
+     * @param sw         the expected status word
+     * @param complainer produces the error description from the failing response
+     * @return taster - {@link Verdict.Ready} with last response on all-match,
+     * {@link Verdict.Error} on first mismatch
+     */
+    public static Taster<ResponseAPDU> all(int sw, Function<ResponseAPDU, String> complainer) {
+        return Taster.every(r -> r.getSW() == sw, complainer);
     }
 
     /**

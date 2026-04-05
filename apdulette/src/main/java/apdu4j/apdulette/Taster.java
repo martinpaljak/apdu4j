@@ -58,12 +58,29 @@ public interface Taster<T> extends BiFunction<List<ResponseAPDU>, Preferences, V
         return first(r -> test.test(r) ? new Verdict.Ready<>(r) : new Verdict.Error<>(r, errorMsg));
     }
 
+    // Predicate on first response with dynamic error message from the actual response
+    static Taster<ResponseAPDU> of(Predicate<ResponseAPDU> test, Function<ResponseAPDU, String> complainer) {
+        return first(r -> test.test(r) ? new Verdict.Ready<>(r) : new Verdict.Error<>(r, complainer.apply(r)));
+    }
+
     // Check all responses, return last on success
     static Taster<ResponseAPDU> every(Predicate<ResponseAPDU> test, String errorMsg) {
         return (responses, prefs) -> {
             for (var r : responses) {
                 if (!test.test(r)) {
                     return new Verdict.Error<>(r, errorMsg);
+                }
+            }
+            return new Verdict.Ready<>(responses.getLast());
+        };
+    }
+
+    // Check all responses with dynamic error message, return last on success
+    static Taster<ResponseAPDU> every(Predicate<ResponseAPDU> test, Function<ResponseAPDU, String> complainer) {
+        return (responses, prefs) -> {
+            for (var r : responses) {
+                if (!test.test(r)) {
+                    return new Verdict.Error<>(r, complainer.apply(r));
                 }
             }
             return new Verdict.Ready<>(responses.getLast());
