@@ -43,10 +43,16 @@ public class PreferenceProviderTest {
         var provider = PreferenceProvider.environment(env::get);
 
         // Dots converted to underscores, uppercased
-        assertEquals(provider.resolve(PROTOCOL).orElseThrow(), "T=1");
+        var sourced = provider.resolve(PROTOCOL).orElseThrow();
+        assertEquals(sourced.value(), "T=1");
+        assertEquals(sourced.source(), "env");
+
         // Hyphens also converted
         var hyphenated = Preference.of("my-setting", String.class, "d", false);
-        assertEquals(provider.resolve(hyphenated).orElseThrow(), "value");
+        var sourced2 = provider.resolve(hyphenated).orElseThrow();
+        assertEquals(sourced2.value(), "value");
+        assertEquals(sourced2.source(), "env");
+
         // Missing returns empty
         assertTrue(provider.resolve(TIMEOUT).isEmpty());
     }
@@ -55,7 +61,9 @@ public class PreferenceProviderTest {
     void systemPropertiesProvider() {
         System.setProperty("reader.protocol", "T=0");
         try {
-            assertEquals(PreferenceProvider.systemProperties().resolve(PROTOCOL).orElseThrow(), "T=0");
+            var sourced = PreferenceProvider.systemProperties().resolve(PROTOCOL).orElseThrow();
+            assertEquals(sourced.value(), "T=0");
+            assertEquals(sourced.source(), "prop");
         } finally {
             System.clearProperty("reader.protocol");
         }
@@ -66,11 +74,15 @@ public class PreferenceProviderTest {
         // Properties provider
         var props = new Properties();
         props.setProperty("reader.protocol", "T=CL");
-        assertEquals(PreferenceProvider.properties(props).resolve(PROTOCOL).orElseThrow(), "T=CL");
+        var sourced = PreferenceProvider.properties(props).resolve(PROTOCOL).orElseThrow();
+        assertEquals(sourced.value(), "T=CL");
+        assertEquals(sourced.source(), "file");
 
         // Map provider
-        var map = PreferenceProvider.map(Map.of("reader.protocol", "DIRECT"));
-        assertEquals(map.resolve(PROTOCOL).orElseThrow(), "DIRECT");
+        var map = PreferenceProvider.map(Map.of("reader.protocol", "DIRECT"), "cli");
+        var sourced2 = map.resolve(PROTOCOL).orElseThrow();
+        assertEquals(sourced2.value(), "DIRECT");
+        assertEquals(sourced2.source(), "cli");
         assertTrue(map.resolve(TIMEOUT).isEmpty());
     }
 
@@ -80,7 +92,7 @@ public class PreferenceProviderTest {
         var map = PreferenceProvider.map(Map.of(
                 "reader.protocol", "T=1",
                 "reader.timeout", 3000
-        ));
+        ), "cli");
         var prefs = new Preferences().withProvider(map);
 
         assertEquals(prefs.get(PROTOCOL), "T=1");
@@ -95,7 +107,7 @@ public class PreferenceProviderTest {
                 EXCLUSIVE, true,
                 TIMEOUT, 3000
         );
-        var prefs = new Preferences().withProvider(PreferenceProvider.typed(map));
+        var prefs = new Preferences().withProvider(PreferenceProvider.typed(map, "session"));
 
         assertEquals(prefs.get(PROTOCOL), "T=1");
         assertEquals(prefs.get(EXCLUSIVE), Boolean.TRUE);
@@ -105,7 +117,7 @@ public class PreferenceProviderTest {
     @Test
     void typedProviderMissing() {
         var map = Map.<Preference<?>, Object>of(PROTOCOL, "T=1");
-        var prefs = new Preferences().withProvider(PreferenceProvider.typed(map));
+        var prefs = new Preferences().withProvider(PreferenceProvider.typed(map, "session"));
 
         // Present key
         assertEquals(prefs.get(PROTOCOL), "T=1");
@@ -118,14 +130,20 @@ public class PreferenceProviderTest {
 
     @Test
     void orElseChaining() {
-        var primary = PreferenceProvider.map(Map.of("reader.protocol", "T=1"));
-        var fallback = PreferenceProvider.map(Map.of("reader.protocol", "T=0", "reader.timeout", "3000"));
+        var primary = PreferenceProvider.map(Map.of("reader.protocol", "T=1"), "cli");
+        var fallback = PreferenceProvider.map(Map.of("reader.protocol", "T=0", "reader.timeout", "3000"), "file");
         var chained = primary.orElse(fallback);
 
-        // Primary wins when present
-        assertEquals(chained.resolve(PROTOCOL).orElseThrow(), "T=1");
-        // Fallback used when primary is empty
-        assertEquals(chained.resolve(TIMEOUT).orElseThrow(), "3000");
+        // Primary wins when present - carries primary's source
+        var sourced = chained.resolve(PROTOCOL).orElseThrow();
+        assertEquals(sourced.value(), "T=1");
+        assertEquals(sourced.source(), "cli");
+
+        // Fallback used when primary is empty - carries fallback's source
+        var sourced2 = chained.resolve(TIMEOUT).orElseThrow();
+        assertEquals(sourced2.value(), "3000");
+        assertEquals(sourced2.source(), "file");
+
         // Both empty returns empty
         assertTrue(chained.resolve(EXCLUSIVE).isEmpty());
     }
@@ -133,8 +151,8 @@ public class PreferenceProviderTest {
     @Test
     void orElseChainingWithConversion() {
         // orElse chain feeding into withProvider for type conversion
-        var primary = PreferenceProvider.map(Map.of("reader.timeout", "3000"));
-        var fallback = PreferenceProvider.map(Map.of("reader.exclusive", "true"));
+        var primary = PreferenceProvider.map(Map.of("reader.timeout", "3000"), "cli");
+        var fallback = PreferenceProvider.map(Map.of("reader.exclusive", "true"), "file");
         var prefs = new Preferences().withProvider(primary.orElse(fallback));
 
         assertEquals(prefs.get(TIMEOUT), Integer.valueOf(3000));
@@ -206,7 +224,7 @@ public class PreferenceProviderTest {
                 "reader.protocol", "T=1",
                 "reader.exclusive", "true",
                 "reader.timeout", "3000"
-        ));
+        ), "cli");
         var prefs = new Preferences().withProvider(provider);
 
         assertEquals(prefs.get(PROTOCOL), "T=1");
@@ -219,7 +237,7 @@ public class PreferenceProviderTest {
         var provider = PreferenceProvider.map(Map.of(
                 "reader.protocol", "T=1",
                 "reader.timeout", "notanumber"
-        ));
+        ), "cli");
         var prefs = new Preferences().withProvider(provider);
 
         assertEquals(prefs.get(PROTOCOL), "T=1");
@@ -233,23 +251,36 @@ public class PreferenceProviderTest {
         var bounded = Preference.of("port", Integer.class, 8080, false, p -> p > 0 && p < 65536);
 
         // Valid
-        var prefs = new Preferences().withProvider(PreferenceProvider.map(Map.of("port", "443")));
+        var prefs = new Preferences().withProvider(PreferenceProvider.map(Map.of("port", "443"), "cli"));
         assertEquals(prefs.get(bounded), Integer.valueOf(443));
 
         // Invalid - validator rejects, falls back to default
-        var prefs2 = new Preferences().withProvider(PreferenceProvider.map(Map.of("port", "99999")));
+        var prefs2 = new Preferences().withProvider(PreferenceProvider.map(Map.of("port", "99999"), "cli"));
         assertEquals(prefs2.get(bounded), Integer.valueOf(8080));
         assertTrue(prefs2.valueOf(bounded).isEmpty());
     }
 
     @Test
     void lazyResolutionParameterAndByteArray() {
-        var provider = PreferenceProvider.map(Map.of("session.key", "abc", "key.data", "deadbeef"));
+        var provider = PreferenceProvider.map(Map.of("session.key", "abc", "key.data", "deadbeef"), "file");
         var keyData = Preference.of("key.data", byte[].class, new byte[0], false);
         var prefs = new Preferences().withProvider(provider);
 
         assertEquals(prefs.valueOf(SESSION_KEY).orElseThrow(), "abc");
         assertEquals(prefs.get(keyData), new byte[]{(byte) 0xDE, (byte) 0xAD, (byte) 0xBE, (byte) 0xEF});
+    }
+
+    // === Source tracking through orElse chain ===
+
+    @Test
+    void sourceTrackedThroughOrElseChain() {
+        var cli = PreferenceProvider.map(Map.of("reader.timeout", "3000"), "cli");
+        var file = PreferenceProvider.map(Map.of("reader.exclusive", "true"), "file");
+        var prefs = new Preferences().withProvider(cli.orElse(file));
+
+        assertEquals(prefs.sourceOf(TIMEOUT).orElseThrow(), "cli");
+        assertEquals(prefs.sourceOf(EXCLUSIVE).orElseThrow(), "file");
+        assertEquals(prefs.sourceOf(PROTOCOL).orElseThrow(), "default"); // neither has it, falls to default
     }
 
     // === Preferences.fromEnvironment convenience ===

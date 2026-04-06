@@ -90,15 +90,23 @@ public class PreferencesTest {
     void getAndValueOfSemantics() {
         var prefs = new Preferences();
 
-        // get() returns default for unset Default preferences
+        // get() returns default for unset Default preferences; source is "default"
         Assert.assertEquals(prefs.get(NAME), "default");
-        // valueOf() returns empty for unset preferences
         Assert.assertTrue(prefs.valueOf(NAME).isEmpty());
+        Assert.assertEquals(prefs.sourceOf(NAME).orElseThrow(), "default");
+        // Parameter with no value: sourceOf is empty
+        Assert.assertTrue(prefs.sourceOf(SESSION).isEmpty());
 
-        // After setting, both return the explicit value
+        // After setting, both return the explicit value; source defaults to "code"
         prefs = prefs.with(NAME, "explicit");
         Assert.assertEquals(prefs.get(NAME), "explicit");
         Assert.assertEquals(prefs.valueOf(NAME).orElseThrow(), "explicit");
+        Assert.assertEquals(prefs.sourceOf(NAME).orElseThrow(), "code");
+
+        // Explicit source via three-arg with()
+        prefs = prefs.with(NAME, "from_cli", "cli");
+        Assert.assertEquals(prefs.get(NAME), "from_cli");
+        Assert.assertEquals(prefs.sourceOf(NAME).orElseThrow(), "cli");
     }
 
     @Test
@@ -160,10 +168,12 @@ public class PreferencesTest {
     void mergeSemantics() {
         var mutable = Preference.of("m", String.class, "d", false);
 
-        // Non-readonly: later value wins
-        var a = new Preferences().with(mutable, "first");
-        var b = new Preferences().with(mutable, "second");
-        Assert.assertEquals(a.merge(b).get(mutable), "second");
+        // Non-readonly: later value wins, source comes from winner
+        var a = new Preferences().with(mutable, "first", "cli");
+        var b = new Preferences().with(mutable, "second", "file");
+        var merged = a.merge(b);
+        Assert.assertEquals(merged.get(mutable), "second");
+        Assert.assertEquals(merged.sourceOf(mutable).orElseThrow(), "file");
 
         // Readonly: existing value survives merge
         var withReadonly = new Preferences().with(READONLY, "original");
@@ -201,33 +211,39 @@ public class PreferencesTest {
     @Test
     void toStringFormatting() {
         Assert.assertEquals(new Preferences().with(NAME, "val").toString(),
-                "Preferences{name(java.lang.String)=val;}");
+                "Preferences{name(java.lang.String)=val[code];}");
 
         var bytes = Preference.of("key", byte[].class, new byte[0], false);
         Assert.assertEquals(new Preferences().with(bytes, new byte[]{(byte) 0xCA, (byte) 0xFE}).toString(),
-                "Preferences{key(byte[])=cafe;}");
+                "Preferences{key(byte[])=cafe[code];}");
+
+        // with explicit source
+        Assert.assertEquals(new Preferences().with(NAME, "val", "cli").toString(),
+                "Preferences{name(java.lang.String)=val[cli];}");
     }
 
     // === Lazy provider resolution ===
 
     @Test
     void providerConsultedWhenNoExplicitValue() {
-        var provider = PreferenceProvider.map(Map.of("name", "from_provider"));
+        var provider = PreferenceProvider.map(Map.of("name", "from_provider"), "file");
         var prefs = new Preferences().withProvider(provider);
 
-        // No explicit value - provider is consulted
+        // No explicit value - provider is consulted; source is provider's
         Assert.assertEquals(prefs.get(NAME), "from_provider");
         Assert.assertEquals(prefs.valueOf(NAME).orElseThrow(), "from_provider");
+        Assert.assertEquals(prefs.sourceOf(NAME).orElseThrow(), "file");
 
-        // Explicit value takes precedence over provider
+        // Explicit value takes precedence over provider; source changes to "code"
         prefs = prefs.with(NAME, "explicit");
         Assert.assertEquals(prefs.get(NAME), "explicit");
+        Assert.assertEquals(prefs.sourceOf(NAME).orElseThrow(), "code");
     }
 
     @Test
     void providerWithTypeConversion() {
         var timeout = Preference.of("timeout", Integer.class, 5000, false);
-        var provider = PreferenceProvider.map(Map.of("timeout", "3000"));
+        var provider = PreferenceProvider.map(Map.of("timeout", "3000"), "cli");
         var prefs = new Preferences().withProvider(provider);
 
         // String "3000" converted to Integer 3000
@@ -238,19 +254,19 @@ public class PreferencesTest {
     @Test
     void providerValidationRejectsAndFallsToDefault() {
         var bounded = Preference.of("port", Integer.class, 8080, false, p -> p > 0 && p < 65536);
-        var provider = PreferenceProvider.map(Map.of("port", "99999"));
+        var provider = PreferenceProvider.map(Map.of("port", "99999"), "cli");
         var prefs = new Preferences().withProvider(provider);
 
         // Conversion succeeds but validator rejects - falls back to default
         Assert.assertEquals(prefs.get(bounded), Integer.valueOf(8080));
-        // valueOf returns empty
         Assert.assertTrue(prefs.valueOf(bounded).isEmpty());
+        Assert.assertEquals(prefs.sourceOf(bounded).orElseThrow(), "default");
     }
 
     @Test
     void providerConversionFailureFallsToDefault() {
         var timeout = Preference.of("timeout", Integer.class, 5000, false);
-        var provider = PreferenceProvider.map(Map.of("timeout", "notanumber"));
+        var provider = PreferenceProvider.map(Map.of("timeout", "notanumber"), "cli");
         var prefs = new Preferences().withProvider(provider);
 
         // Conversion fails - falls back to default
@@ -261,7 +277,7 @@ public class PreferencesTest {
     @Test
     void providerPropagatesThroughWithAndWithout() {
         var other = Preference.of("other", String.class, "d", false);
-        var provider = PreferenceProvider.map(Map.of("name", "from_provider"));
+        var provider = PreferenceProvider.map(Map.of("name", "from_provider"), "file");
         var prefs = new Preferences().withProvider(provider);
 
         // Provider survives with()
@@ -275,7 +291,7 @@ public class PreferencesTest {
 
     @Test
     void providerSurvivesMerge() {
-        var provider = PreferenceProvider.map(Map.of("name", "from_provider"));
+        var provider = PreferenceProvider.map(Map.of("name", "from_provider"), "file");
         var base = new Preferences().withProvider(provider);
         var extra = new Preferences().with(Preference.of("extra", String.class, "d", false), "val");
 
@@ -288,7 +304,7 @@ public class PreferencesTest {
     void typedProviderSkipsConversion() {
         // Provider returning already-typed values - no string conversion needed
         var timeout = Preference.of("timeout", Integer.class, 5000, false);
-        var provider = PreferenceProvider.typed(Map.of(timeout, 3000));
+        var provider = PreferenceProvider.typed(Map.of(timeout, 3000), "session");
         var prefs = new Preferences().withProvider(provider);
 
         Assert.assertEquals(prefs.get(timeout), Integer.valueOf(3000));
@@ -310,4 +326,5 @@ public class PreferencesTest {
         Assert.assertEquals(keys.get(1).name(), "bbb");
         Assert.assertEquals(keys.get(2).name(), "ccc");
     }
+
 }

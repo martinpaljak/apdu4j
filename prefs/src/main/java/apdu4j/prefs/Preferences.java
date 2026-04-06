@@ -28,15 +28,24 @@ import org.slf4j.LoggerFactory;
 
 public final class Preferences {
     private static final Logger logger = LoggerFactory.getLogger(Preferences.class);
-    private final Map<Preference<?>, Object> values;
+
+    // Value paired with its provenance: "env", "prop", "cli", "file", "code", "default", or free-form
+    public record Sourced(Object value, String source) {
+        public Sourced {
+            Objects.requireNonNull(value);
+            Objects.requireNonNull(source);
+        }
+    }
+
+    private final Map<Preference<?>, Sourced> values;
     private final PreferenceProvider provider; // optional lazy fallback
 
     public Preferences() {
         this(Map.of(), null);
     }
 
-    private Preferences(final Map<Preference<?>, Object> values, final PreferenceProvider provider) {
-        var sorted = new TreeMap<>(Preference.comparator());
+    private Preferences(final Map<Preference<?>, Sourced> values, final PreferenceProvider provider) {
+        var sorted = new TreeMap<Preference<?>, Sourced>(Preference.comparator());
         sorted.putAll(values);
         this.values = Collections.unmodifiableSortedMap(sorted);
         this.provider = provider;
@@ -57,6 +66,10 @@ public final class Preferences {
 
     // Explicit set - throws on readonly overwrite
     public <V> Preferences with(final Preference<V> key, final V value) {
+        return with(key, value, Source.CODE);
+    }
+
+    public <V> Preferences with(final Preference<V> key, final V value, final String source) {
         if (value == null) {
             throw new IllegalArgumentException("Cannot set null outcome for preference '" + key.name() + "'");
         }
@@ -66,8 +79,8 @@ public final class Preferences {
         if (!key.validator().test(value)) {
             throw new IllegalArgumentException("Value for preference '" + key.name() + "' fails validation: " + value);
         }
-        final var newValues = new HashMap<Preference<?>, Object>(values);
-        newValues.put(key, value);
+        final var newValues = new HashMap<Preference<?>, Sourced>(values);
+        newValues.put(key, new Sourced(value, source));
         return new Preferences(newValues, this.provider);
     }
 
@@ -78,7 +91,7 @@ public final class Preferences {
         if (!values.containsKey(key)) {
             return this;
         }
-        final var newValues = new HashMap<Preference<?>, Object>(values);
+        final var newValues = new HashMap<Preference<?>, Sourced>(values);
         newValues.remove(key);
         return new Preferences(newValues, this.provider);
     }
@@ -86,15 +99,15 @@ public final class Preferences {
     // Always returns non-null: explicit map value, then provider (converted + validated), then default
     @SuppressWarnings("unchecked")
     public <V> V get(final Preference.Default<V> key) {
-        final var value = (V) values.get(key);
-        if (value != null) {
-            return value;
+        final var sourced = values.get(key);
+        if (sourced != null) {
+            return (V) sourced.value();
         }
         if (provider != null) {
             var raw = provider.resolve(key);
             if (raw.isPresent()) {
                 try {
-                    var converted = (V) PreferenceProvider.convert(key.type(), raw.get());
+                    var converted = (V) PreferenceProvider.convert(key.type(), raw.get().value());
                     if (key.validator().test(converted)) {
                         return converted;
                     }
@@ -102,7 +115,7 @@ public final class Preferences {
                             key.name(), converted, key.defaultValue());
                 } catch (IllegalArgumentException e) {
                     logger.warn("Preference '{}': cannot convert '{}' to {} - using default '{}'",
-                            key.name(), raw.get(), key.type().getSimpleName(), key.defaultValue());
+                            key.name(), raw.get().value(), key.type().getSimpleName(), key.defaultValue());
                 }
             }
         }
@@ -112,24 +125,50 @@ public final class Preferences {
     // Returns explicit map value or provider-resolved value (converted + validated), empty if neither
     @SuppressWarnings("unchecked")
     public <V> Optional<V> valueOf(final Preference<V> key) {
-        final var value = (V) values.get(key);
-        if (value != null) {
-            return Optional.of(value);
+        final var sourced = values.get(key);
+        if (sourced != null) {
+            return Optional.of((V) sourced.value());
         }
         if (provider != null) {
             var raw = provider.resolve(key);
             if (raw.isPresent()) {
                 try {
-                    var converted = (V) PreferenceProvider.convert(key.type(), raw.get());
+                    var converted = (V) PreferenceProvider.convert(key.type(), raw.get().value());
                     if (key.validator().test(converted)) {
                         return Optional.of(converted);
                     }
                     logger.warn("Preference '{}': value '{}' fails validation", key.name(), converted);
                 } catch (IllegalArgumentException e) {
                     logger.warn("Preference '{}': cannot convert '{}' to {}",
-                            key.name(), raw.get(), key.type().getSimpleName());
+                            key.name(), raw.get().value(), key.type().getSimpleName());
                 }
             }
+        }
+        return Optional.empty();
+    }
+
+    // Source of the effective value. Every value has a source; empty iff no value exists.
+    @SuppressWarnings("unchecked")
+    public <V> Optional<String> sourceOf(final Preference<V> key) {
+        final var sourced = values.get(key);
+        if (sourced != null) {
+            return Optional.of(sourced.source());
+        }
+        if (provider != null) {
+            var raw = provider.resolve(key);
+            if (raw.isPresent()) {
+                try {
+                    var converted = (V) PreferenceProvider.convert(key.type(), raw.get().value());
+                    if (key.validator().test(converted)) {
+                        return Optional.of(raw.get().source());
+                    }
+                } catch (IllegalArgumentException e) {
+                    // conversion failed, fall through
+                }
+            }
+        }
+        if (key instanceof Preference.Default<?>) {
+            return Optional.of(Source.DEFAULT);
         }
         return Optional.empty();
     }
@@ -138,7 +177,7 @@ public final class Preferences {
     // This instance's provider survives (the accumulated base carries the provider).
     public Preferences merge(final Preferences other) {
         final var newValues = new HashMap<>(this.values);
-        for (Map.Entry<Preference<?>, Object> entry : other.values.entrySet()) {
+        for (var entry : other.values.entrySet()) {
             final Preference<?> key = entry.getKey();
             if (key.readonly() && this.values.containsKey(key)) {
                 continue;
@@ -170,11 +209,15 @@ public final class Preferences {
             sb.append(k.getKey().type().getTypeName());
             sb.append(")");
             sb.append("=");
-            if (k.getValue() instanceof byte[] bytes) {
+            var sourced = k.getValue();
+            if (sourced.value() instanceof byte[] bytes) {
                 sb.append(HexFormat.of().formatHex(bytes));
             } else {
-                sb.append(k.getValue());
+                sb.append(sourced.value());
             }
+            sb.append("[");
+            sb.append(sourced.source());
+            sb.append("]");
             sb.append(";");
         }
         sb.append("}");

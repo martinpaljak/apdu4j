@@ -42,7 +42,7 @@ import java.util.function.Function;
  * <pre>{@code
  * PreferenceProvider askUser = key -> {
  *     System.out.print(key.name() + "? ");
- *     return Optional.of(scanner.nextLine());
+ *     return Optional.of(new Preferences.Sourced(scanner.nextLine(), "user"));
  * };
  * }</pre>
  *
@@ -53,13 +53,13 @@ public interface PreferenceProvider {
 
     /**
      * Resolves a value for the given preference, or empty if not available.
-     * The value may already be the preference's declared type, or a raw string
-     * that will be converted during resolution.
+     * The returned {@link Preferences.Sourced} pairs the value with its provenance
+     * (e.g. "env", "prop", "file", or a custom source string).
      *
      * @param key the preference to resolve
-     * @return the resolved value (typed or raw string), or empty
+     * @return the resolved value with source, or empty
      */
-    Optional<?> resolve(Preference<?> key);
+    Optional<Preferences.Sourced> resolve(Preference<?> key);
 
     /**
      * Chains this provider with a fallback. This provider is tried first;
@@ -89,7 +89,7 @@ public interface PreferenceProvider {
     static PreferenceProvider environment(Function<String, String> env) {
         return key -> {
             var envName = key.name().toUpperCase().replace('.', '_').replace('-', '_');
-            return Optional.ofNullable(env.apply(envName));
+            return Optional.ofNullable(env.apply(envName)).map(v -> new Preferences.Sourced(v, Source.ENV));
         };
     }
 
@@ -100,7 +100,7 @@ public interface PreferenceProvider {
      * @return system properties provider
      */
     static PreferenceProvider systemProperties() {
-        return key -> Optional.ofNullable(System.getProperty(key.name()));
+        return key -> Optional.ofNullable(System.getProperty(key.name())).map(v -> new Preferences.Sourced(v, Source.PROP));
     }
 
     /**
@@ -111,29 +111,31 @@ public interface PreferenceProvider {
      * @return properties-backed provider
      */
     static PreferenceProvider properties(Properties props) {
-        return key -> Optional.ofNullable(props.getProperty(key.name()));
+        return key -> Optional.ofNullable(props.getProperty(key.name())).map(v -> new Preferences.Sourced(v, Source.FILE));
     }
 
     /**
      * Provider backed by a {@link Map} with preference names as keys.
      * Values may be strings (converted during resolution) or already typed.
      *
-     * @param map the map to read from (keys are preference names)
+     * @param map    the map to read from (keys are preference names)
+     * @param source provenance label for resolved values (e.g. "cli", "file")
      * @return map-backed provider
      */
-    static PreferenceProvider map(Map<String, ?> map) {
-        return key -> Optional.ofNullable(map.get(key.name()));
+    static PreferenceProvider map(Map<String, ?> map, String source) {
+        return key -> Optional.ofNullable(map.get(key.name())).map(v -> new Preferences.Sourced(v, source));
     }
 
     /**
      * Provider backed by a typed {@link Map} keyed by {@link Preference} instances.
      * Values should match the preference's declared type; no conversion is needed.
      *
-     * @param map the map to read from (keys are Preference instances)
+     * @param map    the map to read from (keys are Preference instances)
+     * @param source provenance label for resolved values
      * @return typed map-backed provider
      */
-    static PreferenceProvider typed(Map<Preference<?>, ?> map) {
-        return key -> Optional.ofNullable(map.get(key));
+    static PreferenceProvider typed(Map<Preference<?>, ?> map, String source) {
+        return key -> Optional.ofNullable(map.get(key)).map(v -> new Preferences.Sourced(v, source));
     }
 
     /**
