@@ -138,45 +138,4 @@ public interface PreferenceProvider {
         return key -> Optional.ofNullable(map.get(key)).map(v -> new Preferences.Sourced(v, source));
     }
 
-    /**
-     * Converts a raw value to the preference's declared type.
-     * If the value is already the target type, it is returned as-is.
-     * Otherwise, string values are parsed. Supports: String, Boolean, Integer, Long, byte[] (hex).
-     *
-     * @param type the target type
-     * @param raw  the raw value (typed or String)
-     * @return the converted value
-     * @throws IllegalArgumentException if the type is unsupported or parsing fails
-     */
-    static Object convert(Class<?> type, Object raw) {
-        if (type.isInstance(raw)) {
-            return raw;
-        }
-        if (raw instanceof String s) {
-            s = s.strip();
-            if (type == String.class) {
-                return s;
-            }
-            if (type == Boolean.class) {
-                return Boolean.parseBoolean(s);
-            }
-            if (type == Integer.class) {
-                if (s.toLowerCase(Locale.ROOT).startsWith("0x")) {
-                    return Integer.parseInt(s.substring(2), 16);
-                }
-                return Integer.parseInt(s);
-            }
-            if (type == Long.class) {
-                if (s.toLowerCase(Locale.ROOT).startsWith("0x")) {
-                    return Long.parseLong(s.substring(2), 16);
-                }
-                return Long.parseLong(s);
-            }
-            if (type == byte[].class) {
-                return HexFormat.of().parseHex(s);
-            }
-            throw new IllegalArgumentException("Cannot convert String to " + type.getTypeName());
-        }
-        throw new IllegalArgumentException("Cannot convert " + raw.getClass().getTypeName() + " to " + type.getTypeName());
-    }
 }

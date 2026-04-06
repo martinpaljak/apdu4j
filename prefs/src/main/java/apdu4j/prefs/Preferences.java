@@ -103,21 +103,9 @@ public final class Preferences {
         if (sourced != null) {
             return (V) sourced.value();
         }
-        if (provider != null) {
-            var raw = provider.resolve(key);
-            if (raw.isPresent()) {
-                try {
-                    var converted = (V) PreferenceProvider.convert(key.type(), raw.get().value());
-                    if (key.validator().test(converted)) {
-                        return converted;
-                    }
-                    logger.warn("Preference '{}': value '{}' fails validation - using default '{}'",
-                            key.name(), converted, key.defaultValue());
-                } catch (IllegalArgumentException e) {
-                    logger.warn("Preference '{}': cannot convert '{}' to {} - using default '{}'",
-                            key.name(), raw.get().value(), key.type().getSimpleName(), key.defaultValue());
-                }
-            }
+        var resolved = resolveFromProvider(key);
+        if (resolved.isPresent()) {
+            return (V) resolved.get().value();
         }
         return key.defaultValue();
     }
@@ -129,46 +117,51 @@ public final class Preferences {
         if (sourced != null) {
             return Optional.of((V) sourced.value());
         }
-        if (provider != null) {
-            var raw = provider.resolve(key);
-            if (raw.isPresent()) {
-                try {
-                    var converted = (V) PreferenceProvider.convert(key.type(), raw.get().value());
-                    if (key.validator().test(converted)) {
-                        return Optional.of(converted);
-                    }
-                    logger.warn("Preference '{}': value '{}' fails validation", key.name(), converted);
-                } catch (IllegalArgumentException e) {
-                    logger.warn("Preference '{}': cannot convert '{}' to {}",
-                            key.name(), raw.get().value(), key.type().getSimpleName());
-                }
-            }
-        }
-        return Optional.empty();
+        return resolveFromProvider(key).map(s -> (V) s.value());
     }
 
     // Source of the effective value. Every value has a source; empty iff no value exists.
-    @SuppressWarnings("unchecked")
     public <V> Optional<String> sourceOf(final Preference<V> key) {
         final var sourced = values.get(key);
         if (sourced != null) {
             return Optional.of(sourced.source());
         }
-        if (provider != null) {
-            var raw = provider.resolve(key);
-            if (raw.isPresent()) {
-                try {
-                    var converted = (V) PreferenceProvider.convert(key.type(), raw.get().value());
-                    if (key.validator().test(converted)) {
-                        return Optional.of(raw.get().source());
-                    }
-                } catch (IllegalArgumentException e) {
-                    // conversion failed, fall through
-                }
-            }
+        var resolved = resolveFromProvider(key);
+        if (resolved.isPresent()) {
+            return Optional.of(resolved.get().source());
         }
         if (key instanceof Preference.Default<?>) {
             return Optional.of(Source.DEFAULT);
+        }
+        return Optional.empty();
+    }
+
+    // Resolve from provider: convert + validate, or empty
+    @SuppressWarnings("unchecked")
+    private <V> Optional<Sourced> resolveFromProvider(Preference<V> key) {
+        if (provider == null) {
+            return Optional.empty();
+        }
+        var raw = provider.resolve(key);
+        if (raw.isEmpty()) {
+            return Optional.empty();
+        }
+        try {
+            var rawValue = raw.get().value();
+            V converted;
+            if (key.type().isInstance(rawValue)) {
+                converted = key.type().cast(rawValue);
+            } else if (rawValue instanceof String s) {
+                converted = key.converter().parse(s);
+            } else {
+                throw new IllegalArgumentException("Cannot convert " + rawValue.getClass().getTypeName() + " to " + key.type().getTypeName());
+            }
+            if (key.validator().test(converted)) {
+                return Optional.of(new Sourced(converted, raw.get().source()));
+            }
+            logger.warn("Preference '{}': value '{}' fails validation", key.name(), converted);
+        } catch (IllegalArgumentException e) {
+            logger.warn("Preference '{}': cannot convert '{}' to {}", key.name(), raw.get().value(), key.type().getSimpleName());
         }
         return Optional.empty();
     }
@@ -203,25 +196,23 @@ public final class Preferences {
     public String toString() {
         final var sb = new StringBuilder();
         sb.append("Preferences{");
-        for (var k : values.entrySet()) {
-            sb.append(k.getKey().name());
+        for (var e : values.entrySet()) {
+            sb.append(e.getKey().name());
             sb.append("(");
-            sb.append(k.getKey().type().getTypeName());
-            sb.append(")");
-            sb.append("=");
-            var sourced = k.getValue();
-            if (sourced.value() instanceof byte[] bytes) {
-                sb.append(HexFormat.of().formatHex(bytes));
-            } else {
-                sb.append(sourced.value());
-            }
+            sb.append(e.getKey().type().getTypeName());
+            sb.append(")=");
+            sb.append(formatValue(e.getKey(), e.getValue()));
             sb.append("[");
-            sb.append(sourced.source());
-            sb.append("]");
-            sb.append(";");
+            sb.append(e.getValue().source());
+            sb.append("];");
         }
         sb.append("}");
         return sb.toString();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <V> String formatValue(Preference<V> key, Sourced sourced) {
+        return key.converter().format((V) sourced.value());
     }
 
     /**

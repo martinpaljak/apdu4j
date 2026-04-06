@@ -34,6 +34,8 @@ public sealed interface Preference<V> permits Preference.Default, Preference.Par
 
     Predicate<V> validator();
 
+    StringConverter<V> converter();
+
     static <T> Default<T> of(String name, Class<T> type, T defaultValue, boolean readonly) {
         return new Default<>(name, type, defaultValue, readonly, x -> true);
     }
@@ -58,14 +60,19 @@ public sealed interface Preference<V> permits Preference.Default, Preference.Par
                 .thenComparing(p -> p.type().getTypeName());
     }
 
-    // Not a record: equals/hashCode on name + type only (excludes validator and metadata)
+    // Not a record: equals/hashCode on name + type only (excludes validator, converter, metadata)
     abstract class Base<V> {
         private final String name;
         private final Class<V> type;
         private final boolean readonly;
         private final Predicate<V> validator;
+        private final StringConverter<V> converter;
 
         Base(String name, Class<V> type, boolean readonly, Predicate<V> validator) {
+            this(name, type, readonly, validator, StringConverter.forType(type));
+        }
+
+        Base(String name, Class<V> type, boolean readonly, Predicate<V> validator, StringConverter<V> converter) {
             this.name = Objects.requireNonNull(name);
             if (name.isBlank()) {
                 throw new IllegalArgumentException("Preference name must not be blank");
@@ -73,6 +80,7 @@ public sealed interface Preference<V> permits Preference.Default, Preference.Par
             this.type = Objects.requireNonNull(type);
             this.readonly = readonly;
             this.validator = Objects.requireNonNull(validator, "Must have a validator!");
+            this.converter = Objects.requireNonNull(converter);
         }
 
         public String name() {
@@ -89,6 +97,10 @@ public sealed interface Preference<V> permits Preference.Default, Preference.Par
 
         public Predicate<V> validator() {
             return validator;
+        }
+
+        public StringConverter<V> converter() {
+            return converter;
         }
 
         @Override
@@ -108,7 +120,14 @@ public sealed interface Preference<V> permits Preference.Default, Preference.Par
         public Default(String name, Class<V> type, V defaultValue, boolean readonly, Predicate<V> validator) {
             super(name, type, readonly, validator);
             this.defaultValue = Objects.requireNonNull(defaultValue, "Must have a sane default value!");
-            // Default must satisfy its own validator
+            if (!validator.test(defaultValue)) {
+                throw new IllegalArgumentException("Default value for preference '" + name + "' fails validation: " + defaultValue);
+            }
+        }
+
+        Default(String name, Class<V> type, V defaultValue, boolean readonly, Predicate<V> validator, StringConverter<V> converter) {
+            super(name, type, readonly, validator, converter);
+            this.defaultValue = Objects.requireNonNull(defaultValue, "Must have a sane default value!");
             if (!validator.test(defaultValue)) {
                 throw new IllegalArgumentException("Default value for preference '" + name + "' fails validation: " + defaultValue);
             }
@@ -116,6 +135,10 @@ public sealed interface Preference<V> permits Preference.Default, Preference.Par
 
         public V defaultValue() {
             return defaultValue;
+        }
+
+        public Default<V> withConverter(StringConverter<V> converter) {
+            return new Default<>(name(), type(), defaultValue, readonly(), validator(), converter);
         }
 
         @Override
@@ -127,6 +150,14 @@ public sealed interface Preference<V> permits Preference.Default, Preference.Par
     final class Parameter<V> extends Base<V> implements Preference<V> {
         public Parameter(String name, Class<V> type, boolean readonly, Predicate<V> validator) {
             super(name, type, readonly, validator);
+        }
+
+        Parameter(String name, Class<V> type, boolean readonly, Predicate<V> validator, StringConverter<V> converter) {
+            super(name, type, readonly, validator, converter);
+        }
+
+        public Parameter<V> withConverter(StringConverter<V> converter) {
+            return new Parameter<>(name(), type(), readonly(), validator(), converter);
         }
 
         @Override
