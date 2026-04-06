@@ -88,7 +88,7 @@ public interface PreferenceProvider {
     // Testable: accepts a custom env lookup function
     static PreferenceProvider environment(Function<String, String> env) {
         return key -> {
-            var envName = key.name().toUpperCase().replace('.', '_').replace('-', '_');
+            var envName = key.name().toUpperCase(Locale.ROOT).replace('.', '_').replace('-', '_');
             return Optional.ofNullable(env.apply(envName)).map(v -> new Preferences.Sourced(v, Source.ENV));
         };
     }

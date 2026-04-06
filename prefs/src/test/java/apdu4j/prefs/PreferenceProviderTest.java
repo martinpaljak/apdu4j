@@ -117,6 +117,13 @@ public class PreferenceProviderTest {
         // Both empty
         assertTrue(chained.resolve(EXCLUSIVE).isEmpty());
 
+        // Triple chain: a.orElse(b).orElse(c)
+        var third = PreferenceProvider.map(Map.of("reader.exclusive", "true"), "env");
+        var triple = primary.orElse(fallback).orElse(third);
+        assertEquals(triple.resolve(PROTOCOL).orElseThrow().source(), "cli");
+        assertEquals(triple.resolve(TIMEOUT).orElseThrow().source(), "file");
+        assertEquals(triple.resolve(EXCLUSIVE).orElseThrow().source(), "env");
+
         // Chain with type conversion through Preferences
         var cli = PreferenceProvider.map(Map.of("reader.timeout", "3000"), "cli");
         var file = PreferenceProvider.map(Map.of("reader.exclusive", "true"), "file");
@@ -144,11 +151,16 @@ public class PreferenceProviderTest {
         assertEquals(prefs.get(EXCLUSIVE), Boolean.TRUE);
         assertEquals(prefs.get(TIMEOUT), Integer.valueOf(3000));
 
+        // Boolean.parseBoolean: non-"true" strings silently become false
+        var boolProv = PreferenceProvider.map(Map.of("reader.exclusive", "yes"), "test");
+        assertFalse(new Preferences().withProvider(boolProv).get(EXCLUSIVE));
+
         // Parameter + byte[]
         var keyData = Preference.of("key.data", byte[].class, new byte[0], false);
         var p2 = PreferenceProvider.map(Map.of("session.key", "abc", "key.data", "deadbeef"), "file");
         var prefs2 = new Preferences().withProvider(p2);
         assertEquals(prefs2.valueOf(SESSION_KEY).orElseThrow(), "abc");
+        assertEquals(prefs2.sourceOf(SESSION_KEY).orElseThrow(), "file");
         assertEquals(prefs2.get(keyData), new byte[]{(byte) 0xDE, (byte) 0xAD, (byte) 0xBE, (byte) 0xEF});
 
         // Hex prefix + Long + whitespace stripping
@@ -187,5 +199,50 @@ public class PreferenceProviderTest {
         assertEquals(prefs3.get(bounded), Integer.valueOf(8080));
         assertTrue(prefs3.valueOf(bounded).isEmpty());
         assertEquals(prefs3.sourceOf(bounded).orElseThrow(), "default");
+
+        // Conversion failure on Parameter (no default fallback)
+        var param = Preference.parameter("count", Integer.class, false);
+        var badParam = new Preferences().withProvider(PreferenceProvider.map(Map.of("count", "notanumber"), "cli"));
+        assertTrue(badParam.valueOf(param).isEmpty());
+        assertTrue(badParam.sourceOf(param).isEmpty());
+    }
+
+    // === StringConverter direct edge cases ===
+
+    @Test
+    void stringConverterEdgeCases() {
+        // Negative integer and long
+        assertEquals(StringConverter.INTEGER.parse("-5"), Integer.valueOf(-5));
+        assertEquals(StringConverter.LONG.parse("-100"), Long.valueOf(-100));
+
+        // 0x prefix case-insensitive (uppercase X)
+        assertEquals(StringConverter.INTEGER.parse("0XFF"), Integer.valueOf(255));
+        assertEquals(StringConverter.LONG.parse("0XFF"), Long.valueOf(255));
+
+        // Boolean: "false", "FALSE", junk all become false; only "true"/"TRUE" -> true
+        assertFalse(StringConverter.BOOLEAN.parse("false"));
+        assertFalse(StringConverter.BOOLEAN.parse("FALSE"));
+        assertFalse(StringConverter.BOOLEAN.parse("yes"));
+        assertTrue(StringConverter.BOOLEAN.parse("TRUE"));
+
+        // String strips whitespace
+        assertEquals(StringConverter.STRING.parse("  hello  "), "hello");
+
+        // UNSUPPORTED throws
+        assertThrows(IllegalArgumentException.class, () -> StringConverter.UNSUPPORTED.parse("anything"));
+
+        // Empty hex prefix: "0x" alone
+        assertThrows(NumberFormatException.class, () -> StringConverter.INTEGER.parse("0x"));
+        assertThrows(NumberFormatException.class, () -> StringConverter.LONG.parse("0x"));
+
+        // Odd-length hex for bytes
+        assertThrows(IllegalArgumentException.class, () -> StringConverter.BYTES.parse("abc"));
+
+        // Empty string
+        assertThrows(NumberFormatException.class, () -> StringConverter.INTEGER.parse(""));
+        assertThrows(NumberFormatException.class, () -> StringConverter.LONG.parse(""));
+
+        // Integer overflow
+        assertThrows(NumberFormatException.class, () -> StringConverter.INTEGER.parse("2147483648"));
     }
 }

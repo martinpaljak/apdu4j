@@ -85,11 +85,11 @@ public final class Preferences {
     }
 
     public <V> Preferences without(final Preference<V> key) {
-        if (key.readonly()) {
-            throw new IllegalArgumentException("Can't remove readonly preference!");
-        }
         if (!values.containsKey(key)) {
             return this;
+        }
+        if (key.readonly()) {
+            throw new IllegalArgumentException("Can't remove readonly preference!");
         }
         final var newValues = new HashMap<Preference<?>, Sourced>(values);
         newValues.remove(key);
@@ -160,7 +160,7 @@ public final class Preferences {
                 return Optional.of(new Sourced(converted, raw.get().source()));
             }
             logger.warn("Preference '{}': value '{}' fails validation", key.name(), converted);
-        } catch (IllegalArgumentException e) {
+        } catch (RuntimeException e) {
             logger.warn("Preference '{}': cannot convert '{}' to {}", key.name(), raw.get().value(), key.type().getSimpleName());
         }
         return Optional.empty();

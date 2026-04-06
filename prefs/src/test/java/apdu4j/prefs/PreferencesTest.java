@@ -66,6 +66,16 @@ public class PreferencesTest {
         var bounded = Preference.of("port", Integer.class, 8080, false, p -> p > 0 && p < 65536);
         Assert.assertEquals(new Preferences().with(bounded, 443).get(bounded), Integer.valueOf(443));
         Assert.assertThrows(IllegalArgumentException.class, () -> new Preferences().with(bounded, -1));
+
+        // Sourced record rejects nulls
+        Assert.assertThrows(NullPointerException.class, () -> new Preferences.Sourced(null, "src"));
+        Assert.assertThrows(NullPointerException.class, () -> new Preferences.Sourced("val", null));
+
+        // Cross-permit: Default and Parameter with same (name, type) are equal
+        var def = Preference.of("x", String.class, "d", false);
+        var par = Preference.parameter("x", String.class, false);
+        Assert.assertEquals(def, par);
+        Assert.assertEquals(def.hashCode(), par.hashCode());
     }
 
     // === Resolution without provider ===
@@ -113,8 +123,8 @@ public class PreferencesTest {
         Assert.assertFalse(prefs.get(pref));
         Assert.assertTrue(prefs.isEmpty());
 
-        // without on non-existent is no-op
-        Assert.assertEquals(prefs.without(pref), prefs);
+        // without on non-existent is no-op (same instance)
+        Assert.assertSame(prefs.without(pref), prefs);
 
         // Mixed Default + Parameter, keys contains both
         prefs = new Preferences().with(NAME, "overridden").with(SESSION, "key123");
@@ -140,6 +150,10 @@ public class PreferencesTest {
         var prefs = new Preferences().with(READONLY, "locked");
         Assert.assertThrows(IllegalStateException.class, () -> prefs.with(READONLY, "new"));
         Assert.assertThrows(IllegalArgumentException.class, () -> prefs.without(READONLY));
+
+        // without() on absent readonly is no-op (key not present takes priority)
+        var empty = new Preferences();
+        Assert.assertSame(empty.without(READONLY), empty);
     }
 
     // === Merge ===
@@ -161,6 +175,13 @@ public class PreferencesTest {
 
         // Readonly into empty: accepted
         Assert.assertEquals(new Preferences().merge(withReadonly).get(READONLY), "original");
+
+        // merge discards other's provider (receiver's survives)
+        var provA = PreferenceProvider.map(Map.of("name", "fromA"), "a");
+        var provB = PreferenceProvider.map(Map.of("name", "fromB"), "b");
+        var mergedProviders = new Preferences().withProvider(provA).merge(new Preferences().withProvider(provB));
+        Assert.assertEquals(mergedProviders.get(NAME), "fromA");
+        Assert.assertEquals(mergedProviders.sourceOf(NAME).orElseThrow(), "a");
     }
 
     // === Display formatting ===
@@ -176,6 +197,19 @@ public class PreferencesTest {
 
         Assert.assertEquals(new Preferences().with(NAME, "val", "cli").toString(),
                 "Preferences{name(java.lang.String)=val[cli];}");
+
+        // Empty
+        Assert.assertEquals(new Preferences().toString(), "Preferences{}");
+
+        // Multiple entries: deterministic order
+        var zzz = Preference.of("zzz", String.class, "d", false);
+        Assert.assertEquals(new Preferences().with(NAME, "a").with(zzz, "b").toString(),
+                "Preferences{name(java.lang.String)=a[code];zzz(java.lang.String)=b[code];}");
+
+        // Parameter
+        var param = Preference.parameter("token", String.class, false);
+        Assert.assertEquals(new Preferences().with(param, "abc").toString(),
+                "Preferences{token(java.lang.String)=abc[code];}");
     }
 
     // === Provider lifecycle: lazy fallback, precedence, propagation ===
@@ -203,10 +237,16 @@ public class PreferencesTest {
         var extra = new Preferences().with(Preference.of("extra", String.class, "d", false), "val");
         Assert.assertEquals(base.merge(extra).get(NAME), "from_provider");
 
+        // withProvider replaces previous provider (#12)
+        var first = PreferenceProvider.map(Map.of("name", "first"), "a");
+        var second = PreferenceProvider.map(Map.of("name", "second"), "b");
+        var replaced = new Preferences().withProvider(first).withProvider(second);
+        Assert.assertEquals(replaced.get(NAME), "second");
+        Assert.assertEquals(replaced.sourceOf(NAME).orElseThrow(), "b");
+
         // fromEnvironment convenience
         var envPrefs = Preferences.fromEnvironment();
         Assert.assertTrue(envPrefs.isEmpty());
-        Assert.assertNotNull(envPrefs.get(NAME));
     }
 
     // === Custom converter: parse, format, identity ===
@@ -216,11 +256,11 @@ public class PreferencesTest {
         // Parse-only lambda on Parameter
         var hex = Preference.parameter("count", Integer.class, false)
                 .withConverter(s -> Integer.parseInt(s.strip(), 16));
+        // withConverter preserves identity (name + type)
+        Assert.assertEquals(hex, Preference.parameter("count", Integer.class, false));
+        // ...but converter IS set: custom hex parse works
         var provider = PreferenceProvider.map(Map.of("count", "FF"), "test");
         Assert.assertEquals(new Preferences().withProvider(provider).valueOf(hex).orElseThrow(), Integer.valueOf(255));
-
-        // withConverter preserves identity
-        Assert.assertEquals(hex, Preference.parameter("count", Integer.class, false));
 
         // Round-trip converter on Default: custom format reflected in toString
         var upper = Preference.of("key", byte[].class, new byte[0], false)
@@ -231,5 +271,21 @@ public class PreferencesTest {
         Assert.assertEquals(new Preferences().withProvider(PreferenceProvider.map(Map.of("key", "cafe"), "test"))
                 .get(upper), new byte[]{(byte) 0xCA, (byte) 0xFE});
         Assert.assertTrue(new Preferences().with(upper, new byte[]{(byte) 0xCA, (byte) 0xFE}).toString().contains("CAFE"));
+    }
+
+    // === Static factories ===
+
+    @Test
+    void ofFactories() {
+        Assert.assertTrue(Preferences.of().isEmpty());
+
+        var single = Preferences.of(NAME, "val");
+        Assert.assertEquals(single.get(NAME), "val");
+        Assert.assertEquals(single.size(), 1);
+
+        var pair = Preferences.of(NAME, "a", READONLY, "b");
+        Assert.assertEquals(pair.size(), 2);
+        Assert.assertEquals(pair.get(NAME), "a");
+        Assert.assertEquals(pair.get(READONLY), "b");
     }
 }
