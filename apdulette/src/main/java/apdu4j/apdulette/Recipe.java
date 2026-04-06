@@ -28,12 +28,12 @@ import apdu4j.apdulette.PreparationStep.Seasoned;
 import apdu4j.apdulette.Verdict.Error;
 import apdu4j.apdulette.Verdict.NextStep;
 import apdu4j.apdulette.Verdict.Ready;
-import apdu4j.prefs.Preference;
 import apdu4j.prefs.Preferences;
 
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.*;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * A lazy, composable description of a card interaction that produces a value of type {@code T}.
@@ -197,22 +197,6 @@ public interface Recipe<T> {
     }
 
     /**
-     * Short-circuits with an exception if the result fails the predicate.
-     *
-     * @param test predicate to check the result
-     * @param ex   exception supplier, thrown when {@code test} returns false
-     * @return a recipe that validates its result before continuing
-     */
-    default Recipe<T> validate(Predicate<T> test, Supplier<? extends RuntimeException> ex) {
-        return then(t -> {
-            if (!test.test(t)) {
-                throw ex.get();
-            }
-            return premade(t);
-        });
-    }
-
-    /**
      * Runs a side-effect on the result, then continues with the same value.
      * Useful for logging or capturing intermediate results.
      *
@@ -235,45 +219,6 @@ public interface Recipe<T> {
      */
     default Recipe<Optional<T>> optional() {
         return this.map(Optional::of).recover(err -> premade(Optional.empty()));
-    }
-
-    /**
-     * Short-circuits with a prepare-time failure if the result fails the predicate.
-     * Unlike {@link #validate} which throws a runtime exception, this stays within
-     * the recipe error model - the failure is a {@link PreparationStep.Failed} that
-     * propagates as a {@link KitchenDisaster} but does not bypass the Chef trampoline.
-     *
-     * @param test     predicate to check the result
-     * @param errorMsg error message when {@code test} returns false
-     * @return a recipe that filters its result, failing on predicate mismatch
-     */
-    default Recipe<T> filter(Predicate<T> test, String errorMsg) {
-        return then(v -> test.test(v) ? premade(v) : error(errorMsg));
-    }
-
-    /**
-     * Injects preferences derived from this recipe's result into the execution
-     * context. Downstream recipes (and tasters) see the injected preferences
-     * merged into the accumulated {@link Preferences}.
-     *
-     * @param seasoning function that extracts preferences from the result
-     * @return a recipe that produces the same value but enriches the preference context
-     */
-    default Recipe<T> season(Function<T, Preferences> seasoning) {
-        return then(v -> Cookbook.season(v, seasoning.apply(v)));
-    }
-
-    /**
-     * Single-key shorthand for {@link #season(Function)}. Injects one preference
-     * derived from this recipe's result.
-     *
-     * @param key       the preference key to set
-     * @param extractor function that extracts the preference value from the result
-     * @param <V>       the preference value type
-     * @return a recipe that produces the same value but adds the preference
-     */
-    default <V> Recipe<T> season(Preference<V> key, Function<T, V> extractor) {
-        return season(v -> Preferences.of(key, extractor.apply(v)));
     }
 
 }

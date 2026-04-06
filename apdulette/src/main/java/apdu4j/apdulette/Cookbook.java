@@ -179,7 +179,7 @@ public final class Cookbook {
      * @return a recipe that produces the validated data bytes
      */
     public static Recipe<byte[]> data(CommandAPDU cmd, Predicate<byte[]> test, String errorMsg) {
-        return send(cmd).map(ResponseAPDU::getData).filter(test, errorMsg);
+        return send(cmd).map(ResponseAPDU::getData).then(v -> test.test(v) ? Recipe.premade(v) : Recipe.error(errorMsg));
     }
 
     /**
@@ -329,58 +329,127 @@ public final class Cookbook {
         };
     }
 
+    // === Looping ===
+
+    /**
+     * Loop decision: keep going with new state, or stop with a result.
+     *
+     * @param <S> the loop state type
+     * @param <A> the result type when done
+     * @see #loop
+     */
+    sealed interface Loop<S, A> {
+        record Continue<S, A>(S state) implements Loop<S, A> {}
+        record Done<S, A>(A result) implements Loop<S, A> {}
+    }
+
+    /**
+     * General-purpose monadic loop (tailRecM). Repeatedly applies the step
+     * function to the current state until it returns {@link Loop.Done}.
+     *
+     * <p>Each iteration is trampolined through the {@link Chef} - no stack
+     * overflow as long as the step produces at least one I/O step per iteration.
+     *
+     * <pre>{@code
+     * // Count card responses until SW != 9000
+     * Recipe<Integer> countOk = Cookbook.loop(0, n ->
+     *     Cookbook.send(cmd, Cookbook.any()).then(r ->
+     *         r.getSW() == 0x9000
+     *             ? Recipe.premade(new Loop.Continue<>(n + 1))
+     *             : Recipe.premade(new Loop.Done<>(n))));
+     * }</pre>
+     *
+     * @param seed  the initial state
+     * @param step  produces a recipe that decides to continue or stop
+     * @param <S>   the loop state type
+     * @param <A>   the result type
+     * @return a recipe that loops until the step returns {@link Loop.Done}
+     */
+    public static <S, A> Recipe<A> loop(S seed, Function<S, Recipe<Loop<S, A>>> step) {
+        return step.apply(seed).then(decision -> switch (decision) {
+            case Loop.Done<S, A>(var result) -> Recipe.premade(result);
+            case Loop.Continue<S, A>(var next) -> loop(next, step);
+        });
+    }
+
     // === Accumulation recipes ===
 
     /**
-     * Step decision for {@link #gather}: done, continue, or fail.
+     * Accumulates response data across multiple command exchanges, driven by
+     * status word matching. Sends the initial command, then for each response:
+     * <ul>
+     *   <li>{@code continueSW} - include response data, send {@code more(response)}</li>
+     *   <li>{@code doneSW} or any SW in {@code alsoDone} - include response data, stop</li>
+     *   <li>anything else - fail with {@code errorMsg}</li>
+     * </ul>
+     *
+     * <p>Covers SW-continuation patterns (GP GET STATUS with 6310,
+     * ISO GET RESPONSE with 61xx) without exposing intermediate types:
+     * <pre>{@code
+     * // GP GET STATUS with 6310 continuation
+     * var recipe = Cookbook.gather(
+     *     cmd(INS_GET_STATUS, p1, p2, filter),
+     *     0x6310, r -> cmd(INS_GET_STATUS, p1, p2 | 0x01, filter),
+     *     0x9000, "GET STATUS failed",
+     *     List.of(0x6A88, 0x6A86, 0x6A81));
+     *
+     * // ISO GET RESPONSE (61xx) with dynamic Le
+     * var recipe = Cookbook.gather(
+     *     someCmd,
+     *     0x6100, r -> new CommandAPDU(0x00, 0xC0, 0x00, 0x00, r.getSW2()),
+     *     0x9000, "command failed",
+     *     List.of());
+     * }</pre>
+     *
+     * @param initial    the first command to send
+     * @param continueSW status word that means "more data available"
+     * @param more       produces the next command from the current response
+     * @param doneSW     status word that means "last chunk, stop"
+     * @param errorMsg   error prefix for unexpected status words
+     * @param alsoDone   additional status words that also mean "stop"
+     * @return a recipe that produces the concatenated data from all exchanges
      */
-    public sealed interface Gather {
-        record Done(byte[] data) implements Gather {
-        }
-
-        record More(byte[] data, CommandAPDU next) implements Gather {
-        }
-
-        record Fail(String error) implements Gather {
-        }
+    public static Recipe<byte[]> gather(CommandAPDU initial, int continueSW,
+                                             Function<ResponseAPDU, CommandAPDU> more,
+                                             int doneSW, String errorMsg,
+                                             List<Integer> alsoDone) {
+        return gather(initial, continueSW, more, ResponseAPDU::getData, doneSW, errorMsg, alsoDone);
     }
 
     /**
-     * Sends a command and accumulates response data across multiple exchanges.
-     * The step function examines each response and the accumulated byte count,
-     * deciding whether to continue, finish, or fail.
+     * Like {@link #gather(CommandAPDU, int, Function, int, String, List)}
+     * but with a custom data extractor applied to each response before
+     * concatenation. Useful when response data needs stripping (e.g. unwrap
+     * a TLV envelope) or transformation before accumulation.
      *
-     * <p>Covers SW-continuation (GP GET STATUS 6310, ISO GET RESPONSE 61xx)
-     * and offset-based reads (READ BINARY until EOF):
-     * <pre>{@code
-     * var recipe = Cookbook.gather(
-     *     new CommandAPDU(0x00, 0xB0, 0x00, 0x00, 256),
-     *     (r, offset) -> {
-     *         if (r.getSW() == 0x9000 && r.getData().length == 256) {
-     *             int next = offset + r.getData().length;
-     *             return new Gather.More(r.getData(),
-     *                 new CommandAPDU(0x00, 0xB0, next >> 8, next & 0xFF, 256));
-     *         }
-     *         return r.getSW1() == 0x90 || r.getSW1() == 0x62
-     *             ? new Gather.Done(r.getData())
-     *             : new Gather.Fail("READ BINARY failed");
-     *     });
-     * }</pre>
-     *
-     * @param cmd  the initial command to send
-     * @param step examines each response + accumulated byte count, returns decision
-     * @return a recipe that produces the concatenated data from all exchanges
+     * @param initial     the first command to send
+     * @param continueSW  status word that means "more data available"
+     * @param more        produces the next command from the current response
+     * @param extractData extracts the bytes to gather from each response
+     * @param doneSW      status word that means "last chunk, stop"
+     * @param errorMsg    error prefix for unexpected status words
+     * @param alsoDone    additional status words that also mean "stop"
+     * @return a recipe that produces the concatenated extracted data
      */
-    public static Recipe<byte[]> gather(CommandAPDU cmd, BiFunction<ResponseAPDU, Integer, Gather> step) {
-        return gatherLoop(cmd, step, new byte[0]);
-    }
-
-    private static Recipe<byte[]> gatherLoop(CommandAPDU cmd, BiFunction<ResponseAPDU, Integer, Gather> step, byte[] acc) {
-        return send(cmd, any()).then(r -> switch (step.apply(r, acc.length)) {
-            case Gather.Done(var data) -> Recipe.premade(concat(acc, data));
-            case Gather.More(var data, var next) -> gatherLoop(next, step, concat(acc, data));
-            case Gather.Fail(var msg) -> Recipe.error(msg);
-        });
+    public static Recipe<byte[]> gather(CommandAPDU initial, int continueSW,
+                                             Function<ResponseAPDU, CommandAPDU> more,
+                                             Function<ResponseAPDU, byte[]> extractData,
+                                             int doneSW, String errorMsg,
+                                             List<Integer> alsoDone) {
+        record Acc(CommandAPDU cmd, byte[] data) {}
+        return loop(
+                new Acc(initial, new byte[0]),
+                acc -> send(acc.cmd, any()).then(r -> {
+                    var sw = r.getSW();
+                    if (sw == continueSW) {
+                        return Recipe.premade(new Loop.Continue<>(
+                                new Acc(more.apply(r), concat(acc.data, extractData.apply(r)))));
+                    }
+                    if (sw == doneSW || alsoDone.contains(sw)) {
+                        return Recipe.premade(new Loop.Done<>(concat(acc.data, extractData.apply(r))));
+                    }
+                    return Recipe.error("%s (SW: %04X)".formatted(errorMsg, sw));
+                }));
     }
 
     private static byte[] concat(byte[] a, byte[] b) {

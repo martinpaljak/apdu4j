@@ -225,12 +225,12 @@ public class PreferencesTest {
     }
 
     @Test
-    void providerWithTypeCoercion() {
+    void providerWithTypeConversion() {
         var timeout = Preference.of("timeout", Integer.class, 5000, false);
         var provider = PreferenceProvider.map(Map.of("timeout", "3000"));
         var prefs = new Preferences().withProvider(provider);
 
-        // String "3000" coerced to Integer 3000
+        // String "3000" converted to Integer 3000
         Assert.assertEquals(prefs.get(timeout), Integer.valueOf(3000));
         Assert.assertEquals(prefs.valueOf(timeout).orElseThrow(), Integer.valueOf(3000));
     }
@@ -241,19 +241,19 @@ public class PreferencesTest {
         var provider = PreferenceProvider.map(Map.of("port", "99999"));
         var prefs = new Preferences().withProvider(provider);
 
-        // Coercion succeeds but validator rejects - falls back to default
+        // Conversion succeeds but validator rejects - falls back to default
         Assert.assertEquals(prefs.get(bounded), Integer.valueOf(8080));
         // valueOf returns empty
         Assert.assertTrue(prefs.valueOf(bounded).isEmpty());
     }
 
     @Test
-    void providerCoercionFailureFallsToDefault() {
+    void providerConversionFailureFallsToDefault() {
         var timeout = Preference.of("timeout", Integer.class, 5000, false);
         var provider = PreferenceProvider.map(Map.of("timeout", "notanumber"));
         var prefs = new Preferences().withProvider(provider);
 
-        // Coercion fails - falls back to default
+        // Conversion fails - falls back to default
         Assert.assertEquals(prefs.get(timeout), Integer.valueOf(5000));
         Assert.assertTrue(prefs.valueOf(timeout).isEmpty());
     }
@@ -285,8 +285,8 @@ public class PreferencesTest {
     }
 
     @Test
-    void typedProviderSkipsCoercion() {
-        // Provider returning already-typed values - no string coercion needed
+    void typedProviderSkipsConversion() {
+        // Provider returning already-typed values - no string conversion needed
         var timeout = Preference.of("timeout", Integer.class, 5000, false);
         var provider = PreferenceProvider.typed(Map.of(timeout, 3000));
         var prefs = new Preferences().withProvider(provider);

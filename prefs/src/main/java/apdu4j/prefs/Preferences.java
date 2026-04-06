@@ -83,7 +83,7 @@ public final class Preferences {
         return new Preferences(newValues, this.provider);
     }
 
-    // Always returns non-null: explicit map value, then provider (coerced + validated), then default
+    // Always returns non-null: explicit map value, then provider (converted + validated), then default
     @SuppressWarnings("unchecked")
     public <V> V get(final Preference.Default<V> key) {
         final var value = (V) values.get(key);
@@ -94,14 +94,14 @@ public final class Preferences {
             var raw = provider.resolve(key);
             if (raw.isPresent()) {
                 try {
-                    var coerced = (V) PreferenceProvider.coerce(key.type(), raw.get());
-                    if (key.validator().test(coerced)) {
-                        return coerced;
+                    var converted = (V) PreferenceProvider.convert(key.type(), raw.get());
+                    if (key.validator().test(converted)) {
+                        return converted;
                     }
                     logger.warn("Preference '{}': value '{}' fails validation - using default '{}'",
-                            key.name(), coerced, key.defaultValue());
+                            key.name(), converted, key.defaultValue());
                 } catch (IllegalArgumentException e) {
-                    logger.warn("Preference '{}': cannot coerce '{}' to {} - using default '{}'",
+                    logger.warn("Preference '{}': cannot convert '{}' to {} - using default '{}'",
                             key.name(), raw.get(), key.type().getSimpleName(), key.defaultValue());
                 }
             }
@@ -109,7 +109,7 @@ public final class Preferences {
         return key.defaultValue();
     }
 
-    // Returns explicit map value or provider-resolved value (coerced + validated), empty if neither
+    // Returns explicit map value or provider-resolved value (converted + validated), empty if neither
     @SuppressWarnings("unchecked")
     public <V> Optional<V> valueOf(final Preference<V> key) {
         final var value = (V) values.get(key);
@@ -120,13 +120,13 @@ public final class Preferences {
             var raw = provider.resolve(key);
             if (raw.isPresent()) {
                 try {
-                    var coerced = (V) PreferenceProvider.coerce(key.type(), raw.get());
-                    if (key.validator().test(coerced)) {
-                        return Optional.of(coerced);
+                    var converted = (V) PreferenceProvider.convert(key.type(), raw.get());
+                    if (key.validator().test(converted)) {
+                        return Optional.of(converted);
                     }
-                    logger.warn("Preference '{}': value '{}' fails validation", key.name(), coerced);
+                    logger.warn("Preference '{}': value '{}' fails validation", key.name(), converted);
                 } catch (IllegalArgumentException e) {
-                    logger.warn("Preference '{}': cannot coerce '{}' to {}",
+                    logger.warn("Preference '{}': cannot convert '{}' to {}",
                             key.name(), raw.get(), key.type().getSimpleName());
                 }
             }

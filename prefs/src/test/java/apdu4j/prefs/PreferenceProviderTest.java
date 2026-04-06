@@ -84,7 +84,7 @@ public class PreferenceProviderTest {
         var prefs = new Preferences().withProvider(map);
 
         assertEquals(prefs.get(PROTOCOL), "T=1");
-        // Integer value passes through coerce's isInstance check
+        // Integer value passes through convert's isInstance check
         assertEquals(prefs.get(TIMEOUT), Integer.valueOf(3000));
     }
 
@@ -131,8 +131,8 @@ public class PreferenceProviderTest {
     }
 
     @Test
-    void orElseChainingWithCoercion() {
-        // orElse chain feeding into withProvider for type coercion
+    void orElseChainingWithConversion() {
+        // orElse chain feeding into withProvider for type conversion
         var primary = PreferenceProvider.map(Map.of("reader.timeout", "3000"));
         var fallback = PreferenceProvider.map(Map.of("reader.exclusive", "true"));
         var prefs = new Preferences().withProvider(primary.orElse(fallback));
@@ -142,60 +142,60 @@ public class PreferenceProviderTest {
         assertEquals(prefs.get(PROTOCOL), "*"); // neither has it, falls to default
     }
 
-    // === Type coercion ===
+    // === Type conversion ===
 
     @Test
-    void typeCoercionFromString() {
-        assertEquals(PreferenceProvider.coerce(String.class, "hello"), "hello");
-        assertEquals(PreferenceProvider.coerce(Boolean.class, "true"), Boolean.TRUE);
-        assertEquals(PreferenceProvider.coerce(Boolean.class, "garbage"), Boolean.FALSE);
-        assertEquals(PreferenceProvider.coerce(Integer.class, "42"), 42);
-        assertEquals(PreferenceProvider.coerce(Long.class, "9999999999"), 9999999999L);
-        assertEquals((byte[]) PreferenceProvider.coerce(byte[].class, "cafe"), new byte[]{(byte) 0xCA, (byte) 0xFE});
+    void typeConversionFromString() {
+        assertEquals(PreferenceProvider.convert(String.class, "hello"), "hello");
+        assertEquals(PreferenceProvider.convert(Boolean.class, "true"), Boolean.TRUE);
+        assertEquals(PreferenceProvider.convert(Boolean.class, "garbage"), Boolean.FALSE);
+        assertEquals(PreferenceProvider.convert(Integer.class, "42"), 42);
+        assertEquals(PreferenceProvider.convert(Long.class, "9999999999"), 9999999999L);
+        assertEquals((byte[]) PreferenceProvider.convert(byte[].class, "cafe"), new byte[]{(byte) 0xCA, (byte) 0xFE});
     }
 
     @Test
-    void typeCoercionAlreadyTyped() {
+    void typeConversionAlreadyTyped() {
         // Values already the target type pass through without conversion
-        assertEquals(PreferenceProvider.coerce(Integer.class, 42), 42);
-        assertEquals(PreferenceProvider.coerce(Boolean.class, true), true);
-        assertEquals(PreferenceProvider.coerce(Long.class, 99L), 99L);
-        assertEquals(PreferenceProvider.coerce(String.class, "hello"), "hello");
+        assertEquals(PreferenceProvider.convert(Integer.class, 42), 42);
+        assertEquals(PreferenceProvider.convert(Boolean.class, true), true);
+        assertEquals(PreferenceProvider.convert(Long.class, 99L), 99L);
+        assertEquals(PreferenceProvider.convert(String.class, "hello"), "hello");
         var bytes = new byte[]{1, 2, 3};
-        assertSame(PreferenceProvider.coerce(byte[].class, bytes), bytes);
+        assertSame(PreferenceProvider.convert(byte[].class, bytes), bytes);
     }
 
     @Test
-    void typeCoercionStripsWhitespace() {
-        assertEquals(PreferenceProvider.coerce(Boolean.class, " true "), Boolean.TRUE);
-        assertEquals(PreferenceProvider.coerce(Integer.class, " 42 "), 42);
-        assertEquals(PreferenceProvider.coerce(Long.class, " 99 "), 99L);
-        assertEquals((byte[]) PreferenceProvider.coerce(byte[].class, " cafe "), new byte[]{(byte) 0xCA, (byte) 0xFE});
+    void typeConversionStripsWhitespace() {
+        assertEquals(PreferenceProvider.convert(Boolean.class, " true "), Boolean.TRUE);
+        assertEquals(PreferenceProvider.convert(Integer.class, " 42 "), 42);
+        assertEquals(PreferenceProvider.convert(Long.class, " 99 "), 99L);
+        assertEquals((byte[]) PreferenceProvider.convert(byte[].class, " cafe "), new byte[]{(byte) 0xCA, (byte) 0xFE});
     }
 
     @Test
-    void typeCoercionHexPrefix() {
+    void typeConversionHexPrefix() {
         // Integer hex
-        assertEquals(PreferenceProvider.coerce(Integer.class, "0x1A"), 26);
-        assertEquals(PreferenceProvider.coerce(Integer.class, "0XFF"), 255);
-        assertEquals(PreferenceProvider.coerce(Integer.class, " 0x10 "), 16); // with whitespace
+        assertEquals(PreferenceProvider.convert(Integer.class, "0x1A"), 26);
+        assertEquals(PreferenceProvider.convert(Integer.class, "0XFF"), 255);
+        assertEquals(PreferenceProvider.convert(Integer.class, " 0x10 "), 16); // with whitespace
 
         // Long hex
-        assertEquals(PreferenceProvider.coerce(Long.class, "0xDEADBEEF"), 0xDEADBEEFL);
-        assertEquals(PreferenceProvider.coerce(Long.class, "0X1"), 1L);
+        assertEquals(PreferenceProvider.convert(Long.class, "0xDEADBEEF"), 0xDEADBEEFL);
+        assertEquals(PreferenceProvider.convert(Long.class, "0X1"), 1L);
     }
 
     @Test
-    void typeCoercionRejectsInvalid() {
-        assertThrows(NumberFormatException.class, () -> PreferenceProvider.coerce(Integer.class, "xyz"));
-        assertThrows(IllegalArgumentException.class, () -> PreferenceProvider.coerce(Double.class, "3.14"));
+    void typeConversionRejectsInvalid() {
+        assertThrows(NumberFormatException.class, () -> PreferenceProvider.convert(Integer.class, "xyz"));
+        assertThrows(IllegalArgumentException.class, () -> PreferenceProvider.convert(Double.class, "3.14"));
     }
 
     @Test
-    void typeCoercionRejectsTypeMismatch() {
+    void typeConversionRejectsTypeMismatch() {
         // Non-String, non-matching type
-        assertThrows(IllegalArgumentException.class, () -> PreferenceProvider.coerce(Integer.class, 3.14));
-        assertThrows(IllegalArgumentException.class, () -> PreferenceProvider.coerce(String.class, 42));
+        assertThrows(IllegalArgumentException.class, () -> PreferenceProvider.convert(Integer.class, 3.14));
+        assertThrows(IllegalArgumentException.class, () -> PreferenceProvider.convert(String.class, 42));
     }
 
     // === Lazy resolution via withProvider ===
@@ -215,7 +215,7 @@ public class PreferenceProviderTest {
     }
 
     @Test
-    void lazyResolutionSkipsInvalidCoercion() {
+    void lazyResolutionSkipsInvalidConversion() {
         var provider = PreferenceProvider.map(Map.of(
                 "reader.protocol", "T=1",
                 "reader.timeout", "notanumber"
@@ -223,7 +223,7 @@ public class PreferenceProviderTest {
         var prefs = new Preferences().withProvider(provider);
 
         assertEquals(prefs.get(PROTOCOL), "T=1");
-        // Invalid coercion falls back to default
+        // Invalid conversion falls back to default
         assertEquals(prefs.get(TIMEOUT), Integer.valueOf(5000));
         assertTrue(prefs.valueOf(TIMEOUT).isEmpty());
     }

@@ -54,7 +54,7 @@ public interface PreferenceProvider {
     /**
      * Resolves a value for the given preference, or empty if not available.
      * The value may already be the preference's declared type, or a raw string
-     * that will be coerced during resolution.
+     * that will be converted during resolution.
      *
      * @param key the preference to resolve
      * @return the resolved value (typed or raw string), or empty
@@ -116,7 +116,7 @@ public interface PreferenceProvider {
 
     /**
      * Provider backed by a {@link Map} with preference names as keys.
-     * Values may be strings (coerced during resolution) or already typed.
+     * Values may be strings (converted during resolution) or already typed.
      *
      * @param map the map to read from (keys are preference names)
      * @return map-backed provider
@@ -127,7 +127,7 @@ public interface PreferenceProvider {
 
     /**
      * Provider backed by a typed {@link Map} keyed by {@link Preference} instances.
-     * Values should match the preference's declared type; no coercion is needed.
+     * Values should match the preference's declared type; no conversion is needed.
      *
      * @param map the map to read from (keys are Preference instances)
      * @return typed map-backed provider
@@ -137,16 +137,16 @@ public interface PreferenceProvider {
     }
 
     /**
-     * Coerces a raw value to the preference's declared type.
+     * Converts a raw value to the preference's declared type.
      * If the value is already the target type, it is returned as-is.
      * Otherwise, string values are parsed. Supports: String, Boolean, Integer, Long, byte[] (hex).
      *
      * @param type the target type
      * @param raw  the raw value (typed or String)
-     * @return the coerced value
+     * @return the converted value
      * @throws IllegalArgumentException if the type is unsupported or parsing fails
      */
-    static Object coerce(Class<?> type, Object raw) {
+    static Object convert(Class<?> type, Object raw) {
         if (type.isInstance(raw)) {
             return raw;
         }
@@ -173,8 +173,8 @@ public interface PreferenceProvider {
             if (type == byte[].class) {
                 return HexFormat.of().parseHex(s);
             }
-            throw new IllegalArgumentException("Cannot coerce String to " + type.getTypeName());
+            throw new IllegalArgumentException("Cannot convert String to " + type.getTypeName());
         }
-        throw new IllegalArgumentException("Cannot coerce " + raw.getClass().getTypeName() + " to " + type.getTypeName());
+        throw new IllegalArgumentException("Cannot convert " + raw.getClass().getTypeName() + " to " + type.getTypeName());
     }
 }

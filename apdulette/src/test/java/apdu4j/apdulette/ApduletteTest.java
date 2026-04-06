@@ -168,20 +168,6 @@ public class ApduletteTest {
         }
     }
 
-    // === Validate short-circuits on bad data ===
-
-    @Test(expectedExceptions = IllegalStateException.class)
-    void validateRejectsBadValue() {
-        var mock = MockBIBO.of("9000");
-        var chef = new SousChef(mock);
-
-        // Select succeeds but response data is empty - validation fails
-        var recipe = Cookbook.send(new CommandAPDU(0x00, 0xA4, 0x04, 0x00))
-                .validate(r -> r.getData().length > 0, () -> new IllegalStateException("empty FCI"));
-
-        chef.cook(recipe, new Preferences());
-    }
-
     // === Batch: multiple commands in one step ===
 
     @Test
@@ -727,13 +713,13 @@ public class ApduletteTest {
         assertEquals(dish.value(), "hello");
         assertEquals(dish.preferences().valueOf(discovered).orElseThrow(), "world");
 
-        // Single-key combinator: .season(key, extractor)
-        dish = chef.serve(Recipe.premade("CAFE").season(discovered, v -> v.substring(0, 2)));
+        // Single-key combinator via Cookbook.season
+        dish = chef.serve(Recipe.premade("CAFE").then(v -> Cookbook.season(v, Preferences.of(discovered, v.substring(0, 2)))));
         assertEquals(dish.value(), "CAFE");
         assertEquals(dish.preferences().valueOf(discovered).orElseThrow(), "CA");
 
-        // Multi-key combinator: .season(Function<T, Preferences>)
-        var intDish = chef.serve(Recipe.premade(42).season(v -> Preferences.of(discovered, v.toString(), extra, v)));
+        // Multi-key combinator via Cookbook.season
+        var intDish = chef.serve(Recipe.premade(42).then(v -> Cookbook.season(v, Preferences.of(discovered, v.toString(), extra, v))));
         assertEquals(intDish.value(), Integer.valueOf(42));
         assertEquals(intDish.preferences().valueOf(discovered).orElseThrow(), "42");
         assertEquals(intDish.preferences().valueOf(extra).orElseThrow(), Integer.valueOf(42));
@@ -741,7 +727,7 @@ public class ApduletteTest {
         // Chained through then(): preferences visible to downstream recipe
         dish = chef.serve(
                 Recipe.premade("ABC")
-                        .season(discovered, v -> v)
+                        .then(v -> Cookbook.season(v, Preferences.of(discovered, v)))
                         .then(v -> Cookbook.deferred(prefs ->
                                 Recipe.premade(prefs.valueOf(discovered).orElse("missing")))));
         assertEquals(dish.value(), "ABC");
@@ -750,7 +736,7 @@ public class ApduletteTest {
         // Nested season: both preferences accumulate
         intDish = chef.serve(
                 Recipe.premade("A")
-                        .season(discovered, v -> v)
+                        .then(v -> Cookbook.season(v, Preferences.of(discovered, v)))
                         .then(v -> Cookbook.season(99, Preferences.of(extra, 99))));
         assertEquals(intDish.value(), Integer.valueOf(99));
         assertEquals(intDish.preferences().valueOf(discovered).orElseThrow(), "A");
@@ -760,14 +746,14 @@ public class ApduletteTest {
         var ioChef = new SousChef(MockBIBO.of("AABB9000", "9000"));
         var ioDish = ioChef.serve(
                 Cookbook.send(new CommandAPDU(0x80, 0x50, 0x00, 0x00, 8))
-                        .season(discovered, r -> HexUtils.bin2hex(r.getData()))
+                        .then(r -> Cookbook.season(r, Preferences.of(discovered, HexUtils.bin2hex(r.getData()))))
                         .and(Cookbook.send(new CommandAPDU(0x00, 0x00, 0x00, 0x00))));
         assertEquals(ioDish.preferences().valueOf(discovered).orElseThrow(), "AABB");
 
         // orElse propagates Seasoned
         dish = chef.serve(
                 Recipe.premade("ok")
-                        .season(discovered, v -> v)
+                        .then(v -> Cookbook.season(v, Preferences.of(discovered, v)))
                         .orElse(Recipe.premade("fallback")));
         assertEquals(dish.value(), "ok");
         assertEquals(dish.preferences().valueOf(discovered).orElseThrow(), "ok");
@@ -775,7 +761,7 @@ public class ApduletteTest {
         // recover propagates Seasoned
         dish = chef.serve(
                 Recipe.premade("ok")
-                        .season(discovered, v -> v)
+                        .then(v -> Cookbook.season(v, Preferences.of(discovered, v)))
                         .recover(err -> Recipe.premade("recovered")));
         assertEquals(dish.value(), "ok");
         assertEquals(dish.preferences().valueOf(discovered).orElseThrow(), "ok");
@@ -784,7 +770,7 @@ public class ApduletteTest {
         var mepChef = new MiseEnPlaceChef();
         dish = mepChef.serve(
                 Recipe.premade("test")
-                        .season(discovered, v -> v)
+                        .then(v -> Cookbook.season(v, Preferences.of(discovered, v)))
                         .then(v -> Cookbook.deferred(prefs ->
                                 Recipe.premade(prefs.valueOf(discovered).orElse("missing")))));
         assertEquals(dish.value(), "test");

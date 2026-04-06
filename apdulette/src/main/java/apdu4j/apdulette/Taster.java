@@ -92,7 +92,7 @@ public interface Taster<T> extends BiFunction<List<ResponseAPDU>, Preferences, V
         return (responses, prefs) -> switch (apply(responses, prefs)) {
             case Verdict.Ready<T>(var v, var p) ->
                     test.test(v) ? new Verdict.Ready<>(v, p) : new Verdict.Error<>(responses.getFirst(), errorMsg);
-            case Verdict.NextStep<T>(var r, var p) -> new Verdict.NextStep<>(r.filter(test, errorMsg), p);
+            case Verdict.NextStep<T>(var r, var p) -> new Verdict.NextStep<>(r.then(v -> test.test(v) ? Recipe.premade(v) : Recipe.error(errorMsg)), p);
             case Verdict.Error<T> e -> e;
         };
     }
