@@ -234,10 +234,13 @@ var mock = MockBIBO.fromDump(getClass().getResourceAsStream("/card.dump"));
 * `Readers.list()`, `.list()` - `List<PCSCReader>` snapshot of available readers
 * `.run(apdu -> ...)`, `.accept(apdu -> ...)`, `.whenReady(fn)`, `.whenReady(timeout, fn)`
 
-Reader selection via environment variables:
+Reader selection via environment (define your own preference keys; `myapp.reader` resolves to `MYAPP_READER`):
 
 ```java
-Readers.fromEnvironment("READER", "READER_IGNORE")
+var READER = Preference.of("myapp.reader", String.class, "", false);
+var IGNORE = Preference.of("myapp.reader.ignore", String.class, "", false);
+
+Readers.fromPreferences(Preferences.fromEnvironment(), READER, IGNORE)
     .withCard()
     .protocol("T=1")
     .log(System.out)

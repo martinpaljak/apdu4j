@@ -30,6 +30,8 @@ import apdu4j.core.BIBOException;
 import apdu4j.core.HexUtils;
 import apdu4j.core.ResponseAPDU;
 import apdu4j.pcsc.*;
+import apdu4j.prefs.Preference;
+import apdu4j.prefs.Preferences;
 import jnasmartcardio.Smartcardio;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,11 +50,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 @Command(name = "apdu4j", versionProvider = SCTool.class, mixinStandardHelpOptions = true, subcommands = {HelpCommand.class})
 public class SCTool implements Callable<Integer>, IVersionProvider {
-    public static final String ENV_APDU4J_READER = "APDU4J_READER";
-    public static final String ENV_APDU4J_READER_IGNORE = "APDU4J_READER_IGNORE";
     public static final String ENV_APDU4J_DEBUG = "APDU4J_DEBUG";
     public static final String ENV_APDU4J_DEBUG_FILE = "APDU4J_DEBUG_FILE";
     public static final String ENV_SMARTCARD_LIST = "SMARTCARD_LIST";
+
+    // apdu4j tool's reader selection preferences (apdu4j.reader -> APDU4J_READER env var)
+    public static final Preference.Default<String> READER =
+            Preference.of("apdu4j.reader", String.class, "", false);
+    public static final Preference.Default<String> READER_IGNORE =
+            Preference.of("apdu4j.reader.ignore", String.class, "", false);
 
     final Logger logger = LoggerFactory.getLogger(SCTool.class);
     @Option(names = {"-v", "--verbose"}, description = "Be verbose")
@@ -162,7 +168,10 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
         }
         try {
             var result = TerminalManager.listPCSC(getTerminalManager().terminals().list(), debug ? System.out : null, beVerbose);
-            result = Readers.dwimify(result, System.getenv(ENV_APDU4J_READER), Readers.parseIgnoreHints(System.getenv(ENV_APDU4J_READER_IGNORE)));
+            var prefs = Preferences.fromEnvironment();
+            var hint = prefs.get(READER);
+            result = Readers.dwimify(result, hint.isEmpty() ? null : hint,
+                    Readers.parseIgnoreHints(prefs.get(READER_IGNORE)));
             printReaderList(result, System.out, beVerbose);
         } catch (Smartcardio.EstablishContextException | CardException e) {
             String em = SCard.getExceptionMessage(e);
@@ -230,11 +239,13 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
     // Bridge CLI options (-r, -d, -R) and env vars to the fluent Readers API
     private ReaderSelector selector() {
         var mgr = getTerminalManager();
+        var prefs = Preferences.fromEnvironment();
         if (forceReaderSelection) {
             try {
+                var hint = reader != null ? reader : prefs.get(READER);
+                var ignoreFragments = Readers.parseIgnoreHints(prefs.get(READER_IGNORE));
                 var chosen = FancyChooser.forTerminals(mgr,
-                        reader != null ? reader : System.getenv(ENV_APDU4J_READER),
-                        Readers.parseIgnoreHints(System.getenv(ENV_APDU4J_READER_IGNORE))).call();
+                        hint.isEmpty() ? null : hint, ignoreFragments).call();
                 if (chosen.isEmpty()) {
                     exit("No reader selected");
                 }
@@ -244,7 +255,7 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
                 throw new RuntimeException("Reader selection failed", e);
             }
         }
-        var s = Readers.fromEnvironment(mgr, ENV_APDU4J_READER, ENV_APDU4J_READER_IGNORE);
+        var s = Readers.fromPreferences(mgr, prefs, READER, READER_IGNORE);
         if (reader != null) {
             s = s.select(reader);
         }

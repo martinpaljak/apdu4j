@@ -23,6 +23,7 @@ package apdu4j.pcsc;
 
 import apdu4j.core.HexBytes;
 import apdu4j.prefs.Preference;
+import apdu4j.prefs.Preferences;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,7 +31,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
 
 public final class Readers {
@@ -193,19 +193,22 @@ public final class Readers {
         return new ReaderSelectorImpl(mgr, new ReaderSelectorImpl.SelectionCriteria(hint, List.of(), r -> true));
     }
 
-    // Load reader hint + ignore list from environment variables
-    public static ReaderSelector fromEnvironment(String readerVar, String ignoreVar) {
-        return fromEnvironment(TerminalManager.getDefault(), readerVar, ignoreVar);
+    // Load reader selection from a Preferences instance using consumer-defined keys.
+    // Caller owns the namespace - apdu4j tool uses apdu4j.reader, other apps use their own.
+    // Accepts either Default<String> or Parameter<String> via the sealed parent type.
+    public static ReaderSelector fromPreferences(Preferences prefs,
+                                                 Preference<String> hintKey,
+                                                 Preference<String> ignoreKey) {
+        return fromPreferences(TerminalManager.getDefault(), prefs, hintKey, ignoreKey);
     }
 
-    public static ReaderSelector fromEnvironment(TerminalManager mgr, String readerVar, String ignoreVar) {
-        return fromEnvironment(mgr, System.getenv()::get, readerVar, ignoreVar);
-    }
-
-    // Testable: env lookup as Function (tests pass map::get)
-    static ReaderSelector fromEnvironment(TerminalManager mgr, Function<String, String> env, String readerVar, String ignoreVar) {
-        var hint = env.apply(readerVar);
-        var ignores = parseIgnoreHints(env.apply(ignoreVar));
-        return new ReaderSelectorImpl(mgr, new ReaderSelectorImpl.SelectionCriteria(hint, ignores, r -> true));
+    public static ReaderSelector fromPreferences(TerminalManager mgr, Preferences prefs,
+                                                 Preference<String> hintKey,
+                                                 Preference<String> ignoreKey) {
+        var hint = prefs.valueOf(hintKey).orElse("");
+        var ignores = parseIgnoreHints(prefs.valueOf(ignoreKey).orElse(""));
+        return new ReaderSelectorImpl(mgr,
+                new ReaderSelectorImpl.SelectionCriteria(hint.isEmpty() ? null : hint, ignores, r -> true),
+                prefs, null, null);
     }
 }
