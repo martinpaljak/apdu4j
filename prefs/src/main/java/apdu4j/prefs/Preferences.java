@@ -216,6 +216,17 @@ public final class Preferences {
     }
 
     /**
+     * Create empty Preferences backed by the given provider for lazy fallback resolution.
+     * Shorthand for {@code new Preferences().withProvider(provider)}.
+     *
+     * @param provider the fallback provider (env vars, system properties, map, etc.)
+     * @return Preferences with the given provider attached
+     */
+    public static Preferences from(PreferenceProvider provider) {
+        return new Preferences().withProvider(provider);
+    }
+
+    /**
      * Convenience: create Preferences backed by environment variables.
      * Converts preference name "foo.bar" to env var "FOO_BAR".
      * Values are resolved lazily on {@link #get} and {@link #valueOf}.
@@ -223,7 +234,7 @@ public final class Preferences {
      * @return Preferences with environment provider attached
      */
     public static Preferences fromEnvironment() {
-        return new Preferences().withProvider(PreferenceProvider.environment());
+        return from(PreferenceProvider.environment());
     }
 
     public static Preferences of() {

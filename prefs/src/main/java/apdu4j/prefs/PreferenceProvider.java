@@ -33,7 +33,7 @@ import java.util.function.Function;
  * <pre>{@code
  * var provider = PreferenceProvider.environment()
  *     .orElse(PreferenceProvider.systemProperties());
- * var prefs = new Preferences().withProvider(provider);
+ * var prefs = Preferences.from(provider);
  * var timeout = prefs.get(Readers.TIMEOUT); // resolved on demand
  * }</pre>
  *

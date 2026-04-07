@@ -78,24 +78,24 @@ public class PreferenceProviderTest {
     void typedAndMixedProviders() {
         // Typed map: already correct types
         var typed = Map.<Preference<?>, Object>of(PROTOCOL, "T=1", EXCLUSIVE, true, TIMEOUT, 3000);
-        var prefs = new Preferences().withProvider(PreferenceProvider.typed(typed, "session"));
+        var prefs = Preferences.from(PreferenceProvider.typed(typed, "session"));
         assertEquals(prefs.get(PROTOCOL), "T=1");
         assertEquals(prefs.get(EXCLUSIVE), Boolean.TRUE);
         assertEquals(prefs.get(TIMEOUT), Integer.valueOf(3000));
 
         // Typed missing: falls to default
-        var partial = new Preferences().withProvider(PreferenceProvider.typed(Map.<Preference<?>, Object>of(PROTOCOL, "T=1"), "session"));
+        var partial = Preferences.from(PreferenceProvider.typed(Map.<Preference<?>, Object>of(PROTOCOL, "T=1"), "session"));
         assertEquals(partial.get(TIMEOUT), Integer.valueOf(5000));
         assertTrue(partial.valueOf(TIMEOUT).isEmpty());
 
         // Map<String, ?> with pre-typed Integer: isInstance passthrough
-        var mixed = new Preferences().withProvider(PreferenceProvider.map(Map.of("reader.protocol", "T=1", "reader.timeout", 3000), "cli"));
+        var mixed = Preferences.from(PreferenceProvider.map(Map.of("reader.protocol", "T=1", "reader.timeout", 3000), "cli"));
         assertEquals(mixed.get(PROTOCOL), "T=1");
         assertEquals(mixed.get(TIMEOUT), Integer.valueOf(3000));
 
         // Unknown type passes through when already typed (no converter needed)
         var dbl = Preference.of("thing", Double.class, 3.14, false);
-        assertEquals(new Preferences().withProvider(PreferenceProvider.typed(Map.of(dbl, 2.71), "test")).get(dbl), 2.71);
+        assertEquals(Preferences.from(PreferenceProvider.typed(Map.of(dbl, 2.71), "test")).get(dbl), 2.71);
     }
 
     // === orElse composition: priority, fallback, source tracking ===
@@ -127,7 +127,7 @@ public class PreferenceProviderTest {
         // Chain with type conversion through Preferences
         var cli = PreferenceProvider.map(Map.of("reader.timeout", "3000"), "cli");
         var file = PreferenceProvider.map(Map.of("reader.exclusive", "true"), "file");
-        var prefs = new Preferences().withProvider(cli.orElse(file));
+        var prefs = Preferences.from(cli.orElse(file));
         assertEquals(prefs.get(TIMEOUT), Integer.valueOf(3000));
         assertEquals(prefs.get(EXCLUSIVE), Boolean.TRUE);
         assertEquals(prefs.get(PROTOCOL), "*"); // falls to default
@@ -146,19 +146,19 @@ public class PreferenceProviderTest {
         var provider = PreferenceProvider.map(Map.of(
                 "reader.protocol", "T=1", "reader.exclusive", "true", "reader.timeout", "3000"
         ), "cli");
-        var prefs = new Preferences().withProvider(provider);
+        var prefs = Preferences.from(provider);
         assertEquals(prefs.get(PROTOCOL), "T=1");
         assertEquals(prefs.get(EXCLUSIVE), Boolean.TRUE);
         assertEquals(prefs.get(TIMEOUT), Integer.valueOf(3000));
 
         // Boolean.parseBoolean: non-"true" strings silently become false
         var boolProv = PreferenceProvider.map(Map.of("reader.exclusive", "yes"), "test");
-        assertFalse(new Preferences().withProvider(boolProv).get(EXCLUSIVE));
+        assertFalse(Preferences.from(boolProv).get(EXCLUSIVE));
 
         // Parameter + byte[]
         var keyData = Preference.of("key.data", byte[].class, new byte[0], false);
         var p2 = PreferenceProvider.map(Map.of("session.key", "abc", "key.data", "deadbeef"), "file");
-        var prefs2 = new Preferences().withProvider(p2);
+        var prefs2 = Preferences.from(p2);
         assertEquals(prefs2.valueOf(SESSION_KEY).orElseThrow(), "abc");
         assertEquals(prefs2.sourceOf(SESSION_KEY).orElseThrow(), "file");
         assertEquals(prefs2.get(keyData), new byte[]{(byte) 0xDE, (byte) 0xAD, (byte) 0xBE, (byte) 0xEF});
@@ -167,7 +167,7 @@ public class PreferenceProviderTest {
         var hexInt = Preference.of("hi", Integer.class, 0, false);
         var hexLong = Preference.of("hl", Long.class, 0L, false);
         var p3 = PreferenceProvider.map(Map.of("hi", " 0xFF ", "hl", "0xDEADBEEF"), "test");
-        var prefs3 = new Preferences().withProvider(p3);
+        var prefs3 = Preferences.from(p3);
         assertEquals(prefs3.get(hexInt), Integer.valueOf(255));
         assertEquals(prefs3.get(hexLong), Long.valueOf(0xDEADBEEFL));
     }
@@ -177,7 +177,7 @@ public class PreferenceProviderTest {
     @Test
     void providerFailuresAndValidation() {
         // Bad string -> falls to default
-        var prefs = new Preferences().withProvider(PreferenceProvider.map(Map.of(
+        var prefs = Preferences.from(PreferenceProvider.map(Map.of(
                 "reader.protocol", "T=1", "reader.timeout", "notanumber"), "cli"));
         assertEquals(prefs.get(PROTOCOL), "T=1");
         assertEquals(prefs.get(TIMEOUT), Integer.valueOf(5000));
@@ -185,24 +185,24 @@ public class PreferenceProviderTest {
 
         // Unknown type from string -> falls to default
         var dbl = Preference.of("thing", Double.class, 3.14, false);
-        var prefs2 = new Preferences().withProvider(PreferenceProvider.map(Map.of("thing", "2.71"), "test"));
+        var prefs2 = Preferences.from(PreferenceProvider.map(Map.of("thing", "2.71"), "test"));
         assertEquals(prefs2.get(dbl), 3.14);
         assertTrue(prefs2.valueOf(dbl).isEmpty());
 
         // Validator: valid value accepted
         var bounded = Preference.of("port", Integer.class, 8080, false, p -> p > 0 && p < 65536);
-        assertEquals(new Preferences().withProvider(PreferenceProvider.map(Map.of("port", "443"), "cli"))
+        assertEquals(Preferences.from(PreferenceProvider.map(Map.of("port", "443"), "cli"))
                 .get(bounded), Integer.valueOf(443));
 
         // Validator: invalid value rejected -> default, sourceOf "default"
-        var prefs3 = new Preferences().withProvider(PreferenceProvider.map(Map.of("port", "99999"), "cli"));
+        var prefs3 = Preferences.from(PreferenceProvider.map(Map.of("port", "99999"), "cli"));
         assertEquals(prefs3.get(bounded), Integer.valueOf(8080));
         assertTrue(prefs3.valueOf(bounded).isEmpty());
         assertEquals(prefs3.sourceOf(bounded).orElseThrow(), "default");
 
         // Conversion failure on Parameter (no default fallback)
         var param = Preference.parameter("count", Integer.class, false);
-        var badParam = new Preferences().withProvider(PreferenceProvider.map(Map.of("count", "notanumber"), "cli"));
+        var badParam = Preferences.from(PreferenceProvider.map(Map.of("count", "notanumber"), "cli"));
         assertTrue(badParam.valueOf(param).isEmpty());
         assertTrue(badParam.sourceOf(param).isEmpty());
     }

@@ -179,7 +179,7 @@ public class PreferencesTest {
         // merge discards other's provider (receiver's survives)
         var provA = PreferenceProvider.map(Map.of("name", "fromA"), "a");
         var provB = PreferenceProvider.map(Map.of("name", "fromB"), "b");
-        var mergedProviders = new Preferences().withProvider(provA).merge(new Preferences().withProvider(provB));
+        var mergedProviders = Preferences.from(provA).merge(Preferences.from(provB));
         Assert.assertEquals(mergedProviders.get(NAME), "fromA");
         Assert.assertEquals(mergedProviders.sourceOf(NAME).orElseThrow(), "a");
     }
@@ -217,7 +217,7 @@ public class PreferencesTest {
     @Test
     void providerResolution() {
         var provider = PreferenceProvider.map(Map.of("name", "from_provider"), "file");
-        var prefs = new Preferences().withProvider(provider);
+        var prefs = Preferences.from(provider);
 
         // Provider consulted when no explicit value
         Assert.assertEquals(prefs.get(NAME), "from_provider");
@@ -231,7 +231,7 @@ public class PreferencesTest {
 
         // Provider survives with(), without(), merge()
         var other = Preference.of("other", String.class, "d", false);
-        var base = new Preferences().withProvider(provider);
+        var base = Preferences.from(provider);
         Assert.assertEquals(base.with(other, "x").get(NAME), "from_provider");
         Assert.assertEquals(base.with(other, "x").without(other).get(NAME), "from_provider");
         var extra = new Preferences().with(Preference.of("extra", String.class, "d", false), "val");
@@ -240,7 +240,7 @@ public class PreferencesTest {
         // withProvider replaces previous provider (#12)
         var first = PreferenceProvider.map(Map.of("name", "first"), "a");
         var second = PreferenceProvider.map(Map.of("name", "second"), "b");
-        var replaced = new Preferences().withProvider(first).withProvider(second);
+        var replaced = Preferences.from(first).withProvider(second);
         Assert.assertEquals(replaced.get(NAME), "second");
         Assert.assertEquals(replaced.sourceOf(NAME).orElseThrow(), "b");
 
@@ -260,7 +260,7 @@ public class PreferencesTest {
         Assert.assertEquals(hex, Preference.parameter("count", Integer.class, false));
         // ...but converter IS set: custom hex parse works
         var provider = PreferenceProvider.map(Map.of("count", "FF"), "test");
-        Assert.assertEquals(new Preferences().withProvider(provider).valueOf(hex).orElseThrow(), Integer.valueOf(255));
+        Assert.assertEquals(Preferences.from(provider).valueOf(hex).orElseThrow(), Integer.valueOf(255));
 
         // Round-trip converter on Default: custom format reflected in toString
         var upper = Preference.of("key", byte[].class, new byte[0], false)
@@ -268,7 +268,7 @@ public class PreferencesTest {
                         s -> java.util.HexFormat.of().withUpperCase().parseHex(s.strip()),
                         v -> java.util.HexFormat.of().withUpperCase().formatHex(v)
                 ));
-        Assert.assertEquals(new Preferences().withProvider(PreferenceProvider.map(Map.of("key", "cafe"), "test"))
+        Assert.assertEquals(Preferences.from(PreferenceProvider.map(Map.of("key", "cafe"), "test"))
                 .get(upper), new byte[]{(byte) 0xCA, (byte) 0xFE});
         Assert.assertTrue(new Preferences().with(upper, new byte[]{(byte) 0xCA, (byte) 0xFE}).toString().contains("CAFE"));
     }
