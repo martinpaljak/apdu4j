@@ -45,7 +45,6 @@
     <modules>
         <module>prefs</module>
         <module>core</module>
-
         <module>pcsc-sim</module>
         <module>pcsc</module>
         <module>report</module>
