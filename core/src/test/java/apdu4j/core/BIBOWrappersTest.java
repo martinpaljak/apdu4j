@@ -24,6 +24,7 @@ package apdu4j.core;
 import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertSame;
 
 public class BIBOWrappersTest {
 
@@ -90,6 +91,26 @@ public class BIBOWrappersTest {
         var wrapper = RetryWithRightLengthWrapper.wrap(mock);
         var result = wrapper.transceive(HexUtils.hex2bin("00B0000004DEADBEEF00"));
         assertEquals(result, HexUtils.hex2bin("AABB9000"));
+    }
+
+    // --- T0Stripper ---
+
+    @Test
+    void testT0Stripper() {
+        // Stripping: Case 4s on the API -> Case 3s on the wire
+        assertEquals(T0Stripper.wrap(MockBIBO.with("00D6000004DEADBEEF", "9000"))
+                .transceive(HexUtils.hex2bin("00D6000004DEADBEEF00")), HexUtils.hex2bin("9000"));
+
+        // Pass-through (same reference, no copy) for Case 1/2s/3s and any extended form
+        for (var hex : new String[]{"00A40400", "00B0000010", "00D6000004DEADBEEF", "00D60000000004DEADBEEF0010"}) {
+            var in = HexUtils.hex2bin(hex);
+            assertSame(T0Stripper.strip(in), in);
+        }
+
+        // Composed with GetResponseWrapper: strip outbound, chain 61 XX inbound
+        var chain = MockBIBO.with("00A4040002AABB", "6102").then("00C0000002", "CCDD9000");
+        assertEquals(new BIBOSA(chain).compose(GetResponseWrapper::wrap, T0Stripper::wrap)
+                .transceive(HexUtils.hex2bin("00A4040002AABB00")), HexUtils.hex2bin("CCDD9000"));
     }
 
 }

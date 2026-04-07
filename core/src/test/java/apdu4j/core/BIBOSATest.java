@@ -25,6 +25,8 @@ import apdu4j.prefs.Preference;
 import apdu4j.prefs.Preferences;
 import org.testng.annotations.Test;
 
+import java.util.function.Function;
+
 import static org.testng.Assert.*;
 
 public class BIBOSATest {
@@ -155,5 +157,34 @@ public class BIBOSATest {
         var result = stack.transceive(HexUtils.hex2bin("00A40400"));
         assertEquals(result, HexUtils.hex2bin("AABBCC9000"));
         assertEquals(stack.preferences().get(WRAPPED), "true");
+    }
+
+    @Test
+    void testCompose() {
+        // Empty compose is a no-op and preserves preferences
+        var prefs = Preferences.of(KEY, "kept");
+        var noop = new BIBOSA(MockBIBO.of("9000"), prefs).compose();
+        assertEquals(noop.transceive(HexUtils.hex2bin("00A40400")), HexUtils.hex2bin("9000"));
+        assertEquals(noop.preferences().get(KEY), "kept");
+
+        // Leftmost = outermost: outbound APDU traverses wrappers left-to-right.
+        // tagA appends 0xAA, tagB appends 0xBB. compose(tagA, tagB) means tagA wraps
+        // tagB(transport), so transceive(X) goes tagA -> tagB -> transport, and the
+        // transport sees X||AA||BB.
+        var seen = new byte[1][];
+        BIBO sink = cmd -> { seen[0] = cmd; return new byte[]{(byte) 0x90, 0x00}; };
+        Function<BIBO, BIBO> tagA = tagger((byte) 0xAA);
+        Function<BIBO, BIBO> tagB = tagger((byte) 0xBB);
+        new BIBOSA(sink, prefs).compose(tagA, tagB).transceive(new byte[]{0x01});
+        assertEquals(seen[0], new byte[]{0x01, (byte) 0xAA, (byte) 0xBB});
+    }
+
+    private static Function<BIBO, BIBO> tagger(byte tag) {
+        return inner -> cmd -> {
+            var out = new byte[cmd.length + 1];
+            System.arraycopy(cmd, 0, out, 0, cmd.length);
+            out[cmd.length] = tag;
+            return inner.transceive(out);
+        };
     }
 }

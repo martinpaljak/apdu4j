@@ -112,7 +112,9 @@ public final class SynthesizedCardTerminal extends CardTerminal {
     }
 
     // Factory: creates fresh BIBO per connect, card stays until yank()
-    public void present(Function<String, BIBO> factory, byte[] atr) {
+    // Distinct name from present() because BIBO is a functional interface,
+    // so a Function<String, BIBO> lambda would otherwise be ambiguous with present(BIBO, byte[]).
+    public void presentFactory(Function<String, BIBO> factory, byte[] atr) {
         synchronized (lock) {
             if (activeAtr != null) {
                 throw new IllegalStateException("Card already present");

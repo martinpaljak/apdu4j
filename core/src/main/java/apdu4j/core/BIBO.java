@@ -39,9 +39,14 @@ import java.util.function.Function;
  * access. For multi-threaded use, wrap with a serializing proxy (e.g.
  * {@code ReaderExecutor.wrap()}) that pins all operations to a dedicated per-reader thread.
  *
+ * <p>BIBO is a functional interface: {@link #transceive} is the only abstract method,
+ * so any {@code byte[] -> byte[]} lambda can be used where a BIBO is expected.
+ * {@link #close} defaults to a no-op for resource-less transports.
+ *
  * @see APDUBIBO
  * @see MockBIBO
  */
+@FunctionalInterface
 public interface BIBO extends AutoCloseable {
     /**
      * Sends a command and returns the response, synchronously.
@@ -70,7 +75,12 @@ public interface BIBO extends AutoCloseable {
     /**
      * Releases resources held by this BIBO. After {@code close()}, calling
      * {@link #transceive} throws {@link IllegalStateException}. Idempotent.
+     *
+     * <p>Defaults to a no-op so resource-less BIBOs (lambdas, in-memory mocks)
+     * need not implement it.
      */
     @Override
-    void close();
+    default void close() {
+        // No-op by default; transport-backed implementations override.
+    }
 }

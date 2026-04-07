@@ -116,6 +116,37 @@ public final class BIBOSA implements BIBO {
     }
 
     /**
+     * Applies multiple simple BIBO wrappers in left-to-right reading order.
+     *
+     * <p>The leftmost wrapper becomes the outermost layer (closest to the
+     * application); the rightmost is innermost (closest to the wire). This
+     * matches how an outbound APDU traverses the stack: it enters the leftmost
+     * wrapper first and leaves the rightmost last.
+     *
+     * <p>Example - install GET RESPONSE chaining over a T=0 Le stripper:
+     * <pre>{@code
+     * stack.compose(GetResponseWrapper::wrap, T0Stripper::wrap);
+     * }</pre>
+     * is equivalent to {@code stack.then(T0Stripper::wrap).then(GetResponseWrapper::wrap)}
+     * but reads in the same order the APDU bytes traverse the stack.
+     *
+     * <p>Preferences pass through unchanged. For middlewares that contribute
+     * preferences, use {@link #then(BIBOMiddleware)}.
+     *
+     * @param wrappers wrappers to apply, leftmost = outermost
+     * @return a new BIBOSA with the wrappers installed and preferences preserved
+     */
+    @SafeVarargs
+    public final BIBOSA compose(Function<BIBO, BIBO>... wrappers) {
+        BIBO result = bibo;
+        // Apply rightmost first so the leftmost ends up outermost.
+        for (int i = wrappers.length - 1; i >= 0; i--) {
+            result = wrappers[i].apply(result);
+        }
+        return new BIBOSA(result, preferences);
+    }
+
+    /**
      * Adapts the stack using a preference-driven middleware factory. The factory
      * receives the accumulated preferences and returns a middleware to apply.
      *

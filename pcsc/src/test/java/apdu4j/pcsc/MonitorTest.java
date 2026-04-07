@@ -99,7 +99,7 @@ public class MonitorTest {
             });
 
             // Factory mode: card stays present until explicit yank()
-            terminal.present(proto -> MockBIBO.of("9000"), SynthesizedCardTerminal.defaultAtr());
+            terminal.presentFactory(proto -> MockBIBO.of("9000"), SynthesizedCardTerminal.defaultAtr());
             Assert.assertTrue(firstSeen.await(5, TimeUnit.SECONDS), "First card event should fire");
 
             terminal.yank();

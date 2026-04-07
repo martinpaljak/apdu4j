@@ -125,7 +125,7 @@ public class SimTests {
         // Factory mode: card persists, each connect gets fresh BIBO from factory
         var callCount = new AtomicInteger(0);
         var factoryTerminal = new SynthesizedCardTerminal("Factory Reader");
-        factoryTerminal.present(protocol -> {
+        factoryTerminal.presentFactory(protocol -> {
             callCount.incrementAndGet();
             return MockBIBO.of("9000");
         }, SynthesizedCardTerminal.defaultAtr());
@@ -254,7 +254,7 @@ public class SimTests {
         // T=CL via factory - protocol string passes through to synthesized terminal
         var receivedProtocol = new AtomicReference<String>();
         var terminal = new SynthesizedCardTerminal("NFC Reader", "T=CL");
-        terminal.present(protocol -> {
+        terminal.presentFactory(protocol -> {
             receivedProtocol.set(protocol);
             return MockBIBO.of("9000");
         }, SynthesizedCardTerminal.defaultAtr());
@@ -312,7 +312,7 @@ public class SimTests {
     @Test
     void testPreferencesBasedConfig() {
         var terminal = new SynthesizedCardTerminal("Prefs Reader", "T=CL");
-        terminal.present(protocol -> {
+        terminal.presentFactory(protocol -> {
             Assert.assertEquals(protocol, "T=CL");
             return MockBIBO.of("9000");
         }, SynthesizedCardTerminal.defaultAtr());
