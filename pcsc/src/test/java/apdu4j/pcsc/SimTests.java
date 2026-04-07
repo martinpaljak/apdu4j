@@ -24,6 +24,8 @@ package apdu4j.pcsc;
 import apdu4j.core.*;
 import apdu4j.pcsc.sim.SynthesizedCardTerminal;
 import apdu4j.pcsc.sim.SynthesizedCardTerminals;
+import apdu4j.prefs.Preference;
+import apdu4j.prefs.PreferenceProvider;
 import apdu4j.prefs.Preferences;
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -34,6 +36,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -348,6 +351,34 @@ public class SimTests {
                 Assert.assertEquals(e.getAvailable().size(), 2);
                 Assert.assertTrue(e.getAvailable().contains("ACS ACR122U 0"));
             }
+        }
+    }
+
+    @Test
+    void testFromPreferences() {
+        // Consumer-defined keys in their own namespace - library is namespace-agnostic
+        var HINT = Preference.of("myapp.reader", String.class, "", false);
+        var IGNORE = Preference.of("myapp.reader.ignore", String.class, "", false);
+
+        var acr = new SynthesizedCardTerminal("ACS ACR122U 0");
+        acr.present(MockBIBO.of("9000"));
+        var gemalto = new SynthesizedCardTerminal("Gemalto USB SmartCard Reader 0");
+        gemalto.present(MockBIBO.of("6A82"));
+
+        try (var mgr = TerminalManager.managerOf(acr, gemalto)) {
+            // Hint via Preferences picks the matching reader; empty IGNORE exercises blank branch in parseIgnoreHints
+            var hintOnly = Preferences.of(HINT, "ACR");
+            Assert.assertEquals(
+                    Readers.fromPreferences(mgr, hintOnly, HINT, IGNORE).run(b -> b.transceive(HexUtils.hex2bin("00A4040000"))),
+                    HexUtils.hex2bin("9000"));
+
+            // Provider-backed prefs with semicolon-separated ignore (exercises parseIgnoreHints split + too-short filter)
+            // "ab" is < 3 chars (filtered with warning); "ACR" survives and ignores the ACR reader
+            var providerBacked = Preferences.from(PreferenceProvider.map(
+                    Map.of("myapp.reader.ignore", "ab;ACR"), "test"));
+            Assert.assertEquals(
+                    Readers.fromPreferences(mgr, providerBacked, HINT, IGNORE).run(b -> b.transceive(HexUtils.hex2bin("00A4040000"))),
+                    HexUtils.hex2bin("6A82"));
         }
     }
 
