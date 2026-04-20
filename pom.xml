@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.github.martinpaljak</groupId>
     <artifactId>apdu4j</artifactId>
-    <version>26.04.20</version>
+    <version>26.04.21-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>apdu4j</name>
     <url>https://github.com/martinpaljak/apdu4j</url>
@@ -13,7 +13,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <project.build.outputTimestamp>2026-04-20T04:43:11Z</project.build.outputTimestamp>
+        <project.build.outputTimestamp>2026-04-20T04:43:17Z</project.build.outputTimestamp>
     </properties>
     <scm>
         <url>https://github.com/martinpaljak/apdu4j</url>
