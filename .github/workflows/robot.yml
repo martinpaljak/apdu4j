@@ -70,8 +70,8 @@ jobs:
         uses: softprops/action-gh-release@v2.6.1
         with:
           files: |
-            tool/target/apdu4j.jar
-            tool/target/apdu4j.exe
+            apdu4j.jar
+            apdu4j.exe
           fail_on_unmatched_files: true
           body: Release ${{ github.ref_name }}
           prerelease: true # manually promoted
