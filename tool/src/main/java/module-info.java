@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2020 Martin Paljak <martin@martinpaljak.net>
+// SPDX-License-Identifier: MIT
 module apdu4j.tool {
     requires java.smartcardio;
     requires apdu4j.core;
