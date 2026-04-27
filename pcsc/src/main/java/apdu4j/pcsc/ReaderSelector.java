@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 package apdu4j.pcsc;
 
-import apdu4j.core.APDUBIBO;
+import apdu4j.core.BIBO;
 import apdu4j.core.BIBOSA;
 import apdu4j.prefs.Preference;
 import apdu4j.prefs.Preferences;
@@ -52,27 +52,27 @@ public sealed interface ReaderSelector permits ReaderSelectorImpl {
     List<PCSCReader> list();
 
     // Managed sessions - card must be present
-    <T> T run(Function<APDUBIBO, T> fn);
+    <T> T run(Function<BIBO, T> fn);
 
     // BIBOSA variant - transport + enriched Preferences (ATR, negotiated protocol, config)
     <T> T open(Function<BIBOSA, T> fn);
 
-    void accept(Consumer<APDUBIBO> fn);
+    void accept(Consumer<BIBO> fn);
 
     // Managed sessions - wait for card
-    <T> T whenReady(Function<APDUBIBO, T> fn);
+    <T> T whenReady(Function<BIBO, T> fn);
 
-    <T> T whenReady(Duration timeout, Function<APDUBIBO, T> fn);
+    <T> T whenReady(Duration timeout, Function<BIBO, T> fn);
 
     // Unmanaged - caller manages lifecycle
-    APDUBIBO connect();
+    BIBO connect();
 
-    APDUBIBO connectWhenReady();
+    BIBO connectWhenReady();
 
-    APDUBIBO connectWhenReady(Duration timeout);
+    BIBO connectWhenReady(Duration timeout);
 
     // Continuous per-tap dispatch (requires monitor)
-    void onCard(BiConsumer<PCSCReader, APDUBIBO> fn);
+    void onCard(BiConsumer<PCSCReader, BIBO> fn);
 
     // Escape hatches (bypass executor, caller thread)
     CardTerminal terminal();

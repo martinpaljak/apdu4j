@@ -137,8 +137,8 @@ record ReaderSelectorImpl(
     // --- Managed sessions ---
 
     @Override
-    public <T> T run(Function<APDUBIBO, T> fn) {
-        return open(bibosa -> fn.apply(new APDUBIBO(bibosa)));
+    public <T> T run(Function<BIBO, T> fn) {
+        return open(bibosa -> fn.apply(bibosa));
     }
 
     @Override
@@ -148,7 +148,7 @@ record ReaderSelectorImpl(
     }
 
     @Override
-    public void accept(Consumer<APDUBIBO> fn) {
+    public void accept(Consumer<BIBO> fn) {
         run(bibo -> {
             fn.accept(bibo);
             return null;
@@ -156,17 +156,17 @@ record ReaderSelectorImpl(
     }
 
     @Override
-    public <T> T whenReady(Function<APDUBIBO, T> fn) {
+    public <T> T whenReady(Function<BIBO, T> fn) {
         var name = resolveReaderName();
         return withCardTerminal(name, ct -> {
             var wct = wrapLog(ct);
             waitForCard(wct, Duration.ZERO);
-            return connectAndRun(wct, bibosa -> fn.apply(new APDUBIBO(bibosa)));
+            return connectAndRun(wct, bibosa -> fn.apply(bibosa));
         });
     }
 
     @Override
-    public <T> T whenReady(Duration timeout, Function<APDUBIBO, T> fn) {
+    public <T> T whenReady(Duration timeout, Function<BIBO, T> fn) {
         if (timeout.isZero()) {
             return whenReady(fn);
         }
@@ -174,32 +174,32 @@ record ReaderSelectorImpl(
         return submitAndGet(name, () -> {
             var wct = wrapLog(mgr.terminal(name));
             waitForCard(wct, timeout);
-            return connectAndRun(wct, bibosa -> fn.apply(new APDUBIBO(bibosa)));
+            return connectAndRun(wct, bibosa -> fn.apply(bibosa));
         });
     }
 
     // --- Unmanaged ---
 
     @Override
-    public APDUBIBO connect() {
+    public BIBO connect() {
         var name = resolveReaderName();
         var raw = withCardTerminal(name, ct -> connectRaw(wrapLog(ct)));
-        return new APDUBIBO(maybeMarshal(name, raw));
+        return maybeMarshal(name, raw);
     }
 
     @Override
-    public APDUBIBO connectWhenReady() {
+    public BIBO connectWhenReady() {
         var name = resolveReaderName();
         var raw = withCardTerminal(name, ct -> {
             var wct = wrapLog(ct);
             waitForCard(wct, Duration.ZERO);
             return connectRaw(wct);
         });
-        return new APDUBIBO(maybeMarshal(name, raw));
+        return maybeMarshal(name, raw);
     }
 
     @Override
-    public APDUBIBO connectWhenReady(Duration timeout) {
+    public BIBO connectWhenReady(Duration timeout) {
         if (timeout.isZero()) {
             return connectWhenReady();
         }
@@ -209,13 +209,13 @@ record ReaderSelectorImpl(
             waitForCard(wct, timeout);
             return connectRaw(wct);
         });
-        return new APDUBIBO(ReaderExecutor.wrap(mgr.executor(name), raw));
+        return ReaderExecutor.wrap(mgr.executor(name), raw);
     }
 
     // --- Continuous per-tap dispatch ---
 
     @Override
-    public void onCard(BiConsumer<PCSCReader, APDUBIBO> fn) {
+    public void onCard(BiConsumer<PCSCReader, BIBO> fn) {
         Predicate<PCSCReader> matcher = selection.filter();
         if (selection.hint() != null && !selection.hint().isBlank()) {
             var h = selection.hint().toLowerCase();
@@ -232,7 +232,7 @@ record ReaderSelectorImpl(
                 var card = wct.connect(resolveConnectProtocol());
                 var bibosa = wrapBIBO(card, ct.getName());
                 try {
-                    fn.accept(reader, new APDUBIBO(bibosa));
+                    fn.accept(reader, bibosa);
                 } finally {
                     bibosa.close();
                 }

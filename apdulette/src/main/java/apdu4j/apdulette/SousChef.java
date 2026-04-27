@@ -8,7 +8,6 @@ import apdu4j.apdulette.PreparationStep.Premade;
 import apdu4j.apdulette.PreparationStep.Seasoned;
 import apdu4j.apdulette.Verdict.NextStep;
 import apdu4j.apdulette.Verdict.Ready;
-import apdu4j.core.APDUBIBO;
 import apdu4j.core.BIBO;
 import apdu4j.core.ResponseAPDU;
 import apdu4j.prefs.Preferences;
@@ -20,13 +19,9 @@ import java.util.List;
 // Real-time executor: transmits APDUs over BIBO, trampoline loop
 public final class SousChef implements Chef {
     static final int MAX_ITERATIONS = 10_000;
-    private final APDUBIBO bibo;
+    private final BIBO bibo;
 
     public SousChef(BIBO bibo) {
-        this.bibo = new APDUBIBO(bibo);
-    }
-
-    public SousChef(APDUBIBO bibo) {
         this.bibo = bibo;
     }
 

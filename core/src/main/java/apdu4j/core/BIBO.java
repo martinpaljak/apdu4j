@@ -24,7 +24,6 @@ import java.util.function.Function;
  * so any {@code byte[] -> byte[]} lambda can be used where a BIBO is expected.
  * {@link #close} defaults to a no-op for resource-less transports.
  *
- * @see APDUBIBO
  * @see MockBIBO
  */
 @FunctionalInterface
@@ -37,6 +36,22 @@ public interface BIBO extends AutoCloseable {
      * @throws BIBOException when transceive fails or BIBO has been closed
      */
     byte[] transceive(byte[] bytes) throws BIBOException;
+
+    /**
+     * Typed sugar over {@link #transceive}: send a {@link CommandAPDU}, get a {@link ResponseAPDU}.
+     * Equivalent to {@code javax.smartcardio.CardChannel#transmit(CommandAPDU)}.
+     *
+     * @param command the command APDU to send
+     * @return the response APDU
+     * @throws BIBOException when transceive fails or the response cannot be parsed as an APDU
+     */
+    default ResponseAPDU transmit(CommandAPDU command) throws BIBOException {
+        try {
+            return new ResponseAPDU(transceive(command.getBytes()));
+        } catch (IllegalArgumentException e) {
+            throw new BIBOException("Invalid response APDU", e);
+        }
+    }
 
     /**
      * Wraps this BIBO with a decorator, enabling fluent pipeline construction:

@@ -6,7 +6,7 @@ import apdu4j.apdulette.Cookbook;
 import apdu4j.apdulette.KitchenDisaster;
 import apdu4j.apdulette.Recipe;
 import apdu4j.apdulette.SousChef;
-import apdu4j.core.APDUBIBO;
+import apdu4j.core.BIBO;
 import apdu4j.core.BIBOException;
 import apdu4j.core.HexUtils;
 import apdu4j.core.ResponseAPDU;
@@ -194,7 +194,7 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
         }
     }
 
-    private int sendAll(APDUBIBO bibo, List<byte[]> apdus) {
+    private int sendAll(BIBO bibo, List<byte[]> apdus) {
         for (byte[] s : apdus) {
             var r = new ResponseAPDU(bibo.transceive(s));
             if (r.getSW() != 0x9000 && !force) {

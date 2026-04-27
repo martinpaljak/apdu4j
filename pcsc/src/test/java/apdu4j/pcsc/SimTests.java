@@ -363,7 +363,7 @@ public class SimTests {
         }
     }
 
-    // === CardBIBO channel interception and APDUBIBO ===
+    // === CardBIBO channel interception and typed transmit ===
 
     @Test
     void testTypedAndRawChannelAPIs() {
@@ -371,10 +371,9 @@ public class SimTests {
         terminal.present(MockBIBO.of("9000", "6A82", "019000", "9000"));
         try (var mgr = TerminalManager.managerOf(terminal)) {
             Readers.select(mgr).run(bibo -> {
-                // APDUBIBO typed wrapper
-                var apdu = new APDUBIBO(bibo);
-                Assert.assertEquals(apdu.transmit(new apdu4j.core.CommandAPDU(0x00, 0xA4, 0x04, 0x00)).getSW(), 0x9000);
-                Assert.assertEquals(apdu.transmit(new apdu4j.core.CommandAPDU(0x00, 0xA4, 0x04, 0x00)).getSW(), 0x6A82);
+                // Typed transmit (default method on BIBO)
+                Assert.assertEquals(bibo.transmit(new apdu4j.core.CommandAPDU(0x00, 0xA4, 0x04, 0x00)).getSW(), 0x9000);
+                Assert.assertEquals(bibo.transmit(new apdu4j.core.CommandAPDU(0x00, 0xA4, 0x04, 0x00)).getSW(), 0x6A82);
 
                 // Raw BIBO channel interception (OPEN CHANNEL + CLOSE CHANNEL)
                 Assert.assertEquals(bibo.transceive(HexUtils.hex2bin("00700000")), HexUtils.hex2bin("019000"));
