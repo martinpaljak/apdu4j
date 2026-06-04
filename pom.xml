@@ -47,6 +47,7 @@
         <module>core</module>
         <module>pcsc-sim</module>
         <module>pcsc</module>
+        <module>remote</module>
         <module>report</module>
     </modules>
     <dependencyManagement>
