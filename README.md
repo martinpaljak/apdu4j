@@ -23,35 +23,22 @@ Use `apdu4j-pcsc` for desktop PC/SC readers. It pulls everything else in transit
 Select a reader and send an APDU in 3 lines:
 
 ```java
-Readers.select().
-
-withCard().
-
-accept(bibo ->{
-var response = bibo.transmit(new CommandAPDU(0x00, 0xA4, 0x04, 0x00));
-    System.out.
-
-println("SW: %04X".formatted(response.getSW()));
-        });
+Readers.select()
+    .withCard()
+    .accept(bibo -> {
+        var response = bibo.transmit(new CommandAPDU(0x00, 0xA4, 0x04, 0x00));
+        System.out.println("SW: %04X".formatted(response.getSW()));
+    });
 ```
 
 With logging and session recording:
 
 ```java
-Readers.select().
-
-withCard()
-    .
-
-log(System.out)
-    .
-
-dump(new FileOutputStream("session.dump"))
-        .
-
-run(bibo ->bibo.
-
-transmit(new CommandAPDU("00A4040007A0000002471001")));
+Readers.select()
+    .withCard()
+    .log(System.out)
+    .dump(new FileOutputStream("session.dump"))
+    .run(bibo -> bibo.transmit(new CommandAPDU("00A4040007A0000002471001")));
 ```
 
 ## Modules
@@ -61,9 +48,10 @@ transmit(new CommandAPDU("00A4040007A0000002471001")));
 | `apdu4j-core`      | 17   | `BIBO`, `BIBOSA`, APDU types, decorators, protocol handlers; no `javax.smartcardio` |
 | `apdu4j-pcsc`      | 17   | PC/SC readers via `javax.smartcardio`, fluent `Readers` API, thread-safe sessions   |
 | `apdu4j-pcsc-sim`  | 17   | Synthesized `javax.smartcardio` provider over a `BIBO`                              |
+| `apdu4j-remote`    | 17   | Remote transport adapters (JCSDK, VSmartCard, JSON)                                 |
 | `apdu4j-prefs`     | 17   | Typed `Preference` / `Preferences`                                                  |
 | `apdu4j-apdulette` | 21   | Lazy, composable APDU recipes                                                       |
-| `apdu4j-tool`      | 17   | CLI tool                                                                            |
+| `apdu4j-tool`      | 21   | CLI tool                                                                            |
 
 ## Core (`apdu4j-core`)
 
@@ -78,10 +66,8 @@ transmit(new CommandAPDU("00A4040007A0000002471001")));
 `javax.smartcardio`:
 
 ```java
-new CommandAPDU(0x00,0xA4,0x04,0x00,data)  // fields
-new
-
-CommandAPDU("00A4040007A0000002471001")     // hex string
+new CommandAPDU(0x00, 0xA4, 0x04, 0x00, data)  // fields
+new CommandAPDU("00A4040007A0000002471001")    // hex string
 ```
 
 `ResponseAPDU` - immutable response: `getSW()`, `getSW1()`, `getSW2()`, `getData()`, `getSWBytes()`.
@@ -146,7 +132,7 @@ var mock = MockBIBO.with("00A4040007A0000002471001", "6F10A5049F6501FF9000")
         .then("80CA9F7F00", "9000");
 var response = mock.transmit(new CommandAPDU("00A4040007A0000002471001"));
 
-assertEquals(0x9000,response.getSW());
+assertEquals(0x9000, response.getSW());
 ```
 
 Replay from a dump file:
@@ -182,7 +168,7 @@ Readers.fromPreferences(Preferences.fromEnvironment(), READER, IGNORE)
         .withCard()
         .protocol("T=1")
         .log(System.out)
-        .run(apdu ->{...});
+        .run(apdu -> {...});
 ```
 
 Other knobs (`ignore`, `filter`, `exclusive`, `dump`, `whenReady`, `onCard`) are also available.
