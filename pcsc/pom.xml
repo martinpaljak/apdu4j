@@ -35,7 +35,7 @@
         <dependency>
             <groupId>com.github.martinpaljak</groupId>
             <artifactId>apdu4j-jnasmartcardio</artifactId>
-            <version>26.03.28</version>
+            <version>26.03.29-SNAPSHOT</version>
         </dependency>
         <!-- Config file for aliases -->
         <dependency>

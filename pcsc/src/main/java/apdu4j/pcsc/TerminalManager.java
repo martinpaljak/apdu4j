@@ -50,6 +50,7 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
     private static final AtomicReference<TerminalManager> active = new AtomicReference<>();
 
     private final TerminalFactory factory;
+    private final Object lock = new Object();
     // Per-thread SCardContext via jnasmartcardio
     private final ThreadLocal<CardTerminals> threadLocalTerminals = ThreadLocal.withInitial(() -> null);
 
@@ -316,14 +317,16 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
     }
 
     // Start monitoring reader changes in a daemon thread. Idempotent.
-    synchronized void startMonitor() {
-        if (monitorThread != null) {
-            return;
+    void startMonitor() {
+        synchronized (lock) {
+            if (monitorThread != null) {
+                return;
+            }
+            var monitor = new HandyTerminalsMonitor(this, this);
+            monitorThread = new Thread(monitor, "PC/SC Monitor");
+            monitorThread.setDaemon(true);
+            monitorThread.start();
         }
-        var monitor = new HandyTerminalsMonitor(this, this);
-        monitorThread = new Thread(monitor, "PC/SC Monitor");
-        monitorThread.setDaemon(true);
-        monitorThread.start();
     }
 
     // Get or create a per-reader executor
@@ -438,19 +441,21 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
     }
 
     @Override
-    public synchronized void close() {
-        if (monitorThread != null) {
-            monitorThread.interrupt();
-            try {
-                monitorThread.join(5000);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+    public void close() {
+        synchronized (lock) {
+            if (monitorThread != null) {
+                monitorThread.interrupt();
+                try {
+                    monitorThread.join(5000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                monitorThread = null;
             }
-            monitorThread = null;
+            executors.values().forEach(ReaderExecutor::shutdown);
+            executors.clear();
+            active.compareAndSet(this, null);
         }
-        executors.values().forEach(ReaderExecutor::shutdown);
-        executors.clear();
-        active.compareAndSet(this, null);
     }
 
     public static boolean isMacOS() {
