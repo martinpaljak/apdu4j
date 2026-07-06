@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: MIT
 package apdu4j.pcsc;
 
+import jnasmartcardio.Smartcardio.JnaCard;
+
+import javax.smartcardio.Card;
+import javax.smartcardio.CardException;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
@@ -14,6 +18,17 @@ public final class SCard {
         RESET,   // SCARD_RESET_CARD (default)
         LEAVE,   // SCARD_LEAVE_CARD
         UNPOWER  // SCARD_UNPOWER_CARD
+    }
+
+    // Disconnect honoring full PC/SC semantics, or downgrades to reset
+    public static void disconnect(Card card, Disconnect how) throws CardException {
+        if (card instanceof PCSCCard pcsc) {
+            pcsc.disconnect(how);
+        } else if (how == Disconnect.UNPOWER && card instanceof JnaCard jna) {
+            jna.disconnect(JnaCard.SCARD_UNPOWER_CARD);
+        } else {
+            card.disconnect(how != Disconnect.LEAVE);
+        }
     }
 
     public static final String SCARD_E_SHARING_VIOLATION = "SCARD_E_SHARING_VIOLATION";

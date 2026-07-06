@@ -5,11 +5,13 @@ package apdu4j.pcsc;
 import apdu4j.core.HexBytes;
 import apdu4j.prefs.Preference;
 import apdu4j.prefs.Preferences;
+import apdu4j.prefs.StringConverter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -23,8 +25,11 @@ public final class Readers {
                     p -> Set.of("T=0", "T=1", "T=CL", "*", "DIRECT").contains(p));
     public static final Preference.Default<Boolean> EXCLUSIVE =
             Preference.of("reader.exclusive", Boolean.class, false, false);
-    public static final Preference.Default<Boolean> RESET =
-            Preference.of("reader.reset", Boolean.class, true, false);
+    public static final Preference.Default<SCard.Disconnect> DISCONNECT =
+            Preference.of("reader.disconnect", SCard.Disconnect.class, SCard.Disconnect.RESET, false)
+                    .withConverter(StringConverter.of(
+                            s -> SCard.Disconnect.valueOf(s.strip().toUpperCase(Locale.ROOT)),
+                            Enum::name));
     // Explicitly set overrides the default (derive from EXCLUSIVE)
     public static final Preference.Default<Boolean> TRANSACTIONS =
             Preference.of("reader.transactions", Boolean.class, true, false);

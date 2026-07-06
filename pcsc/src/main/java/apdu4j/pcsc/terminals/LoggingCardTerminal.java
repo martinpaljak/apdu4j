@@ -4,6 +4,7 @@ package apdu4j.pcsc.terminals;
 
 import apdu4j.core.HexUtils;
 import apdu4j.core.LoggingBIBO;
+import apdu4j.pcsc.PCSCCard;
 import apdu4j.pcsc.SCard;
 
 import javax.smartcardio.*;
@@ -66,7 +67,7 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
     }
 
 
-    public final class LoggingCard extends Card {
+    public final class LoggingCard extends Card implements PCSCCard {
         private final long startTime = System.nanoTime();
         private long transactionStartTime;
         private long inBytes = 0;
@@ -96,11 +97,16 @@ public final class LoggingCardTerminal extends CardTerminal implements AutoClose
         }
 
         @Override
-        public void disconnect(boolean arg0) throws CardException {
+        public void disconnect(boolean reset) throws CardException {
+            disconnect(reset ? SCard.Disconnect.RESET : SCard.Disconnect.LEAVE);
+        }
+
+        @Override
+        public void disconnect(SCard.Disconnect how) throws CardException {
             var duration = System.nanoTime() - startTime;
-            log.println("# SCardDisconnect(\"%s\", %s) tx:%d/rx:%d in %s".formatted(terminal.getName(), arg0, outBytes, inBytes, LoggingBIBO.nanoTime(duration)));
+            log.println("# SCardDisconnect(\"%s\", %s) tx:%d/rx:%d in %s".formatted(terminal.getName(), how, outBytes, inBytes, LoggingBIBO.nanoTime(duration)));
             inBytes = outBytes = 0;
-            card.disconnect(arg0);
+            SCard.disconnect(card, how);
         }
 
         @Override

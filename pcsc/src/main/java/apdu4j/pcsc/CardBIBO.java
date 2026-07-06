@@ -107,11 +107,7 @@ public final class CardBIBO implements BIBO {
     public void close() {
         closed = true;
         try {
-            if (disconnect == SCard.Disconnect.UNPOWER && card instanceof jnasmartcardio.Smartcardio.JnaCard jnaCard) {
-                jnaCard.disconnect(jnasmartcardio.Smartcardio.JnaCard.SCARD_UNPOWER_CARD);
-            } else {
-                card.disconnect(disconnect == SCard.Disconnect.RESET);
-            }
+            SCard.disconnect(card, disconnect);
         } catch (CardException e) {
             String err = SCard.getExceptionMessage(e);
             if (SCard.SCARD_E_INVALID_HANDLE.equals(err)) {
