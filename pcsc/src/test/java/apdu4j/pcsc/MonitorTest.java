@@ -135,6 +135,10 @@ public class MonitorTest {
         terminals2.addTerminal(terminal2);
         try (var mgr = new TerminalManager(terminals2.toFactory())) {
             var latch = new CountDownLatch(1);
+            // Register AFTER the monitor scanned: the initial-scan event is gone, so a late
+            // fresh=false pass must serve the already-present card via the catch-up path.
+            mgr.startMonitor();
+            Assert.assertTrue(mgr.awaitInitialScan(Duration.ofSeconds(5)));
             Readers.select(mgr).fresh(false).onCard((reader, bibo) -> {
                 bibo.transceive(HexUtils.hex2bin("00A4040000"));
                 latch.countDown();
@@ -303,6 +307,66 @@ public class MonitorTest {
             var result = Readers.select(mgr).whenReady(Duration.ofSeconds(5), bibo ->
                     bibo.transceive(HexUtils.hex2bin("00A4040000")));
             Assert.assertEquals(result, HexUtils.hex2bin("9000"));
+        }
+    }
+
+    // === Multiple concurrent passes: disjoint reader subsets, no matcher overlap ===
+
+    @Test
+    void testMultiplePassesDisjointReaders() throws Exception {
+        var terminals = new SynthesizedCardTerminals();
+        var alpha = new SynthesizedCardTerminal("Alpha Reader"); // both start empty
+        var beta = new SynthesizedCardTerminal("Beta Reader");
+        terminals.addTerminal(alpha);
+        terminals.addTerminal(beta);
+
+        try (var mgr = new TerminalManager(terminals.toFactory())) {
+            var alphaHits = new AtomicInteger(0);
+            var betaHits = new AtomicInteger(0);
+            var alphaTap = new CountDownLatch(1);
+            var betaFirst = new CountDownLatch(1);
+            var betaTwice = new CountDownLatch(2);
+
+            var alphaPass = Readers.select(mgr).filter(r -> r.name().contains("Alpha")).onCard((reader, bibo) -> {
+                alphaHits.incrementAndGet();
+                alphaTap.countDown();
+            });
+            var betaPass = Readers.select(mgr).filter(r -> r.name().contains("Beta")).onCard((reader, bibo) -> {
+                betaHits.incrementAndGet();
+                betaFirst.countDown();
+                betaTwice.countDown();
+            });
+            Assert.assertTrue(mgr.awaitInitialScan(Duration.ofSeconds(5)));
+
+            // A third pass whose matcher overlaps an existing one is rejected
+            Assert.expectThrows(IllegalStateException.class,
+                    () -> Readers.select(mgr).onCard((reader, bibo) -> {
+                    }));
+
+            alpha.present(MockBIBO.of("9000"));
+            Assert.assertTrue(alphaTap.await(5, TimeUnit.SECONDS), "Alpha pass must serve the Alpha tap");
+            beta.present(MockBIBO.of("9000"));
+            Assert.assertTrue(betaFirst.await(5, TimeUnit.SECONDS), "Beta pass must serve the Beta tap");
+
+            // Each pass served only its own reader
+            Assert.assertEquals(alphaHits.get(), 1);
+            Assert.assertEquals(betaHits.get(), 1);
+
+            // Closing one pass leaves the other serving
+            alphaPass.close();
+            beta.yank();
+            Assert.assertTrue(mgr.awaitReaders(
+                    readers -> readers.stream().filter(r -> r.name().contains("Beta")).noneMatch(PCSCReader::present),
+                    Duration.ofSeconds(5)));
+            beta.present(MockBIBO.of("9000"));
+            Assert.assertTrue(betaTwice.await(5, TimeUnit.SECONDS), "the still-open pass keeps serving");
+
+            // Alpha stays closed; re-tapping Alpha is never dispatched
+            alpha.yank();
+            alpha.present(MockBIBO.of("9000"));
+            Assert.assertEquals(alphaHits.get(), 1, "a closed pass serves no further taps");
+            Assert.assertEquals(betaHits.get(), 2);
+            betaPass.close();
         }
     }
 }

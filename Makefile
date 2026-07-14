@@ -7,7 +7,7 @@ JAVA21 := /Library/Java/JavaVirtualMachines/$(JDK)-21.jdk/Contents/Home
 JAVA25 := /Library/Java/JavaVirtualMachines/$(JDK)-25.jdk/Contents/Home
 
 default: today reportjava
-	./mvnw verify
+	./mvnw verify install
 
 reportjava:
 	@echo using java $(shell java -version 2>&1 | grep version) from \"$(JAVA_HOME)\"

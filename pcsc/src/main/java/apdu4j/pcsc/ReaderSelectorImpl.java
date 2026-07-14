@@ -23,6 +23,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -32,7 +33,8 @@ record ReaderSelectorImpl(
         SelectionCriteria selection,
         Preferences config,
         OutputStream logStream,
-        OutputStream dumpStream
+        OutputStream dumpStream,
+        BiFunction<Wait, String, Runnable> onWait
 ) implements ReaderSelector {
     private static final Logger logger = LoggerFactory.getLogger(ReaderSelectorImpl.class);
 
@@ -46,7 +48,7 @@ record ReaderSelectorImpl(
 
     // Convenience constructor for factory methods
     ReaderSelectorImpl(TerminalManager mgr, SelectionCriteria selection) {
-        this(mgr, selection, new Preferences(), null, null);
+        this(mgr, selection, new Preferences(), null, null, null);
     }
 
     // --- Selection (return ReaderSelector) ---
@@ -56,19 +58,28 @@ record ReaderSelectorImpl(
         if (hint == null) {
             throw new IllegalArgumentException("hint must not be null");
         }
-        return new ReaderSelectorImpl(mgr, new SelectionCriteria(hint, selection.ignoreFragments(), selection.filter()), config, logStream, dumpStream);
+        return new ReaderSelectorImpl(mgr, new SelectionCriteria(hint, selection.ignoreFragments(), selection.filter()), config, logStream, dumpStream, onWait);
     }
 
     @Override
     public ReaderSelector ignore(String... fragments) {
         var merged = new ArrayList<>(selection.ignoreFragments());
         merged.addAll(List.of(fragments));
-        return new ReaderSelectorImpl(mgr, new SelectionCriteria(selection.hint(), merged, selection.filter()), config, logStream, dumpStream);
+        return new ReaderSelectorImpl(mgr, new SelectionCriteria(selection.hint(), merged, selection.filter()), config, logStream, dumpStream, onWait);
     }
 
     @Override
     public ReaderSelector filter(Predicate<PCSCReader> predicate) {
-        return new ReaderSelectorImpl(mgr, new SelectionCriteria(selection.hint(), selection.ignoreFragments(), selection.filter().and(predicate)), config, logStream, dumpStream);
+        return new ReaderSelectorImpl(mgr, new SelectionCriteria(selection.hint(), selection.ignoreFragments(), selection.filter().and(predicate)), config, logStream, dumpStream, onWait);
+    }
+
+    @Override
+    public boolean overlaps(ReaderSelector other) {
+        var mine = selection.hint();
+        var theirs = ((ReaderSelectorImpl) other).selection.hint();
+        boolean mineAny = mine == null || mine.isBlank();
+        boolean theirsAny = theirs == null || theirs.isBlank();
+        return mineAny || theirsAny || mine.equalsIgnoreCase(theirs);
     }
 
     @Override
@@ -80,12 +91,12 @@ record ReaderSelectorImpl(
 
     @Override
     public ReaderSelector with(Preferences prefs) {
-        return new ReaderSelectorImpl(mgr, selection, config.merge(prefs), logStream, dumpStream);
+        return new ReaderSelectorImpl(mgr, selection, config.merge(prefs), logStream, dumpStream, onWait);
     }
 
     @Override
     public <V> ReaderSelector with(Preference<V> key, V value) {
-        return new ReaderSelectorImpl(mgr, selection, config.with(key, value), logStream, dumpStream);
+        return new ReaderSelectorImpl(mgr, selection, config.with(key, value), logStream, dumpStream, onWait);
     }
 
     // --- Convenience sugar ---
@@ -102,7 +113,12 @@ record ReaderSelectorImpl(
 
     @Override
     public ReaderSelector reset(boolean reset) {
-        return with(Readers.RESET, reset);
+        return with(Readers.DISCONNECT, reset ? SCard.Disconnect.RESET : SCard.Disconnect.LEAVE);
+    }
+
+    @Override
+    public ReaderSelector disconnect(SCard.Disconnect how) {
+        return with(Readers.DISCONNECT, how);
     }
 
     @Override
@@ -119,12 +135,17 @@ record ReaderSelectorImpl(
 
     @Override
     public ReaderSelector log(OutputStream out) {
-        return new ReaderSelectorImpl(mgr, selection, config, out, dumpStream);
+        return new ReaderSelectorImpl(mgr, selection, config, out, dumpStream, onWait);
     }
 
     @Override
     public ReaderSelector dump(OutputStream out) {
-        return new ReaderSelectorImpl(mgr, selection, config, logStream, out);
+        return new ReaderSelectorImpl(mgr, selection, config, logStream, out, onWait);
+    }
+
+    @Override
+    public ReaderSelector onWait(BiFunction<Wait, String, Runnable> notifier) {
+        return new ReaderSelectorImpl(mgr, selection, config, logStream, dumpStream, notifier);
     }
 
     // --- List ---
@@ -137,36 +158,31 @@ record ReaderSelectorImpl(
     // --- Managed sessions ---
 
     @Override
-    public <T> T run(Function<BIBO, T> fn) {
-        return open(bibosa -> fn.apply(bibosa));
-    }
-
-    @Override
-    public <T> T open(Function<BIBOSA, T> fn) {
+    public <T> T run(Function<? super BIBOSA, ? extends T> fn) {
         var name = resolveReaderName();
         return withCardTerminal(name, ct -> connectAndRun(wrapLog(ct), fn));
     }
 
     @Override
-    public void accept(Consumer<BIBO> fn) {
-        run(bibo -> {
-            fn.accept(bibo);
+    public void accept(Consumer<? super BIBOSA> fn) {
+        run(bibosa -> {
+            fn.accept(bibosa);
             return null;
         });
     }
 
     @Override
-    public <T> T whenReady(Function<BIBO, T> fn) {
+    public <T> T whenReady(Function<? super BIBOSA, ? extends T> fn) {
         var name = resolveReaderName();
         return withCardTerminal(name, ct -> {
             var wct = wrapLog(ct);
             waitForCard(wct, Duration.ZERO);
-            return connectAndRun(wct, bibosa -> fn.apply(bibosa));
+            return connectAndRun(wct, fn);
         });
     }
 
     @Override
-    public <T> T whenReady(Duration timeout, Function<BIBO, T> fn) {
+    public <T> T whenReady(Duration timeout, Function<? super BIBOSA, ? extends T> fn) {
         if (timeout.isZero()) {
             return whenReady(fn);
         }
@@ -174,21 +190,21 @@ record ReaderSelectorImpl(
         return submitAndGet(name, () -> {
             var wct = wrapLog(mgr.terminal(name));
             waitForCard(wct, timeout);
-            return connectAndRun(wct, bibosa -> fn.apply(bibosa));
+            return connectAndRun(wct, fn);
         });
     }
 
     // --- Unmanaged ---
 
     @Override
-    public BIBO connect() {
+    public BIBOSA connect() {
         var name = resolveReaderName();
         var raw = withCardTerminal(name, ct -> connectRaw(wrapLog(ct)));
         return maybeMarshal(name, raw);
     }
 
     @Override
-    public BIBO connectWhenReady() {
+    public BIBOSA connectWhenReady() {
         var name = resolveReaderName();
         var raw = withCardTerminal(name, ct -> {
             var wct = wrapLog(ct);
@@ -199,7 +215,7 @@ record ReaderSelectorImpl(
     }
 
     @Override
-    public BIBO connectWhenReady(Duration timeout) {
+    public BIBOSA connectWhenReady(Duration timeout) {
         if (timeout.isZero()) {
             return connectWhenReady();
         }
@@ -215,7 +231,7 @@ record ReaderSelectorImpl(
     // --- Continuous per-tap dispatch ---
 
     @Override
-    public void onCard(BiConsumer<PCSCReader, BIBO> fn) {
+    public CardWatch onCard(BiConsumer<PCSCReader, ? super BIBOSA> fn) {
         Predicate<PCSCReader> matcher = selection.filter();
         if (selection.hint() != null && !selection.hint().isBlank()) {
             var h = selection.hint().toLowerCase();
@@ -225,7 +241,7 @@ record ReaderSelectorImpl(
             var fragments = selection.ignoreFragments();
             matcher = matcher.and(r -> !Readers.isIgnored(fragments, r.name()));
         }
-        mgr.registerOnCard(matcher, (reader, ct) -> {
+        return mgr.registerOnCard(matcher, (reader, ct) -> {
             try {
                 var wct = wrapLog(ct);
                 applyTransparentMode();
@@ -278,7 +294,7 @@ record ReaderSelectorImpl(
         return fn.apply(mgr.terminal(name));
     }
 
-    private BIBO maybeMarshal(String name, BIBO raw) {
+    private BIBOSA maybeMarshal(String name, BIBOSA raw) {
         if (mgr.isMonitorRunning()) {
             return ReaderExecutor.wrap(mgr.executor(name), raw);
         }
@@ -287,7 +303,7 @@ record ReaderSelectorImpl(
 
     // --- Extracted helpers ---
 
-    private <T> T connectAndRun(CardTerminal ct, Function<BIBOSA, T> fn) {
+    private <T> T connectAndRun(CardTerminal ct, Function<? super BIBOSA, ? extends T> fn) {
         // Explicit TRANSACTIONS overrides; otherwise derive from EXCLUSIVE
         boolean useTransactions = config.valueOf(Readers.TRANSACTIONS)
                 .orElse(!config.get(Readers.EXCLUSIVE));
@@ -327,24 +343,39 @@ record ReaderSelectorImpl(
     // Duration.ZERO = wait indefinitely (maps to waitForCardPresent(0))
     private void waitForCard(CardTerminal ct, Duration timeout) {
         try {
-            if (config.get(Readers.FRESH_TAP) && ct.isCardPresent()) {
+            boolean present = ct.isCardPresent();
+            boolean fresh = config.get(Readers.FRESH_TAP);
+            if (fresh && present) {
                 logger.info("Card already present, waiting for removal before accepting new tap");
-                if (!ct.waitForCardAbsent(timeout.toMillis())) {
-                    throw new BIBOException("Timeout waiting for card removal");
-                }
+                awaitState(Wait.REMOVAL, ct, timeout.toMillis());
             }
-            if (!ct.waitForCardPresent(timeout.toMillis())) {
-                if (Thread.currentThread().isInterrupted()) {
-                    throw new RuntimeException(new InterruptedException("waitForCard"));
-                }
-                throw new BIBOException("Timeout waiting for card");
+            if (!present || fresh) {
+                awaitState(Wait.INSERTION, ct, timeout.toMillis());
             }
         } catch (CardException e) {
             throw new BIBOException("Failed waiting for card", e);
         }
     }
 
-    private BIBO connectRaw(CardTerminal ct) {
+    // Notify the wait phase, block for the transition, then dismiss the notification however it ends.
+    private void awaitState(Wait phase, CardTerminal ct, long timeout) throws CardException {
+        Runnable dismiss = onWait != null ? onWait.apply(phase, ct.getName()) : null;
+        try {
+            boolean ok = phase == Wait.REMOVAL ? ct.waitForCardAbsent(timeout) : ct.waitForCardPresent(timeout);
+            if (!ok) {
+                if (Thread.currentThread().isInterrupted()) {
+                    throw new RuntimeException(new InterruptedException("waitForCard"));
+                }
+                throw new BIBOException(phase == Wait.REMOVAL ? "Timeout waiting for card removal" : "Timeout waiting for card");
+            }
+        } finally {
+            if (dismiss != null) {
+                dismiss.run();
+            }
+        }
+    }
+
+    private BIBOSA connectRaw(CardTerminal ct) {
         try {
             applyTransparentMode();
             return wrapBIBO(ct.connect(resolveConnectProtocol()), ct.getName());
@@ -396,7 +427,13 @@ record ReaderSelectorImpl(
 
     // Wraps javax.smartcardio.Card into BIBOSA with session facts as readonly preferences
     private BIBOSA wrapBIBO(Card card, String readerName) {
-        var disconnect = config.get(Readers.RESET) ? SCard.Disconnect.RESET : SCard.Disconnect.LEAVE;
+        boolean fresh = config.get(Readers.FRESH_TAP);
+        boolean exclusive = config.get(Readers.EXCLUSIVE);
+        // The freshness contract fixes the disconnect disposition here, when the transport is built.
+        // With no explicit disconnect set, a required fresh tap resolves to a cold UNPOWER power-cycle
+        // so closing guarantees the next arrival is a genuine power-on; otherwise a warm RESET.
+        var disconnect = config.valueOf(Readers.DISCONNECT)
+                .orElse(fresh ? SCard.Disconnect.UNPOWER : SCard.Disconnect.RESET);
         BIBO bibo = CardBIBO.wrap(card, disconnect);
         if (dumpStream != null) {
             var ps = new PrintStream(dumpStream, true, StandardCharsets.UTF_8);
@@ -407,9 +444,11 @@ record ReaderSelectorImpl(
         }
         // Enrich config with session facts (readonly - can't be overwritten downstream)
         var sessionPrefs = config
-                .with(Readers.READER_NAME, readerName)
-                .with(Readers.ATR, HexBytes.b(card.getATR().getBytes()))
-                .with(Readers.NEGOTIATED_PROTOCOL, card.getProtocol());
+                .with(CardInfo.READER_NAME, readerName)
+                .with(CardInfo.ATR, HexBytes.b(card.getATR().getBytes()))
+                .with(CardInfo.NEGOTIATED_PROTOCOL, card.getProtocol())
+                .with(CardInfo.FRESH_TAP, fresh)
+                .with(CardInfo.EXCLUSIVE_HELD, exclusive);
         return new BIBOSA(bibo, sessionPrefs);
     }
 

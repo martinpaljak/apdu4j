@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 package apdu4j.pcsc;
 
-import apdu4j.core.BIBO;
 import apdu4j.core.BIBOSA;
 import apdu4j.prefs.Preference;
 import apdu4j.prefs.Preferences;
@@ -13,6 +12,7 @@ import java.io.OutputStream;
 import java.time.Duration;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -24,6 +24,10 @@ public sealed interface ReaderSelector permits ReaderSelectorImpl {
     ReaderSelector ignore(String... fragments);
 
     ReaderSelector filter(Predicate<PCSCReader> predicate);
+
+    // True if this and other could serve the same reader: either one matches any reader, or both
+    // are bound to the same reader via select(). Shared ignore/filter scoping is not compared.
+    boolean overlaps(ReaderSelector other);
 
     ReaderSelector withCard();
 
@@ -39,6 +43,8 @@ public sealed interface ReaderSelector permits ReaderSelectorImpl {
 
     ReaderSelector reset(boolean reset);
 
+    ReaderSelector disconnect(SCard.Disconnect how);
+
     ReaderSelector transactions(boolean enable);
 
     ReaderSelector fresh(boolean requireFreshTap);
@@ -48,31 +54,43 @@ public sealed interface ReaderSelector permits ReaderSelectorImpl {
 
     ReaderSelector dump(OutputStream out);
 
+    // Which card transition a wait is blocking on.
+    enum Wait { REMOVAL, INSERTION }
+
+    // Called when a wait is about to block, with the phase and resolved reader name. The returned
+    // Runnable is run once the wait ends, however it ends; a GUI returns its dialog dismissal.
+    ReaderSelector onWait(BiFunction<Wait, String, Runnable> notifier);
+
     // List available readers
     List<PCSCReader> list();
 
-    // Managed sessions - card must be present
-    <T> T run(Function<BIBO, T> fn);
+    // Managed session, card must be present. fn receives a BIBOSA (BIBO plus Preferences sidecar).
+    <T> T run(Function<? super BIBOSA, ? extends T> fn);
 
-    // BIBOSA variant - transport + enriched Preferences (ATR, negotiated protocol, config)
-    <T> T open(Function<BIBOSA, T> fn);
+    /**
+     * @deprecated use {@link #run(Function)}.
+     */
+    @Deprecated
+    default <T> T open(Function<? super BIBOSA, ? extends T> fn) {
+        return run(fn);
+    }
 
-    void accept(Consumer<BIBO> fn);
+    void accept(Consumer<? super BIBOSA> fn);
 
     // Managed sessions - wait for card
-    <T> T whenReady(Function<BIBO, T> fn);
+    <T> T whenReady(Function<? super BIBOSA, ? extends T> fn);
 
-    <T> T whenReady(Duration timeout, Function<BIBO, T> fn);
+    <T> T whenReady(Duration timeout, Function<? super BIBOSA, ? extends T> fn);
 
-    // Unmanaged - caller manages lifecycle
-    BIBO connect();
+    // Caller manages lifecycle; the sidecar survives the per-reader executor proxy under a monitor.
+    BIBOSA connect();
 
-    BIBO connectWhenReady();
+    BIBOSA connectWhenReady();
 
-    BIBO connectWhenReady(Duration timeout);
+    BIBOSA connectWhenReady(Duration timeout);
 
-    // Continuous per-tap dispatch (requires monitor)
-    void onCard(BiConsumer<PCSCReader, BIBO> fn);
+    // Continuous per-tap dispatch (requires monitor); close the returned watch to stop.
+    CardWatch onCard(BiConsumer<PCSCReader, ? super BIBOSA> fn);
 
     // Escape hatches (bypass executor, caller thread)
     CardTerminal terminal();

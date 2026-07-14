@@ -20,6 +20,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -63,8 +64,12 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
     private final CountDownLatch initialScan = new CountDownLatch(1);
     private final ReentrantLock readersLock = new ReentrantLock();
     private final Condition readersUpdated = readersLock.newCondition();
-    private volatile Predicate<PCSCReader> onCardMatcher;
-    private volatile BiConsumer<PCSCReader, CardTerminal> onCardAction;
+    private record OnCardReg(Predicate<PCSCReader> matcher, BiConsumer<PCSCReader, CardTerminal> action, CardWatch watch) {
+    }
+
+    // Several live registrations may coexist, each closed via its own CardWatch. Their matchers
+    // must not overlap: a reader is served by at most one registration.
+    private final Set<OnCardReg> onCardRegs = ConcurrentHashMap.newKeySet();
 
     // Call from a single thread (typically main). Not safe under contention.
     public static TerminalManager getDefault() {
@@ -372,12 +377,10 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
         }
     }
 
-    void registerOnCard(Predicate<PCSCReader> matcher, BiConsumer<PCSCReader, CardTerminal> action, boolean fresh) {
-        if (this.onCardAction != null) {
-            throw new IllegalStateException("onCard handler already registered");
-        }
+    CardWatch registerOnCard(Predicate<PCSCReader> matcher, BiConsumer<PCSCReader, CardTerminal> action, boolean fresh) {
+        boolean monitorWasRunning = isMonitorRunning();
         if (fresh) {
-            if (isMonitorRunning()) {
+            if (monitorWasRunning) {
                 // Monitor already started - wait for its initial scan so currentReaders is authoritative
                 try {
                     awaitInitialScan(Duration.ofSeconds(10));
@@ -397,9 +400,54 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
                 }
             }
         }
-        this.onCardMatcher = matcher;
-        this.onCardAction = action; // volatile write last - makes matcher visible too
+        var reg = new OnCardReg(matcher, action, new CardWatch(this));
+        // A reader is served by at most one pass: reject a matcher overlapping an existing one.
+        readersLock.lock();
+        try {
+            for (var reader : currentReaders) {
+                if (!matcher.test(reader)) {
+                    continue;
+                }
+                for (var existing : onCardRegs) {
+                    if (existing.matcher().test(reader)) {
+                        throw new IllegalStateException("Reader '" + reader.name() + "' is already served by another pass");
+                    }
+                }
+            }
+            onCardRegs.add(reg);
+        } finally {
+            readersLock.unlock();
+        }
         startMonitor();
+        // A late non-fresh registration misses the monitor's initial scan: serve present readers now.
+        if (!fresh && monitorWasRunning) {
+            for (var reader : currentReaders) {
+                if (reader.present() && matcher.test(reader)) {
+                    dispatch(reg, reader);
+                }
+            }
+        }
+        return reg.watch();
+    }
+
+    // Identity-guarded so a stale handle's close() only evicts its own registration.
+    void unregisterOnCard(CardWatch watch) {
+        onCardRegs.removeIf(r -> r.watch() == watch);
+    }
+
+    // Run a registration's action on the executor thread, skipping it if the pass closed meanwhile.
+    private void dispatch(OnCardReg reg, PCSCReader reader) {
+        executor(reader.name()).run(() -> {
+            if (onCardRegs.contains(reg)) {
+                reg.action().accept(reader, terminal(reader.name()));
+            }
+        });
+    }
+
+    // Unblock every awaiting pass and drop all registrations: monitor error or manager close.
+    private void releaseAllPasses() {
+        onCardRegs.forEach(reg -> reg.watch().release());
+        onCardRegs.clear();
     }
 
     @Override
@@ -416,21 +464,25 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
         initialScan.countDown();
         logger.debug("Reader list changed: {}", states);
 
-        var matcher = onCardMatcher;
-        var action = onCardAction;
-        if (matcher == null || action == null) {
+        if (onCardRegs.isEmpty()) {
             return;
         }
 
         for (var reader : states) {
-            if (!reader.present() || !matcher.test(reader)) {
+            if (!reader.present()) {
                 continue;
             }
             var wasPresent = previous.stream()
                     .filter(r -> r.name().equals(reader.name()))
                     .anyMatch(PCSCReader::present);
-            if (!wasPresent) {
-                executor(reader.name()).run(() -> action.accept(reader, terminal(reader.name())));
+            if (wasPresent) {
+                continue;
+            }
+            // Matchers are disjoint, so at most one registration serves this fresh tap.
+            for (var reg : onCardRegs) {
+                if (reg.matcher().test(reader)) {
+                    dispatch(reg, reader);
+                }
             }
         }
     }
@@ -438,10 +490,12 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
     @Override
     public void readerListErrored(Throwable t) {
         logger.error("Reader monitor error: {}", t.getMessage(), t);
+        releaseAllPasses();
     }
 
     @Override
     public void close() {
+        releaseAllPasses();
         synchronized (lock) {
             if (monitorThread != null) {
                 monitorThread.interrupt();

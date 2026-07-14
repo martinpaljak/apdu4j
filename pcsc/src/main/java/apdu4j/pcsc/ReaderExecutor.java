@@ -4,6 +4,7 @@ package apdu4j.pcsc;
 
 import apdu4j.core.BIBO;
 import apdu4j.core.BIBOException;
+import apdu4j.core.BIBOSA;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,6 +17,7 @@ public final class ReaderExecutor implements Executor {
 
     private final ExecutorService executor;
     private final String readerName;
+    private volatile Thread worker;
 
     ReaderExecutor(String readerName) {
         this.readerName = readerName;
@@ -25,6 +27,7 @@ public final class ReaderExecutor implements Executor {
                 r -> {
                     var t = new Thread(r, readerName);
                     t.setDaemon(true);
+                    worker = t;
                     return t;
                 },
                 new CallerBlocksPolicy(100));
@@ -36,6 +39,17 @@ public final class ReaderExecutor implements Executor {
 
     public <T> CompletableFuture<T> submit(Callable<T> task) {
         var cf = new CompletableFuture<T>();
+        // A task submitted from the reader thread itself runs inline. Ops for a reader are already
+        // serialized on this thread, so re-entrant work keeps that order and does not wait for a free
+        // slot that only frees when the caller returns.
+        if (Thread.currentThread() == worker) {
+            try {
+                cf.complete(task.call());
+            } catch (Throwable t) {
+                cf.completeExceptionally(t);
+            }
+            return cf;
+        }
         try {
             executor.execute(() -> {
                 try {
@@ -57,9 +71,13 @@ public final class ReaderExecutor implements Executor {
         });
     }
 
-    // Returns a thread-safe BIBO proxy: all transceive() calls are marshaled to the executor thread.
-    // No timeout on transceive - PC/SC has its own timeouts; operations like RSA keygen or
-    // pinpad PIN entry can legitimately take minutes.
+    // BIBOSA overload: the bare-BIBO wrap() would drop the Preferences sidecar.
+    public static BIBOSA wrap(ReaderExecutor executor, BIBOSA delegate) {
+        return new BIBOSA(wrap(executor, delegate.bibo()), delegate.preferences());
+    }
+
+    // Thread-safe BIBO proxy: transceive() calls are marshaled to the executor thread.
+    // No timeout - PC/SC has its own; RSA keygen or pinpad PIN entry can take minutes.
     public static BIBO wrap(ReaderExecutor executor, BIBO delegate) {
         return new BIBO() {
             @Override

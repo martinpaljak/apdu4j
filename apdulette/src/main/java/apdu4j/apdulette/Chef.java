@@ -3,21 +3,19 @@
 package apdu4j.apdulette;
 
 import apdu4j.core.BIBO;
+import apdu4j.core.BIBOSA;
 import apdu4j.prefs.Preferences;
 
 /**
- * Executes a {@link Recipe}, driving the prepare-transmit-evaluate loop until
- * a final result (or error) is produced.
+ * Executes a {@link Recipe}, driving the prepare-transmit-evaluate loop to a result.
  *
- * <p>Chef separates the "what" ({@link Recipe} composition) from the "how"
- * (actual APDU transmission). Different implementations can execute the same
- * recipe against real cards, simulators, or test mocks.
+ * <p>Separates the "what" ({@link Recipe}) from the "how" (APDU transmission): the same
+ * recipe runs against real cards, simulators, or mocks.
  *
- * <p>Use {@link #cook} when you only need the result value.
- * Use {@link #serve} when you also need the accumulated {@link Preferences}
- * that recipes contributed via {@link Verdict.NextStep}.
+ * <p>{@link #cook} returns the value; {@link #serve} also returns the {@link Preferences}
+ * recipes contributed via {@link Verdict.NextStep}.
  *
- * @see SousChef
+ * @see MasterChef
  * @see Recipe
  * @see Dish
  */
@@ -25,55 +23,26 @@ public interface Chef {
 
     // Default Chef for a BIBO channel
     static Chef of(BIBO bibo) {
-        return new SousChef(bibo);
+        return new MasterChef(bibo);
     }
 
-    /**
-     * Executes the recipe and serves the plated result: value plus
-     * all preferences accumulated during the recipe chain.
-     *
-     * @param recipe the recipe to execute
-     * @param prefs  initial preferences available to the recipe
-     * @param <T>    the result type
-     * @return the plated dish with result and accumulated preferences
-     * @throws KitchenDisaster if the recipe fails (unhandled card error, iteration limit)
-     */
+    // BIBOSA variant: stack.preferences() is the baseline context for every recipe.
+    static Chef of(BIBOSA stack) {
+        return new MasterChef(stack, stack.preferences());
+    }
+
+    // Serve with the given baseline preferences. Throws KitchenDisaster on failure.
     <T> Dish<T> serve(Recipe<T> recipe, Preferences prefs);
 
-    /**
-     * Executes the recipe with empty preferences, returning the plated result.
-     *
-     * @param recipe the recipe to execute
-     * @param <T>    the result type
-     * @return the plated dish with result and accumulated preferences
-     * @throws KitchenDisaster if the recipe fails (unhandled card error, iteration limit)
-     */
     default <T> Dish<T> serve(Recipe<T> recipe) {
         return serve(recipe, new Preferences());
     }
 
-    /**
-     * Executes the recipe with the given preferences, returning the final result.
-     * Convenience for {@code serve(recipe, prefs).value()}.
-     *
-     * @param recipe the recipe to execute
-     * @param prefs  initial preferences available to the recipe
-     * @param <T>    the result type
-     * @return the recipe's result
-     * @throws KitchenDisaster if the recipe fails (unhandled card error, iteration limit)
-     */
+    // cook = serve(...).value(): the result without the accumulated preferences.
     default <T> T cook(Recipe<T> recipe, Preferences prefs) {
         return serve(recipe, prefs).value();
     }
 
-    /**
-     * Executes the recipe with empty preferences, returning the final result.
-     *
-     * @param recipe the recipe to execute
-     * @param <T>    the result type
-     * @return the recipe's result
-     * @throws KitchenDisaster if the recipe fails (unhandled card error, iteration limit)
-     */
     default <T> T cook(Recipe<T> recipe) {
         return cook(recipe, new Preferences());
     }

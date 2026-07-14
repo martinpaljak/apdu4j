@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 package apdu4j.pcsc;
 
-import apdu4j.core.HexBytes;
 import apdu4j.prefs.Preference;
 import apdu4j.prefs.Preferences;
 import apdu4j.prefs.StringConverter;
@@ -38,13 +37,6 @@ public final class Readers {
     public static final Preference.Default<Boolean> TRANSPARENT =
             Preference.of("reader.transparent", Boolean.class, false, false);
 
-    // Session facts - set at connect time, readonly
-    public static final Preference.Parameter<String> READER_NAME =
-            Preference.parameter("reader.name", String.class, true);
-    public static final Preference.Parameter<HexBytes> ATR =
-            Preference.parameter("card.atr", HexBytes.class, true);
-    public static final Preference.Parameter<String> NEGOTIATED_PROTOCOL =
-            Preference.parameter("card.protocol", String.class, true);
 
     private Readers() {
     }

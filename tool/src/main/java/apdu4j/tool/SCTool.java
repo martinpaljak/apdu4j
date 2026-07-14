@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: MIT
 package apdu4j.tool;
 
+import apdu4j.apdulette.Chef;
 import apdu4j.apdulette.Cookbook;
 import apdu4j.apdulette.KitchenDisaster;
 import apdu4j.apdulette.Recipe;
-import apdu4j.apdulette.SousChef;
 import apdu4j.core.BIBO;
 import apdu4j.core.BIBOException;
 import apdu4j.core.HexUtils;
@@ -251,16 +251,15 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
         var counter = new AtomicInteger();
         var exiter = new Thread(() -> System.out.printf("%n%nYou tapped %d cards. Cool!%n", counter.get()));
         Runtime.getRuntime().addShutdownHook(exiter);
-        selector().fresh(true).onCard((reader, bibo) -> {
+        try (var watch = selector().fresh(true).onCard((reader, bibo) -> {
             var n = counter.incrementAndGet();
             var atr = reader.getATR().map(HexUtils::bin2hex).orElse("no ATR");
             var recipe = Cookbook.uid()
                     .map(uid -> "UID: " + HexUtils.bin2hex(uid))
                     .recover(err -> Recipe.premade("ATR: " + atr));
-            System.out.printf("%d: %s %s%n", n, reader.name(), new SousChef(bibo).cook(recipe));
-        });
-        try {
-            Thread.sleep(Long.MAX_VALUE);
+            System.out.printf("%d: %s %s%n", n, reader.name(), Chef.of(bibo).cook(recipe));
+        })) {
+            watch.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -290,8 +289,8 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
         try {
             var sel = selector();
             var cplc = noWait
-                    ? sel.run(bibo -> new SousChef(bibo).cook(recipe))
-                    : sel.whenReady(bibo -> new SousChef(bibo).cook(recipe));
+                    ? sel.run(bibo -> Chef.of(bibo).cook(recipe))
+                    : sel.whenReady(bibo -> Chef.of(bibo).cook(recipe));
             System.out.println(cplc.toPrettyString());
             return 0;
         } catch (KitchenDisaster e) {

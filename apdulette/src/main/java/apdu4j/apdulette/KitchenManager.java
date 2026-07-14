@@ -2,41 +2,27 @@
 // SPDX-License-Identifier: MIT
 package apdu4j.apdulette;
 
-import apdu4j.core.BIBOSA;
 import apdu4j.prefs.Preferences;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
-// Chef factory - produces Chefs from transport, never exposing SousChef to consumers.
-// Implementations bind to specific transports (PC/SC, simulator, etc).
+// Card source: owns all threads and connect/disconnect, runs one handler in pull or push mode.
+// A handler is a BiFunction<Chef, Preferences, T>: the Chef is one session, the Preferences the
+// session's negotiated facts. The same handler code serves both modes.
 public interface KitchenManager extends AutoCloseable {
 
-    // A chef bound to a card session with its BIBOSA stack.
-    // wrap() creates independent Chefs over wrapped versions of the base stack.
-    record ChefSession(Chef chef, BIBOSA stack) {
-        public Preferences preferences() {
-            return stack.preferences();
-        }
+    // Pull: run the handler against the next card. Returns immediately without blocking the caller;
+    // the future completes from the library's worker once a card arrives and the handler has run.
+    <T> CompletableFuture<T> teppanyaki(BiFunction<Chef, Preferences, T> handler);
 
-        // Wrap the base stack, get a new Chef for the wrapped connection.
-        // Always wraps the session's BIBOSA - each call is independent.
-        public Chef wrap(Function<BIBOSA, BIBOSA> wrapper) {
-            return new SousChef(wrapper.apply(stack));
-        }
-    }
+    // Push: run the handler against every card until the returned handle is closed. The sink gets
+    // (dish, null) on success and (null, cause) on failure.
+    <T> AutoCloseable pass(BiFunction<Chef, Preferences, T> handler, BiConsumer<Dish<T>, Throwable> results);
 
-    // Teppanyaki: dedicated Chef session on a resolved reader.
-    // Connects, creates Chef + BIBOSA stack, calls fn, disconnects.
-    <T> T teppanyaki(Function<ChefSession, T> fn);
-
-    // KitchenPass: execute recipe on every card that appears.
-    // For each tap: create Chef, serve recipe, deliver Dish.
-    // Errors per tap go to onError (not propagated).
-    // Blocks until close() or interrupt.
-    <T> void kitchenPass(Recipe<T> recipe, Consumer<Dish<T>> consumer, BiConsumer<Preferences, Exception> onError);
-
+    // Only one handler runs per manager at a time: calling teppanyaki() or pass() while a handler is
+    // active throws IllegalStateException.
     @Override
     void close();
 }
