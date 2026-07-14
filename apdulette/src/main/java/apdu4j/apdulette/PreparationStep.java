@@ -9,7 +9,7 @@ import apdu4j.prefs.Preferences;
 import java.util.List;
 import java.util.Objects;
 
-// What recipe.prepare(prefs) returns: either a pure value, APDUs to send, preferences to inject, or a failure
+// What recipe.prepare(prefs) returns: either a pure value, APDUs to send, or preferences to inject
 public sealed interface PreparationStep<T> {
     // Pure value, no I/O needed
     record Premade<T>(T value) implements PreparationStep<T> {
@@ -21,6 +21,10 @@ public sealed interface PreparationStep<T> {
         public Ingredients {
             commands = List.copyOf(commands);
             expected = List.copyOf(expected);
+            Objects.requireNonNull(taster);
+            if (commands.isEmpty()) {
+                throw new IllegalArgumentException("Ingredients needs at least one command");
+            }
             if (!expected.isEmpty() && expected.size() != commands.size()) {
                 throw new IllegalArgumentException("Expected %d responses for %d commands".formatted(expected.size(), commands.size()));
             }
@@ -35,7 +39,12 @@ public sealed interface PreparationStep<T> {
         }
     }
 
-    // Known failure at prepare-time, no I/O needed
-    record Failed<T>(String reason) implements PreparationStep<T> {
+    // Card-tier failure carrying the blamed response, no I/O; the step-layer
+    // dual of Premade, recovered by orElse/recover
+    record CardError<T>(ResponseAPDU response, String message) implements PreparationStep<T> {
+        public CardError {
+            Objects.requireNonNull(response);
+            Objects.requireNonNull(message);
+        }
     }
 }

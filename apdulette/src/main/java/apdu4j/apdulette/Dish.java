@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 package apdu4j.apdulette;
 
+import apdu4j.core.BIBOSA;
 import apdu4j.prefs.Preferences;
 
 /**
@@ -9,7 +10,7 @@ import apdu4j.prefs.Preferences;
  * with all {@link Preferences} accumulated during the recipe chain.
  *
  * <p>Returned by {@link Chef#serve}. This is the APDU-construction counterpart
- * of {@link apdu4j.core.BIBOSA}, which pairs transport with accumulated
+ * of {@link BIBOSA}, which pairs transport with accumulated
  * middleware preferences on the transport axis.
  *
  * <p>Example: extracting session metadata contributed by a recipe via

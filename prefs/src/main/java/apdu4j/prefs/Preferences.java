@@ -154,6 +154,13 @@ public final class Preferences {
         for (var entry : other.values.entrySet()) {
             final Preference<?> key = entry.getKey();
             if (key.readonly() && this.values.containsKey(key)) {
+                // Re-presenting an established readonly value is normal in forward
+                // accumulation (serve a recipe with prefs, merge its result back).
+                // A differing value is a genuine conflict that would otherwise vanish.
+                final var existing = this.values.get(key).value();
+                if (!existing.equals(entry.getValue().value())) {
+                    logger.warn("merge: ignoring conflicting readonly '{}' ({} != {})", key.name(), existing, entry.getValue().value());
+                }
                 continue;
             }
             newValues.put(key, entry.getValue());

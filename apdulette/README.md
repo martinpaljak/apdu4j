@@ -10,15 +10,15 @@ no I/O - it builds a data structure. Execution happens only when a `Chef` runs i
 
 ```java
 // SELECT applet, read FCI length, use it in a follow-up READ BINARY
-var recipe = Cookbook.selectFCI(aid)
+var recipe = Cookbook.send(new CommandAPDU(0x00, 0xA4, 0x04, 0x00, aid, 256))
         .map(fci -> fci.getData().length)
         .then(len -> Cookbook.send(new CommandAPDU(0x00, 0xB0, 0x00, 0x00, len)));
 
 var response = chef.cook(recipe);
 ```
 
-`Cookbook` provides building blocks for common operations: `selectFCI()`, `send()`, `data()`, `uid()`.
-It also provides taster functions (`expect()`, `data()`, `check()`, `any()`, `all()`) for evaluating card responses.
+`Cookbook` provides building blocks for common operations: `send()`, `data()`, `uid()`.
+It also provides taster functions (`expect()`, `check()`, `any()`, `all()`) for evaluating card responses.
 
 ### Composition
 
@@ -26,36 +26,37 @@ It also provides taster functions (`expect()`, `data()`, `check()`, `any()`, `al
 `and(next)` sequences two recipes, discarding the first result:
 
 ```java
-var recipe = Cookbook.selectFCI(aid)
+var recipe = Cookbook.send(new CommandAPDU(0x00, 0xA4, 0x04, 0x00, aid, 256))
         .and(Cookbook.uid())              // SELECT, then read UID
         .map(HexUtils::bin2hex);         // format as hex string
 ```
 
 Recipes read typed `Preferences` at prepare-time, and tasters receive them at evaluate-time, so the same
-recipe adapts to different card configurations without rewriting. `Cookbook.send()` defers APDU construction to `prepare()`:
+recipe adapts to different card configurations without rewriting. `Cookbook.depends()` defers APDU construction to prepare-time:
 
 ```java
 var le = Preference.of("le", Integer.class, 256, false);
-var recipe = Cookbook.send(
-        prefs -> new CommandAPDU(0x00, 0xB0, 0x00, 0x00, prefs.get(le)),
-        Cookbook.expect(0x9000));
+var recipe = Cookbook.depends(le,
+        value -> Cookbook.send(new CommandAPDU(0x00, 0xB0, 0x00, 0x00, value)));
 ```
 
 ### Error handling
 
-`orElse()` falls back on SW mismatch, `recover()` inspects the error (including the full `ResponseAPDU`),
-`optional()` absorbs card errors as `Optional.empty()`:
+Failures come in two tiers. Card errors (`Verdict.Error`) always carry the blamed `ResponseAPDU` and are
+the only recoverable tier: `orElse()` falls back, `recover()` inspects the error (including the full
+`ResponseAPDU`), `optional()` absorbs it as `Optional.empty()`. Programmer and configuration errors
+(`Recipe.fail()`) throw `KitchenDisaster` when the recipe is prepared and are caught by nothing.
+`Recipe.cardError(response, message)` creates a card-tier failure without transmitting anything.
 
 ```java
 // Try primary AID, fall back to secondary
-var recipe = Cookbook.selectFCI(primaryAid)
-        .orElse(Cookbook.selectFCI(secondaryAid));
+var recipe = Cookbook.send(new CommandAPDU(0x00, 0xA4, 0x04, 0x00, primaryAid, 256))
+        .orElse(Cookbook.send(new CommandAPDU(0x00, 0xA4, 0x04, 0x00, secondaryAid, 256)));
 
 // Try multiple alternatives, first success wins
-var recipe = Cookbook.firstOf(List.of(
-        Cookbook.selectFCI(aid1),
-        Cookbook.selectFCI(aid2),
-        Cookbook.selectFCI(aid3)));
+var recipe = Cookbook.firstOf(aids.stream()
+        .map(aid -> Cookbook.send(new CommandAPDU(0x00, 0xA4, 0x04, 0x00, aid, 256)))
+        .toList());
 
 // Probe without aborting the chain
 var recipe = Cookbook.uid().optional()
@@ -98,11 +99,12 @@ of real card I/O - useful for pre-validating recipe structure or generating APDU
 
 ## Types
 
-`Recipe<T>` prepares into one of three `PreparationStep` variants:
+`Recipe<T>` prepares into one of four `PreparationStep` variants:
 
 - `Premade<T>` - pure value, no I/O needed
 - `Ingredients<T>` - commands to send + a taster function that evaluates responses
-- `Failed<T>` - known failure at prepare-time (from `Recipe.error()`)
+- `Seasoned<T>` - injects preferences into the execution context, then continues with a recipe
+- `CardError<T>` - card-tier failure carrying the blamed `ResponseAPDU`, no I/O
 
 The taster receives the card responses and the current `Preferences`, then returns a `Verdict`:
 
@@ -110,7 +112,9 @@ The taster receives the card responses and the current `Preferences`, then retur
 - `NextStep<T>` - continue with a new recipe (optionally enriching preferences)
 - `Error<T>` - card error, carries the `ResponseAPDU` for diagnostics
 
-Unhandled errors throw `KitchenDisaster` (extends `RuntimeException`).
+Unhandled card errors throw `KitchenDisaster` (extends `RuntimeException`) carrying the blamed
+`ResponseAPDU` via `response()`. Prepare-time failures (`Recipe.fail()`) throw it with the original
+cause attached.
 
 ## Module
 

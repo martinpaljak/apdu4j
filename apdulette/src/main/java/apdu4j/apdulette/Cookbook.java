@@ -4,8 +4,10 @@ package apdu4j.apdulette;
 
 import apdu4j.core.CommandAPDU;
 import apdu4j.core.ResponseAPDU;
+import apdu4j.prefs.Preference;
 import apdu4j.prefs.Preferences;
 
+import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -19,7 +21,7 @@ import java.util.stream.Collectors;
 /**
  * Static factory methods for common {@link Recipe recipes} and taster functions.
  *
- * <p>Recipes built here are the building blocks you compose into larger card
+ * <p>Recipes built here are the building blocks for larger card
  * interaction sequences. Taster functions evaluate card responses into
  * {@link Verdict verdicts} that drive the execution loop.
  *
@@ -57,7 +59,7 @@ public final class Cookbook {
      * @param prefs the preferences to inject
      * @param <T>   the value type
      * @return a recipe that injects preferences and produces the value
-     * @see Recipe#season(Function)
+     * @see #deferred(Function)
      */
     public static <T> Recipe<T> season(T value, Preferences prefs) {
         return p -> new PreparationStep.Seasoned<>(Recipe.premade(value), prefs);
@@ -71,8 +73,8 @@ public final class Cookbook {
      * the same preferences - eliminating the manual {@code .prepare(prefs)} tail-call
      * that would otherwise be required.
      *
-     * <p>Use this when the recipe to build depends on preferences but produces
-     * more than a single command (where {@link #send(Function, Taster)} suffices):
+     * <p>Use this when the recipe to build needs the whole preference bag;
+     * for a single named preference, {@link #depends} suffices:
      * <pre>{@code
      * var recipe = Cookbook.deferred(prefs -> {
      *     var blockSize = prefs.get(BLOCK_SIZE);
@@ -87,6 +89,33 @@ public final class Cookbook {
      */
     public static <T> Recipe<T> deferred(Function<Preferences, Recipe<T>> factory) {
         return prefs -> factory.apply(prefs).prepare(prefs);
+    }
+
+    // Lifts a default preference into a recipe producing its resolved value, with no I/O.
+    static <V> Recipe<V> preference(Preference.Default<V> key) {
+        return prefs -> new PreparationStep.Premade<>(prefs.get(key));
+    }
+
+    /**
+     * Builds a recipe that depends on a single {@link Preference.Default}: reads
+     * its value at prepare-time and continues with the recipe the factory returns.
+     *
+     * <p>Unlike {@link #deferred}, the factory receives only the resolved value,
+     * not the whole {@link Preferences} bag - the dependency is named in the call
+     * and the continuation cannot reach for other preferences:
+     * <pre>{@code
+     * var recipe = Cookbook.depends(BLOCK_SIZE,
+     *     size -> Cookbook.send(split(data, size), 0x9000));
+     * }</pre>
+     *
+     * @param key     the preference this recipe depends on
+     * @param factory produces the next recipe from the resolved value
+     * @param <V>     the preference value type
+     * @param <T>     the result type
+     * @return a recipe that reads the preference and continues with the factory result
+     */
+    public static <V, T> Recipe<T> depends(Preference.Default<V> key, Function<V, Recipe<T>> factory) {
+        return preference(key).then(factory);
     }
 
     /**
@@ -152,7 +181,9 @@ public final class Cookbook {
     /**
      * Sends a command, checks for {@code 9000}, extracts data bytes, and validates
      * them with a predicate. Combines the common check-and-extract pattern with
-     * application-level validation in a single recipe.
+     * application-level validation in a single recipe. A failing predicate yields
+     * {@link Verdict.Error} blaming the actual response - recoverable with
+     * {@link Recipe#orElse}, {@link Recipe#recover} and {@link Recipe#optional}.
      *
      * @param cmd      the command to send
      * @param test     predicate applied to the extracted data bytes
@@ -160,7 +191,7 @@ public final class Cookbook {
      * @return a recipe that produces the validated data bytes
      */
     public static Recipe<byte[]> data(CommandAPDU cmd, Predicate<byte[]> test, String errorMsg) {
-        return send(cmd).map(ResponseAPDU::getData).then(v -> test.test(v) ? Recipe.premade(v) : Recipe.error(errorMsg));
+        return send(cmd, expect(0x9000).map(ResponseAPDU::getData).refine(test, errorMsg));
     }
 
     /**
@@ -206,6 +237,9 @@ public final class Cookbook {
      * @return taster - {@link Verdict.Ready} on any match, {@link Verdict.Error} on mismatch
      */
     public static Taster<ResponseAPDU> expect(int... sws) {
+        if (sws.length == 0) {
+            throw new IllegalArgumentException("at least one status word required");
+        }
         return Taster.of(r -> Arrays.stream(sws).anyMatch(sw -> r.getSW() == sw), "expected one of " + Arrays.stream(sws).mapToObj("%04X"::formatted).collect(Collectors.joining(", ")));
     }
 
@@ -266,19 +300,23 @@ public final class Cookbook {
      * @param taster   evaluates all responses into a verdict
      * @param <T>      the result type
      * @return a recipe that sends all commands and evaluates responses together
+     * @throws IllegalArgumentException if {@code commands} is empty
      */
     public static <T> Recipe<T> send(List<CommandAPDU> commands, Taster<T> taster) {
+        if (commands.isEmpty()) {
+            throw new IllegalArgumentException("commands must not be empty");
+        }
         return prefs -> new PreparationStep.Ingredients<>(List.copyOf(commands), List.of(), taster);
     }
 
     /**
      * Sends multiple commands in a single step, checking each response for the
-     * expected status word. Returns the last response on success. Handles empty
-     * command lists by returning a synthetic {@code 9000} response.
+     * expected status word. Returns the last response on success.
      *
      * @param commands   the commands to send
      * @param expectedSW the expected status word for every response (e.g. {@code 0x9000})
      * @return a recipe that sends all commands and checks all responses
+     * @throws IllegalArgumentException if {@code commands} is empty
      */
     public static Recipe<ResponseAPDU> send(List<CommandAPDU> commands, int expectedSW) {
         if (commands.isEmpty()) {
@@ -299,7 +337,7 @@ public final class Cookbook {
      */
     public static Taster<byte[]> allData(int sw) {
         return (responses, prefs) -> {
-            var bo = new java.io.ByteArrayOutputStream();
+            var bo = new ByteArrayOutputStream();
             for (var r : responses) {
                 if (r.getSW() != sw) {
                     return new Verdict.Error<>(r, "expected %04X".formatted(sw));
@@ -319,7 +357,7 @@ public final class Cookbook {
      * @param <A> the result type when done
      * @see #loop
      */
-    sealed interface Loop<S, A> {
+    public sealed interface Loop<S, A> {
         record Continue<S, A>(S state) implements Loop<S, A> {}
         record Done<S, A>(A result) implements Loop<S, A> {}
     }
@@ -364,8 +402,8 @@ public final class Cookbook {
      *   <li>anything else - fail with {@code errorMsg}</li>
      * </ul>
      *
-     * <p>Covers SW-continuation patterns (GP GET STATUS with 6310,
-     * ISO GET RESPONSE with 61xx) without exposing intermediate types:
+     * <p>Covers a fixed continuation status word (GP GET STATUS with 6310)
+     * without exposing intermediate types:
      * <pre>{@code
      * // GP GET STATUS with 6310 continuation
      * var recipe = Cookbook.gather(
@@ -373,20 +411,17 @@ public final class Cookbook {
      *     0x6310, r -> cmd(INS_GET_STATUS, p1, p2 | 0x01, filter),
      *     0x9000, "GET STATUS failed",
      *     List.of(0x6A88, 0x6A86, 0x6A81));
-     *
-     * // ISO GET RESPONSE (61xx) with dynamic Le
-     * var recipe = Cookbook.gather(
-     *     someCmd,
-     *     0x6100, r -> new CommandAPDU(0x00, 0xC0, 0x00, 0x00, r.getSW2()),
-     *     0x9000, "command failed",
-     *     List.of());
      * }</pre>
+     *
+     * <p>The continuation status word is matched exactly, so this fits a fixed SW like
+     * 6310, not the 61xx GET RESPONSE family (varying SW2): 61xx chaining is handled by
+     * the transport layer.
      *
      * @param initial    the first command to send
      * @param continueSW status word that means "more data available"
      * @param more       produces the next command from the current response
      * @param doneSW     status word that means "last chunk, stop"
-     * @param errorMsg   error prefix for unexpected status words
+     * @param errorMsg   error message for unexpected status words
      * @param alsoDone   additional status words that also mean "stop"
      * @return a recipe that produces the concatenated data from all exchanges
      */
@@ -408,7 +443,7 @@ public final class Cookbook {
      * @param more        produces the next command from the current response
      * @param extractData extracts the bytes to gather from each response
      * @param doneSW      status word that means "last chunk, stop"
-     * @param errorMsg    error prefix for unexpected status words
+     * @param errorMsg    error message for unexpected status words
      * @param alsoDone    additional status words that also mean "stop"
      * @return a recipe that produces the concatenated extracted data
      */
@@ -429,7 +464,7 @@ public final class Cookbook {
                     if (sw == doneSW || alsoDone.contains(sw)) {
                         return Recipe.premade(new Loop.Done<>(concat(acc.data, extractData.apply(r))));
                     }
-                    return Recipe.error("%s (SW: %04X)".formatted(errorMsg, sw));
+                    return Recipe.cardError(r, errorMsg);
                 }));
     }
 
@@ -449,29 +484,34 @@ public final class Cookbook {
     // === Recipe combinators ===
 
     /**
-     * Tries each recipe in order, returning the first success. If all fail,
-     * the error from the last recipe propagates. Useful for AID or protocol discovery
-     * where multiple alternatives may be valid.
+     * Tries each recipe in order, returning the first success. Each alternative
+     * is covered in full via {@link Recipe#orElse}, so a multi-step alternative
+     * failing on any step moves on to the next one. If all fail, the error from
+     * the last recipe propagates. Useful for AID or protocol discovery where
+     * multiple alternatives may be valid.
+     *
+     * <p>An alternative throwing {@link KitchenDisaster} aborts the whole chain,
+     * since {@link Recipe#orElse} catches only card errors.
      *
      * @param alternatives the recipes to try, in order of preference
      * @param <T>          the result type
      * @return a recipe that produces the result of the first successful alternative
+     * @throws IllegalArgumentException if {@code alternatives} is empty
      */
     public static <T> Recipe<T> firstOf(List<Recipe<T>> alternatives) {
         if (alternatives.isEmpty()) {
-            return Recipe.error("No alternatives");
+            throw new IllegalArgumentException("at least one alternative required");
         }
-        var result = alternatives.getFirst();
-        for (int i = 1; i < alternatives.size(); i++) {
-            result = result.orElse(alternatives.get(i));
-        }
-        return result;
+        return alternatives.stream().reduce(Recipe::orElse).orElseThrow();
     }
 
     /**
      * Runs all recipes in order and collects their results into a list.
      * If any recipe fails, the entire sequence fails. Results preserve
      * the order of the input list.
+     *
+     * <p>Preparation recurses once per element, so keep lists to a few
+     * thousand elements.
      *
      * @param recipes the recipes to execute sequentially
      * @param <T>     the result type of each recipe
@@ -516,6 +556,9 @@ public final class Cookbook {
      * a step function that returns a recipe for each. Each step receives the
      * accumulated value from all previous steps.
      *
+     * <p>Preparation recurses once per item, so keep lists to a few
+     * thousand items.
+     *
      * @param initial the starting accumulator value
      * @param items   the items to fold over
      * @param step    function taking (accumulator, item) and returning a recipe for the next accumulator
@@ -541,6 +584,6 @@ public final class Cookbook {
      * @return a recipe that produces the unwrapped value, or fails if empty
      */
     public static <T> Recipe<T> require(Recipe<Optional<T>> recipe, String errorMsg) {
-        return recipe.then(opt -> opt.isPresent() ? Recipe.premade(opt.get()) : Recipe.error(errorMsg));
+        return recipe.then(opt -> opt.isPresent() ? Recipe.premade(opt.get()) : Recipe.fail(errorMsg));
     }
 }

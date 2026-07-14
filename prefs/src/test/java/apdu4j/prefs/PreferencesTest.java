@@ -157,6 +157,9 @@ public class PreferencesTest {
         // Readonly into empty: accepted
         Assert.assertEquals(new Preferences().merge(withReadonly).get(READONLY), "original");
 
+        // Readonly re-presented with the same value: silently skipped (the forward-accumulation round-trip)
+        Assert.assertEquals(withReadonly.merge(new Preferences().with(READONLY, "original")).get(READONLY), "original");
+
         // merge discards other's provider (receiver's survives)
         var provA = PreferenceProvider.map(Map.of("name", "fromA"), "a");
         var provB = PreferenceProvider.map(Map.of("name", "fromB"), "b");

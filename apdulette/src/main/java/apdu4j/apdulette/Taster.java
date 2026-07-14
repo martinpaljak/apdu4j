@@ -6,7 +6,6 @@ import apdu4j.core.ResponseAPDU;
 import apdu4j.prefs.Preferences;
 
 import java.util.List;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -27,7 +26,9 @@ import java.util.function.Predicate;
  * @see Verdict
  */
 @FunctionalInterface
-public interface Taster<T> extends BiFunction<List<ResponseAPDU>, Preferences, Verdict<T>> {
+public interface Taster<T> {
+
+    Verdict<T> taste(List<ResponseAPDU> responses, Preferences prefs);
 
     // Lift a single-response evaluator into a taster
     static <T> Taster<T> first(Function<ResponseAPDU, Verdict<T>> f) {
@@ -68,19 +69,20 @@ public interface Taster<T> extends BiFunction<List<ResponseAPDU>, Preferences, V
         };
     }
 
-    // Further test on the Ready value
+    // Further test on the Ready value; failures blame the last response,
+    // the one the value derives from in multi-response tasters
     default Taster<T> refine(Predicate<T> test, String errorMsg) {
-        return (responses, prefs) -> switch (apply(responses, prefs)) {
+        return (responses, prefs) -> switch (taste(responses, prefs)) {
             case Verdict.Ready<T>(var v, var p) ->
-                    test.test(v) ? new Verdict.Ready<>(v, p) : new Verdict.Error<>(responses.getFirst(), errorMsg);
-            case Verdict.NextStep<T>(var r, var p) -> new Verdict.NextStep<>(r.then(v -> test.test(v) ? Recipe.premade(v) : Recipe.error(errorMsg)), p);
+                    test.test(v) ? new Verdict.Ready<>(v, p) : new Verdict.Error<>(responses.getLast(), errorMsg);
+            case Verdict.NextStep<T>(var r, var p) -> new Verdict.NextStep<>(r.then(v -> test.test(v) ? Recipe.premade(v) : Recipe.cardError(responses.getLast(), errorMsg)), p);
             case Verdict.Error<T> e -> e;
         };
     }
 
     // Transform the Ready value
     default <U> Taster<U> map(Function<T, U> f) {
-        return (responses, prefs) -> switch (apply(responses, prefs)) {
+        return (responses, prefs) -> switch (taste(responses, prefs)) {
             case Verdict.Ready<T>(var v, var p) -> new Verdict.Ready<>(f.apply(v), p);
             case Verdict.NextStep<T>(var r, var p) -> new Verdict.NextStep<>(r.map(f), p);
             case Verdict.Error<T> e -> new Verdict.Error<>(e.response(), e.message());
@@ -90,16 +92,27 @@ public interface Taster<T> extends BiFunction<List<ResponseAPDU>, Preferences, V
     // Transform Ready value, catching exceptions as Error.
     // Use instead of map() when f parses card data that may be malformed.
     default <U> Taster<U> tryMap(Function<T, U> f) {
-        return (responses, prefs) -> switch (apply(responses, prefs)) {
+        return (responses, prefs) -> switch (taste(responses, prefs)) {
             case Verdict.Ready<T>(var v, var p) -> {
                 try {
                     yield new Verdict.Ready<>(f.apply(v), p);
                 } catch (RuntimeException e) {
-                    yield new Verdict.Error<>(responses.getFirst(), e.getMessage());
+                    yield new Verdict.Error<>(responses.getLast(), message(e));
                 }
             }
-            case Verdict.NextStep<T>(var r, var p) -> new Verdict.NextStep<>(r.map(f), p);
+            case Verdict.NextStep<T>(var r, var p) -> new Verdict.NextStep<>(r.then(v -> {
+                try {
+                    return Recipe.premade(f.apply(v));
+                } catch (RuntimeException e) {
+                    return Recipe.cardError(responses.getLast(), message(e));
+                }
+            }), p);
             case Verdict.Error<T> e -> new Verdict.Error<>(e.response(), e.message());
         };
+    }
+
+    // Error text for a caught exception; toString covers messageless ones like NPE
+    private static String message(RuntimeException e) {
+        return e.getMessage() != null ? e.getMessage() : e.toString();
     }
 }
