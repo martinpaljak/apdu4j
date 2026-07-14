@@ -72,6 +72,14 @@ Feature: DWIM Reader Selection
     Then "Reader A" is selected
     And message contains "Reader A"
 
+  Scenario: Hint matching several readers picks the one with a card
+    Given readers:
+      | name        | present |
+      | ACS ACR1 00 | no      |
+      | ACS ACR1 01 | yes     |
+    When I use hint "ACR1"
+    Then "ACS ACR1 01" is selected
+
   Scenario: Hint selects reader even without a card
     Given readers:
       | name     | present |
