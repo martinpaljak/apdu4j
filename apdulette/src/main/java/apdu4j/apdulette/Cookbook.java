@@ -391,7 +391,66 @@ public final class Cookbook {
         });
     }
 
+    /**
+     * Loop step that continues from {@code next}. Shorthand for
+     * {@code Recipe.premade(new Loop.Continue<>(next))}.
+     *
+     * @param next the state to continue from
+     * @return a ready recipe holding a {@link Loop.Continue}
+     */
+    public static <S, A> Recipe<Loop<S, A>> cont(S next) {
+        return Recipe.premade(new Loop.Continue<>(next));
+    }
+
+    /**
+     * Loop step that stops with {@code result}. Shorthand for
+     * {@code Recipe.premade(new Loop.Done<>(result))}.
+     *
+     * @param result the loop result
+     * @return a ready recipe holding a {@link Loop.Done}
+     */
+    public static <S, A> Recipe<Loop<S, A>> done(A result) {
+        return Recipe.premade(new Loop.Done<>(result));
+    }
+
     // === Accumulation recipes ===
+
+    /**
+     * Accumulate across command exchanges until a caller-defined criterion is met, the general
+     * form the status-word {@link #gather(CommandAPDU, int, Function, int, String, List) overloads}
+     * specialize. From the cursor {@code command} derives the next command to send; {@code advance}
+     * folds the response into the next cursor ({@link #cont}) or a result ({@link #done}), or fails
+     * the recipe with {@link Recipe#cardError}. Because the continuation is decided from the cursor
+     * and the response together, a status word, an accumulated length, a read count or a content
+     * sentinel all end the loop the same way, whatever {@code advance} returns.
+     *
+     * <p>Responses reach {@code advance} untasted ({@link #any}), so it sees every status word. The
+     * loop is trampolined through the {@link Chef}, so it does not grow the stack.
+     *
+     * <pre>{@code
+     * // Read 4-byte blocks from block 4 up until the announced size is gathered
+     * record Cursor(int block, byte[] data) {}
+     * Recipe<byte[]> payload = Cookbook.gather(new Cursor(4, new byte[0]),
+     *     c -> new CommandAPDU(0xFF, 0xB0, 0x00, c.block(), 4),
+     *     (c, r) -> {
+     *         if (r.getSW() != 0x9000) return Recipe.cardError(r, "block read failed");
+     *         var next = new Cursor(c.block() + 1, HexBytes.concatenate(c.data(), r.getData()));
+     *         return next.data().length >= total ? Cookbook.done(next.data()) : Cookbook.cont(next);
+     *     });
+     * }</pre>
+     *
+     * @param seed    the initial cursor
+     * @param command derives the command to send from the current cursor
+     * @param advance folds the response into the next cursor, a result, or a card error
+     * @param <C>     the cursor type
+     * @param <A>     the result type
+     * @return a recipe that loops until {@code advance} returns {@link #done}
+     */
+    public static <C, A> Recipe<A> gather(C seed,
+                                          Function<C, CommandAPDU> command,
+                                          BiFunction<C, ResponseAPDU, Recipe<Loop<C, A>>> advance) {
+        return loop(seed, c -> send(command.apply(c), any()).then(r -> advance.apply(c, r)));
+    }
 
     /**
      * Accumulates response data across multiple command exchanges, driven by
@@ -453,19 +512,16 @@ public final class Cookbook {
                                              int doneSW, String errorMsg,
                                              List<Integer> alsoDone) {
         record Acc(CommandAPDU cmd, byte[] data) {}
-        return loop(
-                new Acc(initial, new byte[0]),
-                acc -> send(acc.cmd, any()).then(r -> {
-                    var sw = r.getSW();
-                    if (sw == continueSW) {
-                        return Recipe.premade(new Loop.Continue<>(
-                                new Acc(more.apply(r), concat(acc.data, extractData.apply(r)))));
-                    }
-                    if (sw == doneSW || alsoDone.contains(sw)) {
-                        return Recipe.premade(new Loop.Done<>(concat(acc.data, extractData.apply(r))));
-                    }
-                    return Recipe.cardError(r, errorMsg);
-                }));
+        return gather(new Acc(initial, new byte[0]), Acc::cmd, (acc, r) -> {
+            var sw = r.getSW();
+            if (sw == continueSW) {
+                return cont(new Acc(more.apply(r), concat(acc.data(), extractData.apply(r))));
+            }
+            if (sw == doneSW || alsoDone.contains(sw)) {
+                return done(concat(acc.data(), extractData.apply(r)));
+            }
+            return Recipe.cardError(r, errorMsg);
+        });
     }
 
     private static byte[] concat(byte[] a, byte[] b) {

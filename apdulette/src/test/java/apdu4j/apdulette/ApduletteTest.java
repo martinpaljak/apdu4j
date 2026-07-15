@@ -4,6 +4,7 @@ package apdu4j.apdulette;
 
 import apdu4j.core.BIBOSA;
 import apdu4j.core.CommandAPDU;
+import apdu4j.core.HexBytes;
 import apdu4j.core.HexUtils;
 import apdu4j.core.MockBIBO;
 import apdu4j.core.ResponseAPDU;
@@ -465,6 +466,22 @@ public class ApduletteTest {
                 r -> Arrays.copyOfRange(r.getData(), 1, r.getData().length),
                 0x9000, "failed", List.of());
         assertEquals(HexUtils.bin2hex(cook(stripped, "01AA6310", "01BB9000")), "AABB");
+
+        // The general gather() drives a read loop from an explicit cursor and decides continuation
+        // from the folded response - here a length bound, which the status-word gather() overloads
+        // cannot express since they stop on a status word, not accumulated data. cont/done drop the
+        // Loop wrapping ceremony.
+        record Buf(byte[] data) {}
+        var readUntil4 = Cookbook.gather(new Buf(new byte[0]), c -> READ, (c, r) -> {
+            var next = new Buf(HexBytes.concatenate(c.data(), r.getData()));
+            return next.data().length >= 4 ? Cookbook.done(next.data()) : Cookbook.cont(next);
+        });
+        assertEquals(HexUtils.bin2hex(cook(readUntil4, "AA9000", "BB9000", "CC9000", "DD9000")), "AABBCCDD");
+
+        // A bad status word inside advance fails through the recipe channel, recoverable like any card error
+        var strict = Cookbook.gather(new Buf(new byte[0]), c -> READ,
+                (c, r) -> r.getSW() != 0x9000 ? Recipe.cardError(r, "read failed") : Cookbook.done(r.getData()));
+        assertTrue(expectThrows(KitchenDisaster.class, () -> cook(strict, "6A82")).getMessage().contains("read failed"));
     }
 
     // === Bulk combinators: sequence, traverse, foldLeft, require ===
