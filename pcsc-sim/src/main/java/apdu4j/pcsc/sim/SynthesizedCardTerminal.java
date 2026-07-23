@@ -31,12 +31,15 @@ public final class SynthesizedCardTerminal extends CardTerminal {
     }
 
     private final String name;
-    private final String protocol;
+    // Fallback protocol when a card states no NEGOTIATED_PROTOCOL.
+    private final String defaultProtocol;
     private final Object lock = new Object();
     private volatile Runnable onChange;
 
     // Card presence state (guarded by lock)
     private byte[] activeAtr;                    // non-null = card is "in the reader"
+    // Protocol tracks the current presentation.
+    private String presentedProtocol;
     private Iterator<BIBO> biboQueue;            // queue mode: pops next BIBO per session
     private Function<String, BIBO> biboFactory;  // factory mode: creates BIBO per session
 
@@ -52,19 +55,27 @@ public final class SynthesizedCardTerminal extends CardTerminal {
         this(name, "T=1");
     }
 
-    public SynthesizedCardTerminal(String name, String protocol) {
+    public SynthesizedCardTerminal(String name, String defaultProtocol) {
         this.name = name;
-        this.protocol = protocol;
+        this.defaultProtocol = defaultProtocol;
     }
 
     public static SynthesizedCardTerminal replay(InputStream in) {
-        var dump = DumpFormat.parse(in);
-        var t = new SynthesizedCardTerminal("APDUReplay terminal 0", dump.protocol());
-        t.present(MockBIBO.fromDump(dump), dump.atr());
+        // present(BIBOSA) carries the dump's own ATR and protocol.
+        var t = new SynthesizedCardTerminal("APDUReplay terminal 0");
+        t.present(MockBIBO.fromDump(in));
         return t;
     }
 
     // --- Card presentation API ---
+
+    // A stated ATR or protocol falls back to the terminal default.
+    public void present(BIBOSA session) {
+        var prefs = session.preferences();
+        var atr = prefs.valueOf(CardInfo.ATR).map(HexBytes::v).orElseGet(SynthesizedCardTerminal::defaultAtr);
+        var protocol = prefs.valueOf(CardInfo.NEGOTIATED_PROTOCOL).orElse(defaultProtocol);
+        present(List.of(session.bibo()), atr, protocol);
+    }
 
     // Single BIBO: one connect/transmit cycle, then card disappears
     public void present(BIBO bibo) {
@@ -77,6 +88,10 @@ public final class SynthesizedCardTerminal extends CardTerminal {
 
     // Queue: each connect cycle consumes next BIBO; card gone when queue empty
     public void present(List<BIBO> bibos, byte[] atr) {
+        present(bibos, atr, defaultProtocol);
+    }
+
+    private void present(List<BIBO> bibos, byte[] atr, String protocol) {
         if (bibos.isEmpty()) {
             throw new IllegalArgumentException("At least one BIBO required");
         }
@@ -85,6 +100,7 @@ public final class SynthesizedCardTerminal extends CardTerminal {
                 throw new IllegalStateException("Card already present");
             }
             activeAtr = atr.clone();
+            presentedProtocol = protocol;
             biboQueue = bibos.iterator();
             biboFactory = null;
             generation++;
@@ -102,6 +118,7 @@ public final class SynthesizedCardTerminal extends CardTerminal {
                 throw new IllegalStateException("Card already present");
             }
             activeAtr = atr.clone();
+            presentedProtocol = defaultProtocol;
             biboFactory = factory;
             biboQueue = null;
             generation++;
@@ -128,6 +145,7 @@ public final class SynthesizedCardTerminal extends CardTerminal {
                 throw new IllegalStateException("Card already present");
             }
             activeAtr = atr.clone();
+            presentedProtocol = defaultProtocol;
             generation++;
             myGen = generation;
             lock.notifyAll(); // wake waiters so they re-check with the loop
@@ -147,6 +165,7 @@ public final class SynthesizedCardTerminal extends CardTerminal {
                     return null;
                 }
                 activeAtr = null;
+                presentedProtocol = null;
                 lock.notifyAll();
                 fireOnChange();
             }
@@ -164,6 +183,7 @@ public final class SynthesizedCardTerminal extends CardTerminal {
             }
             activeBibo = null;
             activeAtr = null;
+            presentedProtocol = null;
             activeCard.remove();
             biboQueue = null;
             biboFactory = null;
@@ -208,14 +228,14 @@ public final class SynthesizedCardTerminal extends CardTerminal {
             if (!cardPresent()) {
                 throw new CardNotPresentException("Card not present!");
             }
-            // "*" takes the terminal's protocol; a specific request must be the one this terminal establishes.
-            if (!s.equals("*") && !s.equalsIgnoreCase(protocol)) {
-                throw new CardException("Cannot connect with protocol %s: terminal uses %s".formatted(s, protocol));
+            // A specific protocol request must match what the card established.
+            if (!s.equals("*") && !s.equalsIgnoreCase(presentedProtocol)) {
+                throw new CardException("Cannot connect with protocol %s: card uses %s".formatted(s, presentedProtocol));
             }
             var card = activeCard.get();
             // The same context reconnects to the same handle per contract.
             if (card == null || card.disposed || card.bornAt != generation) {
-                connectProtocol = protocol;
+                connectProtocol = presentedProtocol;
                 card = new SynthesizedCard(activeAtr.clone());
                 activeCard.set(card);
             }
@@ -316,7 +336,9 @@ public final class SynthesizedCardTerminal extends CardTerminal {
 
         @Override
         public String getProtocol() {
-            return protocol;
+            synchronized (lock) {
+                return presentedProtocol;
+            }
         }
 
         @Override
@@ -429,6 +451,7 @@ public final class SynthesizedCardTerminal extends CardTerminal {
                     // Queue mode: if no more BIBOs, card disappears (auto-yank)
                     if (biboFactory == null && (biboQueue == null || !biboQueue.hasNext())) {
                         activeAtr = null;
+                        presentedProtocol = null;
                         biboQueue = null;
                     }
                     lock.notifyAll();
@@ -439,7 +462,7 @@ public final class SynthesizedCardTerminal extends CardTerminal {
 
         @Override
         public String toString() {
-            return "Card protocol: %s atr: %s".formatted(protocol, HexUtils.bin2hex(atr.getBytes()));
+            return "Card protocol: %s atr: %s".formatted(getProtocol(), HexUtils.bin2hex(atr.getBytes()));
         }
 
         class SynthesizedChannel extends CardChannel {

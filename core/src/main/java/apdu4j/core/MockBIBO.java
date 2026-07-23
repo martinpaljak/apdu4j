@@ -7,7 +7,7 @@ import java.util.ArrayDeque;
 import java.util.Arrays;
 
 // Test helper: queued command-response BIBO mock with optional command verification
-public class MockBIBO implements BIBO {
+public final class MockBIBO implements BIBO {
     private final ArrayDeque<Pair> pairs;
     private final boolean skipping;
     private volatile boolean closed;
@@ -51,17 +51,22 @@ public class MockBIBO implements BIBO {
         return new MockBIBO(q);
     }
 
-    // Build from dump data
-    public static MockBIBO fromDump(InputStream in) {
+    // The dump header's ATR and protocol become session params.
+    public static BIBOSA fromDump(InputStream in) {
         return fromDump(DumpFormat.parse(in));
     }
 
-    public static MockBIBO fromDump(DumpFormat.DumpData dump) {
+    public static BIBOSA fromDump(DumpFormat.DumpData dump) {
         var q = new ArrayDeque<Pair>();
         for (var i = 0; i < dump.commands().size(); i++) {
             q.add(new Pair(dump.commands().get(i), dump.responses().get(i)));
         }
-        return new MockBIBO(q);
+        return new BIBOSA(new MockBIBO(q), dump.params());
+    }
+
+    // States the ATR and protocol a real card would publish.
+    public BIBOSA params(String atr, String protocol) {
+        return new BIBOSA(this, CardInfo.params(HexUtils.hex2bin(atr), protocol));
     }
 
     // Command-response verification mode

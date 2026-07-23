@@ -5,6 +5,7 @@ package apdu4j.core;
 import org.testng.annotations.Test;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 
 import static org.testng.Assert.assertEquals;
@@ -76,6 +77,26 @@ public class DumpFormatTest {
     void testMissingProtocolThrows() {
         var dump = DumpFormat.parse(stream("00A40400\n9000\n"));
         assertThrows(IllegalStateException.class, dump::protocol);
+    }
+
+    // === Round-trip: writeHeader + DumpingBIBO -> parse -> fromDump reproduces params and script ===
+
+    @Test
+    void testHeaderRoundTrip() {
+        var params = CardInfo.params(HexUtils.hex2bin("3B00"), "T=0");
+        var out = new ByteArrayOutputStream();
+        DumpFormat.writeHeader(out, params);
+        var recorder = DumpingBIBO.wrap(MockBIBO.of("9000", "6A88"), out);
+        recorder.transceive(HexUtils.hex2bin("00A40400"));
+        recorder.transceive(HexUtils.hex2bin("00CA0000"));
+
+        var session = MockBIBO.fromDump(stream(out.toString(StandardCharsets.UTF_8)));
+        // Params survive the round-trip.
+        assertEquals(session.preferences().valueOf(CardInfo.ATR).orElseThrow(), HexBytes.v("3B00"));
+        assertEquals(session.preferences().valueOf(CardInfo.NEGOTIATED_PROTOCOL).orElseThrow(), "T=0");
+        // The replay verifies every command in the byte script.
+        assertEquals(session.transceive(HexUtils.hex2bin("00A40400")), HexUtils.hex2bin("9000"));
+        assertEquals(session.transceive(HexUtils.hex2bin("00CA0000")), HexUtils.hex2bin("6A88"));
     }
 
 }

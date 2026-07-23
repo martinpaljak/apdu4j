@@ -6,6 +6,7 @@ import apdu4j.core.CardInfo;
 
 import apdu4j.core.BIBO;
 import apdu4j.core.BIBOSA;
+import apdu4j.core.HexBytes;
 import apdu4j.core.HexUtils;
 import apdu4j.core.MockBIBO;
 import apdu4j.pcsc.sim.SynthesizedCardTerminal;
@@ -16,15 +17,17 @@ import org.testng.annotations.Test;
 import java.time.Duration;
 import java.util.function.Function;
 
-// The Readers framework hands out BIBOSA everywhere: the transport carries a typed Preferences
-// sidecar (reader name, ATR, negotiated protocol) that survives both managed sessions and the
-// per-reader executor proxy used when a monitor is running.
+// The Readers framework hands out BIBOSA with a typed Preferences sidecar.
 public class BIBOSAFirstTest {
+
+    // connect() must read back the presented params.
+    private static final String ATR = "3BF91300008131FE454A434F503234325232A3";
+    private static final String PROTOCOL = "T=0";
 
     private static TerminalManager managerWithCard(String reader) {
         var terminals = new SynthesizedCardTerminals();
         var terminal = new SynthesizedCardTerminal(reader);
-        terminal.present(MockBIBO.of("9000"));
+        terminal.present(MockBIBO.of("9000").params(ATR, PROTOCOL));
         terminals.addTerminal(terminal);
         return new TerminalManager(terminals.toFactory());
     }
@@ -32,8 +35,8 @@ public class BIBOSAFirstTest {
     private static void assertSidecar(BIBOSA stack, String reader) {
         var prefs = stack.preferences();
         Assert.assertEquals(prefs.valueOf(CardInfo.READER_NAME).orElse(null), reader);
-        Assert.assertTrue(prefs.valueOf(CardInfo.ATR).isPresent(), "ATR present in sidecar");
-        Assert.assertTrue(prefs.valueOf(CardInfo.NEGOTIATED_PROTOCOL).isPresent(), "negotiated protocol present in sidecar");
+        Assert.assertEquals(prefs.valueOf(CardInfo.ATR).orElseThrow(), HexBytes.v(ATR));
+        Assert.assertEquals(prefs.valueOf(CardInfo.NEGOTIATED_PROTOCOL).orElseThrow(), PROTOCOL);
     }
 
     @Test

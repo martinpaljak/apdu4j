@@ -14,8 +14,6 @@ import javax.smartcardio.Card;
 import javax.smartcardio.CardException;
 import javax.smartcardio.CardTerminal;
 import java.io.OutputStream;
-import java.io.PrintStream;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -435,20 +433,15 @@ record ReaderSelectorImpl(
         var disconnect = config.valueOf(Readers.DISCONNECT)
                 .orElse(fresh ? SCard.Disconnect.UNPOWER : SCard.Disconnect.RESET);
         BIBO bibo = CardBIBO.wrap(card, disconnect);
-        if (dumpStream != null) {
-            var ps = new PrintStream(dumpStream, true, StandardCharsets.UTF_8);
-            ps.println("# ATR: " + HexUtils.bin2hex(card.getATR().getBytes()));
-            ps.println("# PROTOCOL: " + card.getProtocol());
-            ps.println("#");
-            bibo = DumpingBIBO.wrap(bibo, dumpStream);
-        }
-        // Enrich config with session facts (readonly - can't be overwritten downstream)
-        var sessionPrefs = config
+        // Published readonly to block downstream overwrite.
+        var sessionPrefs = CardInfo.params(config, card.getATR().getBytes(), card.getProtocol())
                 .with(CardInfo.READER_NAME, readerName)
-                .with(CardInfo.ATR, HexBytes.b(card.getATR().getBytes()))
-                .with(CardInfo.NEGOTIATED_PROTOCOL, card.getProtocol())
                 .with(CardInfo.FRESH_TAP, fresh)
                 .with(CardInfo.EXCLUSIVE_HELD, exclusive);
+        if (dumpStream != null) {
+            DumpFormat.writeHeader(dumpStream, sessionPrefs);
+            bibo = DumpingBIBO.wrap(bibo, dumpStream);
+        }
         return new BIBOSA(bibo, sessionPrefs);
     }
 

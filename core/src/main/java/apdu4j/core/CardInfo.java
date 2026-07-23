@@ -3,6 +3,7 @@
 package apdu4j.core;
 
 import apdu4j.prefs.Preference;
+import apdu4j.prefs.Preferences;
 
 import java.util.Set;
 
@@ -66,4 +67,15 @@ public final class CardInfo {
     // Whether the session holds the card exclusively. Answers the EXCLUSIVE hint.
     public static final Preference.Parameter<Boolean> EXCLUSIVE_HELD =
             Preference.parameter("card.exclusive", Boolean.class, true);
+
+    // Keys ATR and protocol into the CardInfo vocabulary.
+    public static Preferences params(byte[] atr, String protocol) {
+        return params(new Preferences(), atr, protocol);
+    }
+
+    public static Preferences params(Preferences base, byte[] atr, String protocol) {
+        return base
+                .with(ATR, HexBytes.b(atr))
+                .with(NEGOTIATED_PROTOCOL, protocol);
+    }
 }

@@ -52,6 +52,9 @@ public class MockBIBOTest {
     void testFromDumpStream() {
         var input = "# ATR: 3B00\n# PROTOCOL: T=1\n#\n00A40400\n9000\n00CA0000\n6A88\n";
         var mock = MockBIBO.fromDump(new ByteArrayInputStream(input.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        // Session params come from the dump header.
+        assertEquals(mock.preferences().valueOf(CardInfo.ATR).orElseThrow(), HexBytes.v("3B00"));
+        assertEquals(mock.preferences().valueOf(CardInfo.NEGOTIATED_PROTOCOL).orElseThrow(), "T=1");
         assertEquals(mock.transceive(HexUtils.hex2bin("00A40400")), HexUtils.hex2bin("9000"));
         assertEquals(mock.transceive(HexUtils.hex2bin("00CA0000")), HexUtils.hex2bin("6A88"));
         assertThrows(BIBOException.class, () -> mock.transceive(HexUtils.hex2bin("00000000")));
