@@ -127,14 +127,6 @@ public final class HandyTerminalsMonitor implements Runnable {
                         if (shouldReport(readers)) {
                             reportChanges(readers);
                         }
-
-                        if (isSunPCSC && readers.isEmpty()) {
-                            //Exception in thread "PC/SC Monitor" java.lang.IllegalStateException: No terminals available
-                            //	at java.smartcardio/sun.security.smartcardio.PCSCTerminals.waitForChange(PCSCTerminals.java:174)
-                            logger.debug("sunpcsc on macosx, waitForChange() will fail with IllegalStateException");
-                            Thread.sleep(TICK_POLL);
-                            continue;
-                        }
                     } catch (CardException e) {
                         String err = SCard.getExceptionMessage(e);
                         // pcsc-lite
@@ -185,6 +177,11 @@ public final class HandyTerminalsMonitor implements Runnable {
                         changed = monitor.waitForChange(TICK_WAIT);
                         logger.trace("wait took {}ms and was {}", System.currentTimeMillis() - start, changed);
                         // macOS 11.2.3 will wait for the tick, report false, and report a change at next wait, always.
+                    } catch (IllegalStateException e) {
+                        // waitForChange() throws when the terminal list is empty; poll until a reader appears
+                        logger.trace("wait: empty terminal list, polling");
+                        changed = true;
+                        TimeUnit.MILLISECONDS.sleep(TICK_POLL);
                     } catch (CardException e) {
                         String err = SCard.getExceptionMessage(e);
                         // Removing a reader on Linux results in timeout error, adding results in true
