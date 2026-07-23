@@ -138,9 +138,9 @@ public class SimTests {
         var logical = card.openLogicalChannel();
         Assert.assertEquals(logical.getChannelNumber(), 1);
 
-        // ByteBuffer transmit
+        // The response buffer must hold a full R-APDU (258 bytes).
         var cmd = ByteBuffer.wrap(HexUtils.hex2bin("00A4040000"));
-        var resp = ByteBuffer.allocate(256);
+        var resp = ByteBuffer.allocate(258);
         var len = card.getBasicChannel().transmit(cmd, resp);
         Assert.assertTrue(len > 0);
         resp.flip();
@@ -375,9 +375,9 @@ public class SimTests {
                 Assert.assertEquals(bibo.transmit(new apdu4j.core.CommandAPDU(0x00, 0xA4, 0x04, 0x00)).getSW(), 0x9000);
                 Assert.assertEquals(bibo.transmit(new apdu4j.core.CommandAPDU(0x00, 0xA4, 0x04, 0x00)).getSW(), 0x6A82);
 
-                // Raw BIBO channel interception (OPEN CHANNEL + CLOSE CHANNEL)
+                // CLOSE names the channel in P2 (01708001 closes channel 1).
                 Assert.assertEquals(bibo.transceive(HexUtils.hex2bin("00700000")), HexUtils.hex2bin("019000"));
-                Assert.assertEquals(bibo.transceive(HexUtils.hex2bin("01708000")), HexUtils.hex2bin("9000"));
+                Assert.assertEquals(bibo.transceive(HexUtils.hex2bin("01708001")), HexUtils.hex2bin("9000"));
                 return null;
             });
         }

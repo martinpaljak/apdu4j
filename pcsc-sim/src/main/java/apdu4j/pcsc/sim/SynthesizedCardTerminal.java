@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
@@ -34,7 +33,7 @@ public final class SynthesizedCardTerminal extends CardTerminal {
     private final String name;
     private final String protocol;
     private final Object lock = new Object();
-    private final AtomicReference<Runnable> onChange = new AtomicReference<>();
+    private volatile Runnable onChange;
 
     // Card presence state (guarded by lock)
     private byte[] activeAtr;                    // non-null = card is "in the reader"
@@ -42,11 +41,10 @@ public final class SynthesizedCardTerminal extends CardTerminal {
     private Function<String, BIBO> biboFactory;  // factory mode: creates BIBO per session
 
     // Active session state (guarded by lock)
-    // BIBO is created lazily on first transmit(), not on connect() -
-    // this avoids creating sessions during listPCSC probe cycles (connect + getATR + disconnect)
     private BIBO activeBibo;
     private String connectProtocol;
-    private SynthesizedCard activeCard;
+    // Per-thread to isolate each PC/SC context's handle.
+    private final ThreadLocal<SynthesizedCard> activeCard = new ThreadLocal<>();
     // Guards async present() callbacks against stale state after yank()
     private long generation;
 
@@ -79,6 +77,9 @@ public final class SynthesizedCardTerminal extends CardTerminal {
 
     // Queue: each connect cycle consumes next BIBO; card gone when queue empty
     public void present(List<BIBO> bibos, byte[] atr) {
+        if (bibos.isEmpty()) {
+            throw new IllegalArgumentException("At least one BIBO required");
+        }
         synchronized (lock) {
             if (activeAtr != null) {
                 throw new IllegalStateException("Card already present");
@@ -163,7 +164,7 @@ public final class SynthesizedCardTerminal extends CardTerminal {
             }
             activeBibo = null;
             activeAtr = null;
-            activeCard = null;
+            activeCard.remove();
             biboQueue = null;
             biboFactory = null;
             connectProtocol = null;
@@ -174,7 +175,7 @@ public final class SynthesizedCardTerminal extends CardTerminal {
     }
 
     void setOnChange(Runnable callback) {
-        onChange.set(callback);
+        this.onChange = callback;
     }
 
     // Card is "in the reader" when there's an active session, a factory, or queued BIBOs
@@ -185,7 +186,7 @@ public final class SynthesizedCardTerminal extends CardTerminal {
     }
 
     private void fireOnChange() {
-        var cb = onChange.get();
+        var cb = onChange;
         if (cb != null) {
             cb.run();
         }
@@ -200,15 +201,25 @@ public final class SynthesizedCardTerminal extends CardTerminal {
     public Card connect(String s) throws CardException {
         Objects.requireNonNull(s, "protocol");
         logger.trace("connect({})", s);
+        if (!s.equals("*") && !s.equalsIgnoreCase("T=0") && !s.equalsIgnoreCase("T=1") && !s.equalsIgnoreCase("T=CL")) {
+            throw new IllegalArgumentException("Unsupported protocol: " + s);
+        }
         synchronized (lock) {
             if (!cardPresent()) {
                 throw new CardNotPresentException("Card not present!");
             }
-            if (activeCard == null) {
-                connectProtocol = s;
-                activeCard = new SynthesizedCard(activeAtr.clone());
+            // "*" takes the terminal's protocol; a specific request must be the one this terminal establishes.
+            if (!s.equals("*") && !s.equalsIgnoreCase(protocol)) {
+                throw new CardException("Cannot connect with protocol %s: terminal uses %s".formatted(s, protocol));
             }
-            return activeCard;
+            var card = activeCard.get();
+            // The same context reconnects to the same handle per contract.
+            if (card == null || card.disposed || card.bornAt != generation) {
+                connectProtocol = protocol;
+                card = new SynthesizedCard(activeAtr.clone());
+                activeCard.set(card);
+            }
+            return card;
         }
     }
 
@@ -220,19 +231,26 @@ public final class SynthesizedCardTerminal extends CardTerminal {
     }
 
     // Waits until condition is true or timeout expires; caller must NOT hold lock
-    private boolean waitForCondition(long timeout, BooleanSupplier condition) {
+    private boolean waitForCondition(long timeout, BooleanSupplier condition) throws CardException {
         synchronized (lock) {
             long deadline = timeout > 0 ? System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeout) : 0;
             while (!condition.getAsBoolean()) {
-                long waitMs = timeout == 0 ? 0 : TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
-                if (timeout > 0 && waitMs <= 0) {
-                    return false;
+                long waitMs;
+                if (timeout == 0) {
+                    waitMs = 0;
+                } else {
+                    long remaining = deadline - System.nanoTime();
+                    if (remaining <= 0) {
+                        return false;
+                    }
+                    // Round a sub-millisecond remainder up to a full millisecond of wait.
+                    waitMs = (remaining + 999_999) / 1_000_000;
                 }
                 try {
                     lock.wait(waitMs);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    return false;
+                    throw new CardException("Interrupted", e);
                 }
             }
             return true;
@@ -257,7 +275,7 @@ public final class SynthesizedCardTerminal extends CardTerminal {
         return waitForCondition(l, () -> !cardPresent());
     }
 
-    // Resolves the BIBO lazily -called on first transmit(), never on connect()
+    // Lazy to keep probe cycles sessionless.
     private BIBO resolveBibo() throws CardException {
         synchronized (lock) {
             if (activeBibo != null) {
@@ -282,6 +300,10 @@ public final class SynthesizedCardTerminal extends CardTerminal {
         private final ATR atr;
         private final SynthesizedChannel channel = new SynthesizedChannel();
         private volatile Thread exclusiveThread;
+        // A later yank() or present() strands this card.
+        private final long bornAt = generation;
+        // A released handle must not resolve the next session.
+        private volatile boolean disposed;
 
         SynthesizedCard(byte[] atr) {
             this.atr = new ATR(atr);
@@ -299,21 +321,32 @@ public final class SynthesizedCardTerminal extends CardTerminal {
 
         @Override
         public CardChannel getBasicChannel() {
+            checkDisposed();
             return channel;
         }
 
         @Override
         public CardChannel openLogicalChannel() throws CardException {
+            checkFresh();
             checkExclusive();
             var bibo = resolveBibo();
             try {
                 // MANAGE CHANNEL OPEN: P1=00 (open), P2=00 (auto-assign), Le=01
-                var cmd = new apdu4j.core.CommandAPDU(0x00, 0x70, 0x00, 0x00, 1);
-                var r = new apdu4j.core.ResponseAPDU(bibo.transceive(cmd.getBytes()));
+                var cmd = new CommandAPDU(0x00, 0x70, 0x00, 0x00, 1);
+                var r = new ResponseAPDU(bibo.transceive(cmd.getBytes()));
                 if (r.getSW() != 0x9000) {
                     throw new CardException("MANAGE CHANNEL failed: SW=%04X".formatted(r.getSW()));
                 }
-                return new SynthesizedChannel(r.getData()[0] & 0xFF);
+                var data = r.getData();
+                if (data.length < 1) {
+                    throw new CardException("MANAGE CHANNEL returned no channel id");
+                }
+                int id = data[0] & 0xFF;
+                // A channel above ISO 7816-4's 1..19 overflows the CLA.
+                if (id < 1 || id > 19) {
+                    throw new CardException("MANAGE CHANNEL returned invalid channel id: " + id);
+                }
+                return new SynthesizedChannel(id);
             } catch (BIBOException | IllegalArgumentException e) {
                 throw new CardException(e.getMessage(), e);
             }
@@ -326,9 +359,27 @@ public final class SynthesizedCardTerminal extends CardTerminal {
             }
         }
 
+        // A caller-disposed handle throws IllegalStateException on touch.
+        void checkDisposed() {
+            if (disposed) {
+                throw new IllegalStateException("Card has been disconnected");
+            }
+        }
+
+        // A yanked card fails as CardException.
+        void checkFresh() throws CardException {
+            checkDisposed();
+            synchronized (lock) {
+                if (bornAt != generation) {
+                    throw new CardException("Card has been removed");
+                }
+            }
+        }
+
         @Override
         public void beginExclusive() throws CardException {
             logger.trace("Card#beginExclusive()");
+            checkFresh();
             synchronized (lock) {
                 if (exclusiveThread != null) {
                     throw new CardException("Exclusive access has already been assigned");
@@ -340,6 +391,7 @@ public final class SynthesizedCardTerminal extends CardTerminal {
         @Override
         public void endExclusive() throws CardException {
             logger.trace("Card#endExclusive()");
+            checkDisposed();
             synchronized (lock) {
                 if (exclusiveThread != Thread.currentThread()) {
                     throw new IllegalStateException("endExclusive() called without matching beginExclusive()");
@@ -356,9 +408,14 @@ public final class SynthesizedCardTerminal extends CardTerminal {
         @Override
         public void disconnect(boolean reset) throws CardException {
             logger.trace("Card#disconnect({})", reset);
+            // Repeat disconnect returns per contract.
+            if (disposed) {
+                return;
+            }
             checkExclusive();
             synchronized (lock) {
-                activeCard = null;
+                activeCard.remove();
+                disposed = true;
                 if (reset) {
                     // Close current session BIBO
                     if (activeBibo != null) {
@@ -387,6 +444,7 @@ public final class SynthesizedCardTerminal extends CardTerminal {
 
         class SynthesizedChannel extends CardChannel {
             private final int channelNumber;
+            private volatile boolean closed;
 
             SynthesizedChannel() {
                 this(0);
@@ -403,18 +461,60 @@ public final class SynthesizedCardTerminal extends CardTerminal {
 
             @Override
             public int getChannelNumber() {
+                if (closed) {
+                    throw new IllegalStateException("Logical channel has been closed");
+                }
+                checkDisposed();
                 return channelNumber;
+            }
+
+            // Encodes the channel number into CLA per ISO 7816-4.
+            private byte[] withChannel(byte[] apdu) {
+                if (channelNumber == 0 || apdu.length == 0 || (apdu[0] & 0x80) != 0) {
+                    return apdu;
+                }
+                int cla = apdu[0] & 0xFF;
+                if (channelNumber < 4) {
+                    cla = (cla & 0xBC) | channelNumber;
+                } else {
+                    cla = (cla & 0xB0) | 0x40 | (channelNumber - 4);
+                }
+                apdu[0] = (byte) cla;
+                return apdu;
+            }
+
+            // MANAGE CHANNEL belongs to the channel lifecycle API.
+            private static boolean isManageChannel(byte[] apdu) {
+                return apdu.length >= 2 && (apdu[0] & 0x80) == 0 && (apdu[1] & 0xFF) == 0x70;
+            }
+
+            // Returns the raw response without validating the status word.
+            private byte[] exchange(byte[] cmd) throws CardException {
+                if (closed) {
+                    throw new IllegalStateException("Logical channel has been closed");
+                }
+                if (isManageChannel(cmd)) {
+                    throw new IllegalArgumentException("MANAGE CHANNEL must go through openLogicalChannel/close");
+                }
+                checkFresh();
+                checkExclusive();
+                var bibo = resolveBibo();
+                var apdu = withChannel(cmd);
+                logger.trace("transmit({})", HexUtils.bin2hex(apdu));
+                try {
+                    return bibo.transceive(apdu);
+                } catch (BIBOException | IllegalArgumentException e) {
+                    throw new CardException(e.getMessage(), e);
+                }
             }
 
             @Override
             public ResponseAPDU transmit(CommandAPDU commandAPDU) throws CardException {
                 Objects.requireNonNull(commandAPDU, "command APDU");
-                checkExclusive();
-                var bibo = resolveBibo();
-                logger.trace("transmit({})", HexUtils.bin2hex(commandAPDU.getBytes()));
+                byte[] result = exchange(commandAPDU.getBytes());
                 try {
-                    return new ResponseAPDU(bibo.transceive(commandAPDU.getBytes()));
-                } catch (BIBOException e) {
+                    return new ResponseAPDU(result);
+                } catch (IllegalArgumentException e) {
                     throw new CardException(e.getMessage(), e);
                 }
             }
@@ -429,34 +529,40 @@ public final class SynthesizedCardTerminal extends CardTerminal {
                 if (command == response) {
                     throw new IllegalArgumentException("command and response must not be the same object");
                 }
-                checkExclusive();
-                var bibo = resolveBibo();
+                if (response.remaining() < 258) {
+                    throw new IllegalArgumentException("Response buffer must hold at least 258 bytes");
+                }
                 byte[] cmd = new byte[command.remaining()];
                 command.get(cmd);
-                logger.trace("transmit({})", HexUtils.bin2hex(cmd));
-                try {
-                    var result = bibo.transceive(cmd);
-                    response.put(result);
-                    return result.length;
-                } catch (BIBOException e) {
-                    throw new CardException(e.getMessage(), e);
-                }
+                byte[] result = exchange(cmd);
+                response.put(result);
+                return result.length;
             }
 
             @Override
             public void close() throws CardException {
-                // Basic channel is never closed per javax.smartcardio spec
+                // The basic channel cannot be closed per javax.smartcardio spec.
                 if (channelNumber == 0) {
+                    throw new IllegalStateException("Cannot close basic logical channel");
+                }
+                if (closed) {
                     return;
                 }
+                checkFresh();
                 checkExclusive();
                 var bibo = resolveBibo();
                 try {
-                    // MANAGE CHANNEL CLOSE: INS=70, P1=80 (close), P2=channel number
-                    var cmd = new apdu4j.core.CommandAPDU(0x00, 0x70, 0x80, channelNumber);
-                    bibo.transceive(cmd.getBytes());
+                    // MANAGE CHANNEL CLOSE carries the channel in P2 and the CLA.
+                    var cmd = new CommandAPDU(0x00, 0x70, 0x80, channelNumber);
+                    var r = new ResponseAPDU(bibo.transceive(withChannel(cmd.getBytes())));
+                    if (r.getSW() != 0x9000) {
+                        throw new CardException("MANAGE CHANNEL CLOSE failed: SW=%04X".formatted(r.getSW()));
+                    }
                 } catch (BIBOException e) {
                     throw new CardException(e.getMessage(), e);
+                } finally {
+                    // Close retires the channel regardless of outcome.
+                    closed = true;
                 }
             }
         }
