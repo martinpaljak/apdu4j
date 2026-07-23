@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.github.martinpaljak</groupId>
+        <artifactId>apdu4j</artifactId>
+        <version>26.07.13-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>apdu4j-apdulette-android</artifactId>
+
+    <!-- android.jar is compile-only: system scope keeps it off every downstream classpath, so a non-Android
+         consumer of apdu4j never pulls anything Android. The module builds only under -Pandroid. -->
+    <properties>
+        <android.sdk>${env.ANDROID_HOME}</android.sdk>
+        <android.platform>android-36</android.platform>
+    </properties>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <release>21</release>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.github.martinpaljak</groupId>
+            <artifactId>apdu4j-apdulette</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.android</groupId>
+            <artifactId>android</artifactId>
+            <version>${android.platform}</version>
+            <scope>system</scope>
+            <systemPath>${android.sdk}/platforms/${android.platform}/android.jar</systemPath>
+        </dependency>
+    </dependencies>
+
+</project>

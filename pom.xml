@@ -314,5 +314,20 @@
                 <module>tool</module>
             </modules>
         </profile>
+        <!-- The Android NFC backend. Auto-activates when the Android SDK is reachable via ANDROID_HOME
+             and the toolchain is Java 21+ (the module compiles for release 21). Still buildable on demand
+             with -Pandroid. -->
+        <profile>
+            <id>android</id>
+            <activation>
+                <jdk>[21,)</jdk>
+                <file>
+                    <exists>${env.ANDROID_HOME}/platforms/android-36/android.jar</exists>
+                </file>
+            </activation>
+            <modules>
+                <module>apdulette-android</module>
+            </modules>
+        </profile>
     </profiles>
 </project>

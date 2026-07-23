@@ -6,6 +6,11 @@ JAVA17 := /Library/Java/JavaVirtualMachines/$(JDK)-17.jdk/Contents/Home
 JAVA21 := /Library/Java/JavaVirtualMachines/$(JDK)-21.jdk/Contents/Home
 JAVA25 := /Library/Java/JavaVirtualMachines/$(JDK)-25.jdk/Contents/Home
 
+# Default the SDK location (Android Studio convention per OS) so the -Pandroid profile
+# self-activates when the jar is present. An explicit ANDROID_HOME always wins.
+ANDROID_HOME ?= $(if $(filter Darwin,$(shell uname)),$(HOME)/Library/Android/sdk,$(HOME)/Android/Sdk)
+export ANDROID_HOME
+
 default: today reportjava
 	./mvnw verify install
 
