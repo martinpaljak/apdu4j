@@ -23,13 +23,19 @@ public final class HandyTerminalsMonitor implements Runnable {
 
     private final PCSCMonitor listener;
     private final TerminalManager manager;
+    private final boolean reportMute;
 
     private CardTerminals monitor;
     private volatile boolean isSunPCSC = false;
 
     public HandyTerminalsMonitor(TerminalManager whatToMonitor, PCSCMonitor whereToReport) {
+        this(whatToMonitor, whereToReport, false);
+    }
+
+    public HandyTerminalsMonitor(TerminalManager whatToMonitor, PCSCMonitor whereToReport, boolean reportMute) {
         this.manager = whatToMonitor;
         this.listener = whereToReport;
+        this.reportMute = reportMute;
     }
 
     private final boolean isWindows = TerminalManager.isWindows();
@@ -121,7 +127,7 @@ public final class HandyTerminalsMonitor implements Runnable {
                 if (!Thread.currentThread().isInterrupted() && changed) {
                     try {
                         var start = System.currentTimeMillis();
-                        var readers = TerminalManager.listPCSC(monitor.list(), null, false);
+                        var readers = TerminalManager.listPCSC(monitor.list(), null, false, reportMute);
                         logger.trace("list took {}ms, {} items", System.currentTimeMillis() - start, readers.size());
 
                         if (shouldReport(readers)) {

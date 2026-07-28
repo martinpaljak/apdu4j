@@ -28,6 +28,7 @@ public class DWIMSteps {
                 .map(row -> new PCSCReader(row.get("name"), null,
                         !"no".equals(row.get("present")),
                         "yes".equals(row.get("exclusive")),
+                        "yes".equals(row.get("mute")),
                         null, false, false))
                 .toList();
     }

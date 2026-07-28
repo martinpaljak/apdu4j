@@ -98,7 +98,7 @@ public final class Readers {
             picked = eligible.get(0).name();
         } else {
             // Multiple eligible -> need exactly one with card present and not exclusive
-            var withCard = eligible.stream().filter(r -> r.present() && !r.exclusive()).limit(2).toList();
+            var withCard = eligible.stream().filter(r -> r.present() && !r.exclusive() && !r.mute()).limit(2).toList();
             picked = withCard.size() == 1 ? withCard.get(0).name() : null;
         }
 
@@ -146,7 +146,7 @@ public final class Readers {
             return matches.get(0).name();
         }
         // Several names match the hint: keep the one with a card, if it is the only such.
-        var withCard = matches.stream().filter(r -> r.present() && !r.exclusive()).limit(2).toList();
+        var withCard = matches.stream().filter(r -> r.present() && !r.exclusive() && !r.mute()).limit(2).toList();
         return withCard.size() == 1 ? withCard.get(0).name() : null;
     }
 

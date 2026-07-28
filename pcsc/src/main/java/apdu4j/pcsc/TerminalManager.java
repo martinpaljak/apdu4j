@@ -221,8 +221,12 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
                 .orElse("development");
     }
 
-    // Fetch what is a combination of CardTerminal + Card data and handle all the weird errors of PC/SC
     public static List<PCSCReader> listPCSC(List<CardTerminal> terminals, OutputStream logStream, boolean probePinpad) throws CardException {
+        return listPCSC(terminals, logStream, probePinpad, false);
+    }
+
+    // Fetch what is a combination of CardTerminal + Card data and handle all the weird errors of PC/SC
+    public static List<PCSCReader> listPCSC(List<CardTerminal> terminals, OutputStream logStream, boolean probePinpad, boolean reportMute) throws CardException {
         var result = new ArrayList<PCSCReader>();
         for (CardTerminal t : terminals) {
             if (logStream != null) {
@@ -232,6 +236,7 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
                 final var name = t.getName();
                 var present = t.isCardPresent();
                 var exclusive = false;
+                var mute = false;
                 String vmd = null;
                 byte[] atr = null;
                 if (present) {
@@ -248,8 +253,11 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
                         String err = SCard.getExceptionMessage(e);
                         if (SCard.SCARD_W_UNPOWERED_CARD.equals(err)) {
                             logger.warn("Unpowered card. Contact card inserted wrong way or card mute?");
-                            // We don't present such cards, as for contactless this is a no-case TODO: reconsider ?
-                            present = false;
+                            if (reportMute) {
+                                mute = true;
+                            } else {
+                                present = false;
+                            }
                         } else if (SCard.SCARD_E_NO_SMARTCARD.equals(err) || SCard.SCARD_W_REMOVED_CARD.equals(err) || SCard.SCARD_E_READER_UNAVAILABLE.equals(err)) {
                             // Race: card/reader removed between list and connect
                             logger.debug("Card removed from {} during enumeration", name);
@@ -312,7 +320,7 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
                         }
                     }
                 }
-                result.add(new PCSCReader(name, atr, present, exclusive, vmd));
+                result.add(new PCSCReader(name, atr, present, exclusive, mute, vmd));
             } catch (CardException e) {
                 String err = SCard.getExceptionMessage(e);
                 logger.warn("Unexpected PC/SC error: {}", err, e);
@@ -422,7 +430,7 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
         // A late non-fresh registration misses the monitor's initial scan: serve present readers now.
         if (!fresh && monitorWasRunning) {
             for (var reader : currentReaders) {
-                if (reader.present() && matcher.test(reader)) {
+                if (reader.present() && !reader.mute() && matcher.test(reader)) {
                     dispatch(reg, reader);
                 }
             }
@@ -469,7 +477,7 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
         }
 
         for (var reader : states) {
-            if (!reader.present()) {
+            if (!reader.present() || reader.mute()) {
                 continue;
             }
             var wasPresent = previous.stream()

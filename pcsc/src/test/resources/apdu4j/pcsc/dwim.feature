@@ -202,6 +202,24 @@ Feature: DWIM Reader Selection
     When I use hint "Exclusive"
     Then "Exclusive Reader" is selected
 
+  # --- Mute cards ---
+
+  Scenario: Auto-pick skips reader with mute card
+    Given readers:
+      | name        | present | mute |
+      | Mute Reader | yes     | yes  |
+      | Live Reader | yes     | no   |
+    When I pick a reader
+    Then "Live Reader" is selected
+
+  Scenario: Hint selects reader with mute card explicitly
+    Given readers:
+      | name        | present | mute |
+      | Live Reader | yes     | no   |
+      | Mute Reader | yes     | yes  |
+    When I use hint "Mute"
+    Then "Mute Reader" is selected
+
   # --- Failure cases ---
 
   Scenario: Fails when multiple readers have cards and no hint
@@ -245,6 +263,14 @@ Feature: DWIM Reader Selection
       | name           | present | exclusive |
       | Shared Reader  | no      | no        |
       | Exclusive Card | yes     | yes       |
+    When I pick a reader
+    Then selection fails
+
+  Scenario: Fails when only mute cards are present
+    Given readers:
+      | name         | present | mute |
+      | Empty Reader | no      | no   |
+      | Mute Reader  | yes     | yes  |
     When I pick a reader
     Then selection fails
 

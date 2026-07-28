@@ -7,19 +7,19 @@ import apdu4j.core.HexBytes;
 import java.util.Optional;
 
 // Immutable snapshot combining CardTerminal + Card state from javax.smartcardio
-public record PCSCReader(String name, HexBytes atr, boolean present, boolean exclusive, String vmd, boolean preferred,
-                         boolean ignored) {
+public record PCSCReader(String name, HexBytes atr, boolean present, boolean exclusive, boolean mute, String vmd,
+                         boolean preferred, boolean ignored) {
 
-    PCSCReader(String name, byte[] atr, boolean present, boolean exclusive, String vmd) {
-        this(name, atr == null ? null : HexBytes.b(atr), present, exclusive, vmd, false, false);
+    PCSCReader(String name, byte[] atr, boolean present, boolean exclusive, boolean mute, String vmd) {
+        this(name, atr == null ? null : HexBytes.b(atr), present, exclusive, mute, vmd, false, false);
     }
 
     public PCSCReader withPreferred(boolean preferred) {
-        return new PCSCReader(name, atr, present, exclusive, vmd, preferred, ignored);
+        return new PCSCReader(name, atr, present, exclusive, mute, vmd, preferred, ignored);
     }
 
     public PCSCReader withIgnored(boolean ignored) {
-        return new PCSCReader(name, atr, present, exclusive, vmd, preferred, ignored);
+        return new PCSCReader(name, atr, present, exclusive, mute, vmd, preferred, ignored);
     }
 
     public Optional<byte[]> getATR() {
