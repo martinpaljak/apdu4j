@@ -5,6 +5,7 @@ package apdu4j.apdulette.pcsc;
 import apdu4j.apdulette.Chef;
 import apdu4j.apdulette.Cookbook;
 import apdu4j.apdulette.Dish;
+import apdu4j.apdulette.KitchenDisaster;
 import apdu4j.apdulette.PreparationStep;
 import apdu4j.apdulette.Recipe;
 import apdu4j.core.BIBO;
@@ -25,6 +26,7 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -60,8 +62,10 @@ public class PCSCKitchenTest {
 
         var connects = new AtomicInteger(0);
         var transceives = new AtomicInteger(0);
+        // Shared access is the explicit ask here, so the served session must report it back.
+        var hints = Preferences.of(CardInfo.EXCLUSIVE, false);
         try (var mgr = new TerminalManager(terminals.toFactory());
-             var kitchen = PCSCKitchen.open(Readers.select(mgr), new Preferences(), counting(transceives))) {
+             var kitchen = PCSCKitchen.open(Readers.select(mgr), hints, counting(transceives))) {
             Recipe<String> readsProtocol = p -> new PreparationStep.Premade<>(
                     p.valueOf(CardInfo.NEGOTIATED_PROTOCOL).orElse("none"));
             var sws = new int[2];
@@ -113,6 +117,71 @@ public class PCSCKitchenTest {
 
             terminal.present(MockBIBO.of("9000"));
             Assert.assertNotNull(future.get(5, TimeUnit.SECONDS), "future completes once a card arrives");
+        }
+    }
+
+    // Session hints given at open() drive the connection and come back answered on the served Dish.
+    @Test
+    void openFoldsSessionHintsIntoTheConnection() throws Exception {
+        var terminals = new SynthesizedCardTerminals();
+        var terminal = new SynthesizedCardTerminal("Contactless Reader", "T=CL");
+        terminal.presentFactory(proto -> MockBIBO.of("9000"), SynthesizedCardTerminal.defaultAtr());
+        terminals.addTerminal(terminal);
+
+        // T=CL over an already-present card, held exclusively: the card is on the reader before the
+        // kitchen opens, so only fresh=false can serve it at all.
+        var hints = new Preferences()
+                .with(CardInfo.PROTOCOL, "T=CL")
+                .with(CardInfo.FRESH, false)
+                .with(CardInfo.EXCLUSIVE, true);
+
+        try (var mgr = new TerminalManager(terminals.toFactory());
+             var kitchen = PCSCKitchen.open(Readers.select(mgr), hints, Function.identity())) {
+            var dish = kitchen.teppanyaki((chef, prefs) -> prefs).get(5, TimeUnit.SECONDS);
+
+            Assert.assertEquals(dish.valueOf(CardInfo.NEGOTIATED_PROTOCOL).orElse(null), "T=CL");
+            Assert.assertEquals(dish.valueOf(CardInfo.FRESH_TAP).orElse(null), Boolean.FALSE,
+                    "an already-present card is not a fresh tap");
+            Assert.assertEquals(dish.valueOf(CardInfo.EXCLUSIVE_HELD).orElse(null), Boolean.TRUE);
+            // The hints themselves stay on the spine alongside the answers.
+            Assert.assertEquals(dish.get(CardInfo.PROTOCOL), "T=CL");
+        }
+    }
+
+    // A handler that blows up fails its future (teppanyaki) or reaches the sink as a cause (pass),
+    // and either way releases the kitchen for the next handler.
+    @Test
+    void handlerFailuresReachTheCaller() throws Exception {
+        var terminals = new SynthesizedCardTerminals();
+        var terminal = new SynthesizedCardTerminal("Contact Reader"); // starts empty
+        terminals.addTerminal(terminal);
+
+        try (var mgr = new TerminalManager(terminals.toFactory());
+             var kitchen = PCSCKitchen.open(Readers.select(mgr))) {
+            // The card refuses the SELECT and nothing recovers it.
+            BiFunction<Chef, Preferences, Integer> refused = (chef, prefs) ->
+                    chef.cook(Cookbook.send(SELECT, 0x9000)).getSW();
+
+            var future = kitchen.teppanyaki(refused);
+            terminal.present(MockBIBO.of("6A82"));
+            var failed = Assert.expectThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
+            Assert.assertTrue(failed.getCause() instanceof KitchenDisaster, "got " + failed.getCause());
+
+            // The failed handler released the kitchen: a pass takes over and reports the same
+            // failure through its sink instead.
+            terminal.yank();
+            Assert.assertTrue(mgr.awaitReaders(readers -> readers.stream().noneMatch(r -> r.present()),
+                    Duration.ofSeconds(5)));
+            var errors = new CopyOnWriteArrayList<Throwable>();
+            var served = new CountDownLatch(1);
+            try (var subscription = kitchen.pass(refused, (dish, err) -> {
+                errors.add(err);
+                served.countDown();
+            })) {
+                terminal.present(MockBIBO.of("6A82"));
+                Assert.assertTrue(served.await(5, TimeUnit.SECONDS));
+                Assert.assertTrue(errors.get(0) instanceof KitchenDisaster, "got " + errors.get(0));
+            }
         }
     }
 
@@ -169,34 +238,64 @@ public class PCSCKitchenTest {
     }
 
     // Only one handler runs at a time: a second teppanyaki()/pass() while one is active is rejected, and
-    // a new handler is accepted once the active one finishes.
+    // a new handler is accepted once the active one finishes, is cancelled, or loses its card race.
     @Test
     void oneHandlerAtATime() throws Exception {
         var terminals = new SynthesizedCardTerminals();
         var terminal = new SynthesizedCardTerminal("Contact Reader"); // starts empty
+        var second = new SynthesizedCardTerminal("USB Reader");       // ditto
         terminals.addTerminal(terminal);
+        terminals.addTerminal(second);
 
         try (var mgr = new TerminalManager(terminals.toFactory());
              var kitchen = PCSCKitchen.open(Readers.select(mgr))) {
             BiFunction<Chef, Preferences, String> handler = (chef, prefs) ->
                     prefs.valueOf(CardInfo.READER_NAME).orElse(null);
 
-            var pending = kitchen.teppanyaki(handler); // waits on the empty reader, stays active
+            var pending = kitchen.teppanyaki(handler); // waits on the empty readers, stays active
             Assert.assertThrows(IllegalStateException.class, () -> kitchen.teppanyaki(handler));
             Assert.assertThrows(IllegalStateException.class,
                     () -> kitchen.pass(handler, (dish, err) -> {
                     }));
 
+            // Giving up on the wait frees the kitchen even though no card ever arrived.
+            Assert.assertTrue(pending.cancel(true));
+            var served = kitchen.teppanyaki(handler);
+
             terminal.present(MockBIBO.of("9000"));
-            Assert.assertEquals(pending.get(5, TimeUnit.SECONDS), "Contact Reader");
+            Assert.assertEquals(served.get(5, TimeUnit.SECONDS), "Contact Reader");
 
             // The finished handler released the kitchen: a fresh tap is served by a new teppanyaki.
             terminal.yank();
             Assert.assertTrue(mgr.awaitReaders(readers -> readers.stream().noneMatch(r -> r.present()),
                     Duration.ofSeconds(5)));
-            var second = kitchen.teppanyaki(handler);
+
+            // Two cards land on two stoves while the handler runs: the first takes the session and
+            // the second is dropped, so exactly one dish comes out.
+            var cooking = new CountDownLatch(1);
+            var release = new CountDownLatch(1);
+            var runs = new AtomicInteger();
+            var race = kitchen.teppanyaki((chef, prefs) -> {
+                runs.incrementAndGet();
+                cooking.countDown();
+                try {
+                    release.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return prefs.valueOf(CardInfo.READER_NAME).orElse(null);
+            });
             terminal.present(MockBIBO.of("9000"));
-            Assert.assertEquals(second.get(5, TimeUnit.SECONDS), "Contact Reader");
+            Assert.assertTrue(cooking.await(5, TimeUnit.SECONDS), "the first card must start cooking");
+            second.present(MockBIBO.of("9000"));
+            Assert.assertTrue(mgr.awaitReaders(
+                    readers -> readers.stream().anyMatch(r -> "USB Reader".equals(r.name()) && r.present()),
+                    Duration.ofSeconds(5)));
+            Thread.sleep(100); // let the second stove dispatch and lose the race
+            release.countDown();
+
+            Assert.assertEquals(race.get(5, TimeUnit.SECONDS), "Contact Reader");
+            Assert.assertEquals(runs.get(), 1, "one teppanyaki serves exactly one card");
         }
     }
 }

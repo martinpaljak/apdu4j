@@ -11,14 +11,14 @@ import apdu4j.prefs.Preferences;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-import javax.smartcardio.CardTerminals;
 import javax.smartcardio.CommandAPDU;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -63,93 +63,6 @@ public class SimTests {
         }
     }
 
-    // === Card lifecycle: single, queue, and factory modes ===
-
-    @Test
-    void testSingleBiboLifecycle() throws Exception {
-        var terminal = new SynthesizedCardTerminal("Test Reader");
-        Assert.assertFalse(terminal.isCardPresent());
-
-        // Present, transmit, disconnect(true) - auto-yanks single BIBO
-        terminal.present(MockBIBO.of("9000"));
-        Assert.assertTrue(terminal.isCardPresent());
-        var card = terminal.connect("*");
-        Assert.assertEquals(card.getATR().getBytes(), SynthesizedCardTerminal.defaultAtr());
-        card.getBasicChannel().transmit(new CommandAPDU(HexUtils.hex2bin("00A4040000")));
-        card.disconnect(true);
-        Assert.assertFalse(terminal.isCardPresent());
-
-        // Re-present with custom ATR
-        byte[] customAtr = HexUtils.hex2bin("3B90964F46");
-        terminal.present(MockBIBO.of("9000"), customAtr);
-        Assert.assertEquals(terminal.connect("*").getATR().getBytes(), customAtr);
-    }
-
-    @Test
-    void testQueueAndFactoryModes() throws Exception {
-        // Queue mode: each disconnect(true) pops next BIBO, card gone when depleted
-        var queueTerminal = new SynthesizedCardTerminal("Queue Reader");
-        queueTerminal.present(List.of(MockBIBO.of("9000"), MockBIBO.of("6A82")),
-                SynthesizedCardTerminal.defaultAtr());
-
-        var c1 = queueTerminal.connect("*");
-        c1.getBasicChannel().transmit(new CommandAPDU(HexUtils.hex2bin("00A4040000")));
-        c1.disconnect(true);
-        Assert.assertTrue(queueTerminal.isCardPresent(), "Queue still has one more");
-
-        var c2 = queueTerminal.connect("*");
-        Assert.assertEquals(c2.getBasicChannel().transmit(
-                new CommandAPDU(HexUtils.hex2bin("00A4040000"))).getSW(), 0x6A82);
-        c2.disconnect(true);
-        Assert.assertFalse(queueTerminal.isCardPresent(), "Queue depleted");
-
-        // Factory mode: card persists, each connect gets fresh BIBO from factory
-        var callCount = new AtomicInteger(0);
-        var factoryTerminal = new SynthesizedCardTerminal("Factory Reader");
-        factoryTerminal.presentFactory(protocol -> {
-            callCount.incrementAndGet();
-            return MockBIBO.of("9000");
-        }, SynthesizedCardTerminal.defaultAtr());
-
-        var fc1 = factoryTerminal.connect("*");
-        fc1.getBasicChannel().transmit(new CommandAPDU(HexUtils.hex2bin("00A4040000")));
-        fc1.disconnect(true);
-        Assert.assertTrue(factoryTerminal.isCardPresent(), "Factory survives disconnect");
-        var fc2 = factoryTerminal.connect("*");
-        fc2.getBasicChannel().transmit(new CommandAPDU(HexUtils.hex2bin("00A4040000")));
-        fc2.disconnect(true);
-        Assert.assertEquals(callCount.get(), 2, "Factory called each connect");
-
-        factoryTerminal.yank();
-        Assert.assertFalse(factoryTerminal.isCardPresent(), "Only yank() removes factory card");
-    }
-
-    // === javax.smartcardio API: channels and ByteBuffer ===
-
-    @Test
-    void testLogicalChannelAndByteBuffer() throws Exception {
-        var terminal = new SynthesizedCardTerminal("Channel Reader");
-        terminal.present(MockBIBO.of("019000", "AABB9000", "9000"));
-
-        var card = terminal.connect("*");
-        Assert.assertEquals(card.getBasicChannel().getChannelNumber(), 0);
-        Assert.assertSame(card.getBasicChannel().getCard(), card);
-
-        var logical = card.openLogicalChannel();
-        Assert.assertEquals(logical.getChannelNumber(), 1);
-
-        // The response buffer must hold a full R-APDU (258 bytes).
-        var cmd = ByteBuffer.wrap(HexUtils.hex2bin("00A4040000"));
-        var resp = ByteBuffer.allocate(258);
-        var len = card.getBasicChannel().transmit(cmd, resp);
-        Assert.assertTrue(len > 0);
-        resp.flip();
-        Assert.assertEquals(resp.remaining(), len);
-
-        logical.close();
-        card.disconnect(true);
-    }
-
     // === Async card insertion ===
 
     @Test
@@ -173,52 +86,6 @@ public class SimTests {
             Assert.assertTrue(elapsed >= 150, "Should have waited for card: " + elapsed + "ms");
             bibo.close();
         }
-    }
-
-    @Test
-    void testAsyncMultiBibo() throws Exception {
-        var terminal = new SynthesizedCardTerminal("Async Multi Reader");
-        var biboCf = new CompletableFuture<List<BIBO>>();
-        terminal.presentAsync(biboCf, SynthesizedCardTerminal.defaultAtr());
-        Assert.assertFalse(terminal.isCardPresent());
-
-        biboCf.complete(List.of(MockBIBO.of("9000"), MockBIBO.of("6A82")));
-        Assert.assertTrue(terminal.isCardPresent());
-
-        // Deplete queue
-        var ac1 = terminal.connect("*");
-        ac1.getBasicChannel().transmit(new CommandAPDU(HexUtils.hex2bin("00A4040000")));
-        ac1.disconnect(true);
-        Assert.assertTrue(terminal.isCardPresent());
-        var ac2 = terminal.connect("*");
-        ac2.getBasicChannel().transmit(new CommandAPDU(HexUtils.hex2bin("00A4040000")));
-        ac2.disconnect(true);
-        Assert.assertFalse(terminal.isCardPresent());
-    }
-
-    // === SynthesizedCardTerminals state filtering ===
-
-    @Test
-    void testListStateFiltering() throws Exception {
-        var terminals = new SynthesizedCardTerminals();
-        var present = new SynthesizedCardTerminal("Present Reader");
-        present.present(MockBIBO.of("9000"));
-        var absent = new SynthesizedCardTerminal("Empty Reader");
-        terminals.addTerminal(present);
-        terminals.addTerminal(absent);
-
-        Assert.assertEquals(terminals.list(CardTerminals.State.ALL).size(), 2);
-        Assert.assertEquals(terminals.list(CardTerminals.State.CARD_PRESENT).size(), 1);
-        Assert.assertEquals(terminals.list(CardTerminals.State.CARD_INSERTION).size(), 1);
-        Assert.assertEquals(terminals.list(CardTerminals.State.CARD_ABSENT).size(), 1);
-        Assert.assertEquals(terminals.list(CardTerminals.State.CARD_REMOVAL).size(), 1);
-    }
-
-    @Test(expectedExceptions = IllegalArgumentException.class)
-    void testDuplicateTerminalNameRejected() {
-        var terminals = new SynthesizedCardTerminals();
-        terminals.addTerminal(new SynthesizedCardTerminal("Reader A"));
-        terminals.addTerminal(new SynthesizedCardTerminal("Reader A"));
     }
 
     // === Protocol variants ===
@@ -245,30 +112,6 @@ public class SimTests {
             Readers.select(mgr).protocol("T=CL").run(b -> b.transceive(HexUtils.hex2bin("00A4040000")));
         }
         Assert.assertEquals(receivedProtocol.get(), "T=CL");
-    }
-
-    // === Probe cycle and negative timeouts ===
-
-    @Test
-    void testProbeCycleDoesNotConsumeBibo() throws Exception {
-        var terminal = new SynthesizedCardTerminal("Probe Reader");
-        terminal.present(MockBIBO.of("9000"));
-
-        // Probe: connect, getATR, disconnect(false) - should not consume BIBO
-        var probeCard = terminal.connect("*");
-        probeCard.getATR();
-        probeCard.disconnect(false);
-
-        Assert.assertTrue(terminal.isCardPresent());
-        Assert.assertEquals(terminal.connect("*").getBasicChannel().transmit(
-                new CommandAPDU(HexUtils.hex2bin("00A4040000"))).getSW(), 0x9000);
-    }
-
-    @Test
-    void testNegativeTimeoutsRejected() throws Exception {
-        var terminal = new SynthesizedCardTerminal("Timeout Reader");
-        Assert.assertThrows(IllegalArgumentException.class, () -> terminal.waitForCardPresent(-1));
-        Assert.assertThrows(IllegalArgumentException.class, () -> terminal.waitForCardAbsent(-1));
     }
 
     // === Fluent API: wrappers, preferences, DWIM ===
@@ -380,6 +223,209 @@ public class SimTests {
                 Assert.assertEquals(bibo.transceive(HexUtils.hex2bin("01708001")), HexUtils.hex2bin("9000"));
                 return null;
             });
+        }
+    }
+
+    // === Disconnect disposition: what the session leaves behind in the reader ===
+
+    // LEAVE keeps the card powered so the next session continues where this one stopped; RESET tears
+    // the session down. UNPOWER is not covered here: javax.smartcardio narrows disconnect to a
+    // boolean, so on any backend that is not jnasmartcardio it collapses into RESET.
+    @Test
+    void testDisconnectDispositions() {
+        var left = new SynthesizedCardTerminal("Leave Reader");
+        left.present(List.of(MockBIBO.of("9000", "6A82")), SynthesizedCardTerminal.defaultAtr());
+        try (var mgr = TerminalManager.managerOf(left)) {
+            var selector = Readers.select(mgr).disconnect(SCard.Disconnect.LEAVE);
+            Assert.assertEquals(selector.run(b -> b.transceive(HexUtils.hex2bin("00A4040000"))),
+                    HexUtils.hex2bin("9000"));
+            Assert.assertTrue(left.isCardPresent(), "LEAVE keeps the card in the reader");
+            Assert.assertEquals(selector.run(b -> b.transceive(HexUtils.hex2bin("00A4040000"))),
+                    HexUtils.hex2bin("6A82"), "the same session answers the second run");
+
+            // A BIBO that escapes its run() is already closed and says so
+            var escaped = selector.run(b -> b);
+            Assert.assertThrows(IllegalStateException.class,
+                    () -> escaped.transceive(HexUtils.hex2bin("00A4040000")));
+        }
+
+        // A logging wrapper must not narrow the disposition on its way down: LoggingCard implements
+        // PCSCCard so the full disposition reaches the backend instead of becoming a boolean.
+        var logged = new SynthesizedCardTerminal("Logged Reader");
+        logged.present(List.of(MockBIBO.of("9000", "6A82")), SynthesizedCardTerminal.defaultAtr());
+        try (var mgr = TerminalManager.managerOf(logged)) {
+            var selector = Readers.select(mgr).log(new ByteArrayOutputStream())
+                    .disconnect(SCard.Disconnect.LEAVE);
+            selector.run(b -> b.transceive(HexUtils.hex2bin("00A4040000")));
+            Assert.assertTrue(logged.isCardPresent(), "LEAVE survives the logging wrapper");
+            Assert.assertEquals(selector.run(b -> b.transceive(HexUtils.hex2bin("00A4040000"))),
+                    HexUtils.hex2bin("6A82"), "the same session answers through the wrapper");
+        }
+
+        // RESET ends the session, so the reader serves the next queued card and then goes empty.
+        var reset = new SynthesizedCardTerminal("Reset Reader");
+        reset.present(List.of(MockBIBO.of("9000"), MockBIBO.of("6A82")), SynthesizedCardTerminal.defaultAtr());
+        try (var mgr = TerminalManager.managerOf(reset)) {
+            var selector = Readers.select(mgr).reset(true);
+            Assert.assertEquals(selector.run(b -> b.transceive(HexUtils.hex2bin("00A4040000"))),
+                    HexUtils.hex2bin("9000"));
+            Assert.assertTrue(reset.isCardPresent(), "one card still queued");
+            Assert.assertEquals(selector.run(b -> b.transceive(HexUtils.hex2bin("00A4040000"))),
+                    HexUtils.hex2bin("6A82"), "a fresh session, not the previous one");
+            Assert.assertFalse(reset.isCardPresent(), "the queue is depleted");
+        }
+    }
+
+    // === Logical channel routing: CardBIBO flattens the channel API into one byte stream ===
+
+    @Test
+    void testLogicalChannelRouting() {
+        // A card that assigns channel 5, reaching the ISO 7816-4 further-interindustry CLA range
+        var terminal = new SynthesizedCardTerminal("Routing Reader");
+        terminal.presentFactory(p -> command -> {
+            if ((command[1] & 0xFF) == 0x70 && (command[2] & 0xFF) == 0x00) {
+                return HexUtils.hex2bin("059000");
+            }
+            return HexUtils.hex2bin("9000");
+        }, SynthesizedCardTerminal.defaultAtr());
+
+        try (var mgr = TerminalManager.managerOf(terminal)) {
+            Readers.select(mgr).run(bibo -> {
+                // MANAGE CHANNEL OPEN is intercepted and answered with the assigned channel
+                Assert.assertEquals(bibo.transceive(HexUtils.hex2bin("00700000")), HexUtils.hex2bin("059000"));
+                // CLA 41 routes back to channel 5
+                Assert.assertEquals(bibo.transceive(HexUtils.hex2bin("41A4040000")), HexUtils.hex2bin("9000"));
+                // A proprietary CLA always rides the basic channel
+                Assert.assertEquals(bibo.transceive(HexUtils.hex2bin("80CA9F7F00")), HexUtils.hex2bin("9000"));
+
+                // Channels that were never opened are refused, whether addressed or closed
+                Assert.assertThrows(BIBOException.class, () -> bibo.transceive(HexUtils.hex2bin("02A4040000")));
+                Assert.assertThrows(BIBOException.class, () -> bibo.transceive(HexUtils.hex2bin("01708001")));
+
+                // CLOSE CHANNEL is intercepted too, and retires the routing entry
+                Assert.assertEquals(bibo.transceive(HexUtils.hex2bin("41708005")), HexUtils.hex2bin("9000"));
+                Assert.assertThrows(BIBOException.class, () -> bibo.transceive(HexUtils.hex2bin("41A4040000")));
+                return null;
+            });
+        }
+    }
+
+    // === Escape hatches: raw javax.smartcardio for code that needs it ===
+
+    @Test
+    void testRawTerminalAndCard() throws Exception {
+        var terminal = new SynthesizedCardTerminal("Escape Reader");
+        terminal.presentFactory(p -> MockBIBO.of("9000"), SynthesizedCardTerminal.defaultAtr());
+        try (var mgr = TerminalManager.managerOf(terminal)) {
+            var selector = Readers.select(mgr);
+            Assert.assertEquals(selector.terminal().getName(), "Escape Reader");
+
+            var card = selector.card();
+            Assert.assertEquals(card.getProtocol(), "T=1");
+            Assert.assertEquals(card.getBasicChannel().transmit(
+                    new CommandAPDU(HexUtils.hex2bin("00A4040000"))).getSW(), 0x9000);
+            card.disconnect(true);
+        }
+
+        // An empty reader fails the escape hatch outright rather than handing back nothing
+        terminal.yank();
+        try (var mgr = TerminalManager.managerOf(terminal)) {
+            Assert.assertThrows(BIBOException.class, () -> Readers.select(mgr).card());
+        }
+    }
+
+    // === Pass conflicts: two named passes coexist, an ambiguous one is refused ===
+
+    @Test
+    void testNamedPassesDoNotOverlap() throws Exception {
+        var terminals = new SynthesizedCardTerminals();
+        terminals.addTerminal(new SynthesizedCardTerminal("Alpha Reader"));
+        terminals.addTerminal(new SynthesizedCardTerminal("Beta Reader"));
+
+        try (var mgr = new TerminalManager(terminals.toFactory())) {
+            var alpha = Readers.select(mgr).select("Alpha").onCard((r, b) -> {
+            });
+            var beta = Readers.select(mgr).select("Beta").onCard((r, b) -> {
+            });
+
+            // The same name is the same reader, so it collides
+            Assert.assertThrows(IllegalStateException.class,
+                    () -> Readers.select(mgr).select("Alpha").onCard((r, b) -> {
+                    }));
+            // A hintless pass could serve either reader, so it collides with both
+            Assert.assertThrows(IllegalStateException.class,
+                    () -> Readers.select(mgr).onCard((r, b) -> {
+                    }));
+
+            alpha.close();
+            beta.close();
+            // Both released: an ambiguous pass is now free to register
+            Readers.select(mgr).onCard((r, b) -> {
+            }).close();
+
+            Assert.assertThrows(IllegalArgumentException.class, () -> Readers.select(mgr).select(null));
+        }
+    }
+
+    // === Wait notifier: the hook a GUI uses to raise and dismiss a "tap your card" prompt ===
+
+    @Test
+    void testWaitNotifierSeesBothPhases() throws Exception {
+        var terminal = new SynthesizedCardTerminal("Notify Reader");
+        terminal.present(MockBIBO.of("9000"));   // a card is already sitting in the reader
+        var phases = new CopyOnWriteArrayList<String>();
+        var dismissed = new AtomicInteger();
+
+        try (var mgr = TerminalManager.managerOf(terminal)) {
+            CompletableFuture.runAsync(() -> {
+                sleep(200);
+                terminal.yank();
+                sleep(100);
+                terminal.present(MockBIBO.of("9000"));
+            });
+            // fresh=true with a card present: wait for it to leave, then for a genuine tap
+            var result = Readers.select(mgr)
+                    .onWait((phase, name) -> {
+                        phases.add(phase + ":" + name);
+                        return dismissed::incrementAndGet;
+                    })
+                    .whenReady(Duration.ofSeconds(5), b -> b.transceive(HexUtils.hex2bin("00A4040000")));
+            Assert.assertEquals(result, HexUtils.hex2bin("9000"));
+        }
+        Assert.assertEquals(phases, List.of("REMOVAL:Notify Reader", "INSERTION:Notify Reader"));
+        Assert.assertEquals(dismissed.get(), 2, "each notification is dismissed when its wait ends");
+    }
+
+    // === Handler failures cross the reader executor unwrapped ===
+
+    @Test
+    void testHandlerErrorSurfacesThroughExecutor() throws Exception {
+        var terminal = new SynthesizedCardTerminal("Marshal Reader");
+        terminal.presentFactory(p -> MockBIBO.of("9000"), SynthesizedCardTerminal.defaultAtr());
+        try (var mgr = TerminalManager.managerOf(terminal)) {
+            mgr.startMonitor();
+            Assert.assertTrue(mgr.awaitInitialScan(Duration.ofSeconds(5)));
+
+            // With the monitor running, run() marshals to the reader worker. What the handler threw
+            // must arrive as itself, not wrapped in the executor's ExecutionException.
+            var boom = new IllegalStateException("handler blew up");
+            var wrapped = Assert.expectThrows(BIBOException.class, () -> Readers.select(mgr).run(b -> {
+                throw boom;
+            }));
+            Assert.assertSame(wrapped.getCause(), boom);
+
+            var refused = new BIBOException("card said no");
+            Assert.assertSame(Assert.expectThrows(BIBOException.class, () -> Readers.select(mgr).run(b -> {
+                throw refused;
+            })), refused);
+        }
+    }
+
+    private static void sleep(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 

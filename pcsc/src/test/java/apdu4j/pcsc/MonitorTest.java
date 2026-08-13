@@ -7,6 +7,7 @@ import apdu4j.core.MockBIBO;
 import apdu4j.pcsc.sim.SynthesizedCardTerminal;
 import apdu4j.pcsc.sim.SynthesizedCardTerminals;
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.time.Duration;
@@ -95,18 +96,22 @@ public class MonitorTest {
 
     // === fresh flag: controls whether already-present cards trigger onCard ===
 
-    @Test
-    void testFreshFlagOnCard() throws Exception {
+    // fresh=true skips a card that was already on the reader and waits for a genuine tap, whether
+    // or not the monitor was started before the pass registered. fresh=false serves it right away.
+    @Test(dataProvider = "monitorStarted")
+    void testFreshFlagOnCard(boolean startMonitorFirst) throws Exception {
         var terminals = new SynthesizedCardTerminals();
         var terminal = new SynthesizedCardTerminal("Contactless Reader");
         terminal.present(MockBIBO.of("9000"));
         terminals.addTerminal(terminal);
 
-        // fresh=true (default): already-present card does NOT trigger
         try (var mgr = new TerminalManager(terminals.toFactory())) {
             var fired = new AtomicInteger(0);
             var reinsertLatch = new CountDownLatch(1);
 
+            if (startMonitorFirst) {
+                mgr.startMonitor();
+            }
             Readers.select(mgr).onCard((reader, bibo) -> {
                 fired.incrementAndGet();
                 reinsertLatch.countDown();
@@ -147,42 +152,9 @@ public class MonitorTest {
         }
     }
 
-    // === fresh flag: robust against pre-started monitor ===
-
-    @Test
-    void testFreshFlagWithPrematureStartMonitor() throws Exception {
-        var terminals = new SynthesizedCardTerminals();
-        var terminal = new SynthesizedCardTerminal("Contactless Reader");
-        terminal.present(MockBIBO.of("9000"));
-        terminals.addTerminal(terminal);
-
-        try (var mgr = new TerminalManager(terminals.toFactory())) {
-            var fired = new AtomicInteger(0);
-            var reinsertLatch = new CountDownLatch(1);
-
-            // Start monitor BEFORE registering onCard - was the uid() bug
-            mgr.startMonitor();
-
-            Readers.select(mgr).onCard((reader, bibo) -> {
-                fired.incrementAndGet();
-                reinsertLatch.countDown();
-            });
-
-            Assert.assertTrue(mgr.awaitInitialScan(Duration.ofSeconds(5)));
-            Assert.assertTrue(mgr.awaitReaders(
-                    readers -> readers.stream().anyMatch(PCSCReader::present),
-                    Duration.ofSeconds(5)));
-            Assert.assertEquals(fired.get(), 0, "fresh=true must skip already-present cards even when monitor started first");
-
-            // Yank + re-insert should fire
-            terminal.yank();
-            Assert.assertTrue(mgr.awaitReaders(
-                    readers -> readers.stream().noneMatch(PCSCReader::present),
-                    Duration.ofSeconds(5)));
-            terminal.present(MockBIBO.of("9000"));
-            Assert.assertTrue(reinsertLatch.await(5, TimeUnit.SECONDS));
-            Assert.assertEquals(fired.get(), 1);
-        }
+    @DataProvider(name = "monitorStarted")
+    public Object[][] monitorStarted() {
+        return new Object[][]{{false}, {true}};
     }
 
     // === fresh flag: controls whenReady/connectWhenReady behavior ===
@@ -352,8 +324,12 @@ public class MonitorTest {
             Assert.assertEquals(alphaHits.get(), 1);
             Assert.assertEquals(betaHits.get(), 1);
 
+            // A live pass never finishes; closing it unblocks whoever awaits it
+            Assert.assertFalse(alphaPass.await(Duration.ofMillis(50)));
+
             // Closing one pass leaves the other serving
             alphaPass.close();
+            alphaPass.await();
             beta.yank();
             Assert.assertTrue(mgr.awaitReaders(
                     readers -> readers.stream().filter(r -> r.name().contains("Beta")).noneMatch(PCSCReader::present),

@@ -221,7 +221,7 @@ public final class SynthesizedCardTerminal extends CardTerminal {
     public Card connect(String s) throws CardException {
         Objects.requireNonNull(s, "protocol");
         logger.trace("connect({})", s);
-        if (!s.equals("*") && !s.equalsIgnoreCase("T=0") && !s.equalsIgnoreCase("T=1") && !s.equalsIgnoreCase("T=CL")) {
+        if (!"*".equals(s) && !"T=0".equalsIgnoreCase(s) && !"T=1".equalsIgnoreCase(s) && !"T=CL".equalsIgnoreCase(s)) {
             throw new IllegalArgumentException("Unsupported protocol: " + s);
         }
         synchronized (lock) {
@@ -229,7 +229,7 @@ public final class SynthesizedCardTerminal extends CardTerminal {
                 throw new CardNotPresentException("Card not present!");
             }
             // A specific protocol request must match what the card established.
-            if (!s.equals("*") && !s.equalsIgnoreCase(presentedProtocol)) {
+            if (!"*".equals(s) && !s.equalsIgnoreCase(presentedProtocol)) {
                 throw new CardException("Cannot connect with protocol %s: card uses %s".formatted(s, presentedProtocol));
             }
             var card = activeCard.get();
