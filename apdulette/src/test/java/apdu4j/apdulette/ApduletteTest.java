@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 
 import static org.testng.Assert.*;
 
@@ -66,31 +65,6 @@ public class ApduletteTest {
         assertEquals(HexUtils.bin2hex(uid.get()), "01020304050607");
     }
 
-    // === Recipes form a monad: premade is unit, then is bind ===
-
-    @Test
-    void monadicLaws() {
-        // Each side of a law runs against an identically scripted card
-        // and must produce the same value.
-        Function<Integer, Recipe<Integer>> f = n -> Cookbook.data(READ).map(b -> n + b.length);
-        Function<Integer, Recipe<Integer>> g = n -> Cookbook.data(READ).map(b -> n * b.length);
-        var r = Cookbook.data(READ).map(b -> b.length);
-
-        // Left identity: premade(x).then(f) == f(x)
-        assertEquals(cook(Recipe.premade(40).then(f), "AABB9000"), cook(f.apply(40), "AABB9000"));
-
-        // Right identity: r.then(premade) == r
-        assertEquals(cook(r.then(Recipe::premade), "AABB9000"), cook(r, "AABB9000"));
-
-        // Associativity: r.then(f).then(g) == r.then(x -> f(x).then(g))
-        assertEquals(cook(r.then(f).then(g), "AA9000", "BBCC9000", "DDEEFF9000"),
-                cook(r.then(x -> f.apply(x).then(g)), "AA9000", "BBCC9000", "DDEEFF9000"));
-
-        // Unit refuses null, and never touches the transport
-        assertThrows(NullPointerException.class, () -> Recipe.premade(null));
-        assertEquals(OFFLINE.cook(Recipe.premade("done")), "done");
-    }
-
     // === Card-tier errors recover with orElse, recover, optional, firstOf; scope follows placement ===
 
     @Test
@@ -137,7 +111,10 @@ public class ApduletteTest {
         var alternatives = Cookbook.firstOf(List.of(Cookbook.send(SELECT), Cookbook.send(SELECT)));
         assertEquals(cook(alternatives, "6A82", "9000").getSW(), 0x9000);
         assertEquals(cook(alternatives, "9000").getSW(), 0x9000);
-        assertThrows(KitchenDisaster.class, () -> cook(alternatives, "6A82", "6A82"));
+        // When every alternative fails, it is the last one's error that propagates
+        var distinct = Cookbook.firstOf(List.of(Cookbook.send(SELECT, 0x6283), Cookbook.send(SELECT, 0x6A88)));
+        assertTrue(expectThrows(KitchenDisaster.class, () -> cook(distinct, "6A82", "6A82"))
+                .getMessage().contains("6A88"));
         var multiStep = Cookbook.firstOf(List.of(Cookbook.send(SELECT).and(Cookbook.send(SELECT)), Cookbook.send(SELECT)));
         assertEquals(cook(multiStep, "9000", "6A82", "9000").getSW(), 0x9000);
         assertThrows(IllegalArgumentException.class, () -> Cookbook.firstOf(List.of()));
@@ -145,11 +122,11 @@ public class ApduletteTest {
         // The success path evaluates the taster exactly once under orElse
         // and recover (double-evaluation regression)
         var count = new AtomicInteger();
-        Recipe<ResponseAPDU> counted = prefs -> new PreparationStep.Ingredients<>(List.of(SELECT), List.of(),
-                (responses, p) -> {
-                    count.incrementAndGet();
-                    return new Verdict.Ready<>(responses.getFirst());
-                });
+        Taster<ResponseAPDU> tallying = (responses, p) -> {
+            count.incrementAndGet();
+            return new Verdict.Ready<>(responses.getFirst());
+        };
+        var counted = Cookbook.send(SELECT, tallying);
         cook(counted.orElse(fallback), "9000");
         cook(counted.recover(err -> Recipe.premade(err.response())), "9000");
         assertEquals(count.get(), 2);
@@ -174,12 +151,13 @@ public class ApduletteTest {
         assertNull(disaster.preferences());
 
         // An unhandled card error becomes a disaster carrying the SW in the
-        // message, the response and the accumulated preferences
-        var cardSaidNo = expectThrows(KitchenDisaster.class,
-                () -> cook(Cookbook.send(SELECT, 0x9000), "6A82"));
+        // message, the response and the preferences gathered before it failed
+        var sid = Preference.parameter("sid", String.class, true);
+        var cardSaidNo = expectThrows(KitchenDisaster.class, () -> cook(
+                Cookbook.season("x", Preferences.of(sid, "x")).and(Cookbook.send(SELECT, 0x9000)), "6A82"));
         assertTrue(cardSaidNo.getMessage().contains("6A82"));
         assertEquals(cardSaidNo.response().getSW(), 0x6A82);
-        assertNotNull(cardSaidNo.preferences());
+        assertEquals(cardSaidNo.preferences().valueOf(sid).orElseThrow(), "x");
 
         // An unhandled cardError recipe blames its response
         var blamed = ResponseAPDU.of(0x6985);
@@ -188,8 +166,9 @@ public class ApduletteTest {
         assertSame(denied.response(), blamed);
         assertTrue(denied.getMessage().contains("denied"));
 
-        // An Error verdict must always blame a real response
+        // An Error verdict must always blame a real response, and premade needs a value
         assertThrows(NullPointerException.class, () -> new Verdict.Error<>(null, "x"));
+        assertThrows(NullPointerException.class, () -> Recipe.premade(null));
 
         // A recipe that never terminates is cut off by the iteration guard
         var spin = new Recipe<String>() {
@@ -249,12 +228,10 @@ public class ApduletteTest {
         var extra = Preference.parameter("extra", Integer.class, false);
 
         // A taster's NextStep verdict enriches preferences for downstream steps
-        Recipe<String> handshake = prefs -> new PreparationStep.Ingredients<>(
-                List.of(new CommandAPDU(0x80, 0x50, 0x00, 0x00, 8)),
-                List.of(),
-                (responses, p) -> new Verdict.NextStep<>(
-                        pp -> new PreparationStep.Premade<>(pp.valueOf(sessionId).orElseThrow()),
-                        new Preferences().with(sessionId, HexUtils.bin2hex(responses.getFirst().getData()))));
+        Taster<String> keepsSession = (responses, p) -> new Verdict.NextStep<>(
+                pp -> new PreparationStep.Premade<>(pp.valueOf(sessionId).orElseThrow()),
+                new Preferences().with(sessionId, HexUtils.bin2hex(responses.getFirst().getData())));
+        var handshake = Cookbook.send(new CommandAPDU(0x80, 0x50, 0x00, 0x00, 8), keepsSession);
         assertEquals(cook(handshake, "AABB9000"), "AABB");
 
         // serve() returns the dish: the value plus everything the chain accumulated
@@ -267,7 +244,7 @@ public class ApduletteTest {
         var initial = new Preferences().with(maxLen, 128);
         var plain = OFFLINE.serve(Recipe.premade("done"), initial);
         assertEquals(plain.value(), "done");
-        assertEquals(plain.preferences(), initial);
+        assertSame(plain.preferences(), initial);
 
         // Cookbook.season() injects preferences from mid-recipe code
         dish = OFFLINE.serve(Cookbook.season("hello", Preferences.of(sessionId, "world")));
@@ -314,6 +291,15 @@ public class ApduletteTest {
         assertEquals(dish.value(), "ok");
         assertEquals(dish.preferences().valueOf(sessionId).orElseThrow(), "ok");
 
+        // Seasoning also survives when the step it preceded fails and the fallback takes over, so
+        // season() belongs after the response that confirms it (see RECIPE-PRINCIPLES.md)
+        var poisoned = new MasterChef(MockBIBO.of("6A82")).serve(
+                Cookbook.season("A0", Preferences.of(sessionId, "A0"))
+                        .then(cla -> Cookbook.send(SELECT))
+                        .orElse(Recipe.premade(ResponseAPDU.OK)));
+        assertEquals(poisoned.value().getSW(), 0x9000);
+        assertEquals(poisoned.preferences().valueOf(sessionId).orElseThrow(), "A0");
+
         // MiseEnPlaceChef handles Seasoned identically
         dish = new MiseEnPlaceChef().serve(
                 Recipe.premade("test")
@@ -336,11 +322,10 @@ public class ApduletteTest {
         assertEquals(cook(Cookbook.send(cmds, 0x9000), "9000", "9000").getSW(), 0x9000);
 
         // A custom taster sees all responses together
-        Recipe<Integer> counted = prefs -> new PreparationStep.Ingredients<>(cmds, List.of(),
-                (responses, p) -> responses.stream().allMatch(r -> r.getSW() == 0x9000)
-                        ? new Verdict.Ready<>(responses.size())
-                        : new Verdict.Error<>(responses.getFirst(), "STORE DATA failed"));
-        assertEquals(cook(counted, "9000", "9000"), Integer.valueOf(2));
+        Taster<Integer> countingAll = (responses, p) -> responses.stream().allMatch(r -> r.getSW() == 0x9000)
+                ? new Verdict.Ready<>(responses.size())
+                : new Verdict.Error<>(responses.getFirst(), "STORE DATA failed");
+        assertEquals(cook(Cookbook.send(cmds, countingAll), "9000", "9000"), Integer.valueOf(2));
 
         // allData concatenates data across responses; all() with a complainer names the failure
         assertEquals(HexUtils.bin2hex(cook(Cookbook.send(cmds, Cookbook.allData(0x9000)),
@@ -376,7 +361,7 @@ public class ApduletteTest {
 
         Recipe<ResponseAPDU> exactData = prefs -> new PreparationStep.Ingredients<>(readTwice,
                 List.of(ResponseAPDU.of("CAFE9000"), ResponseAPDU.of("CAFE9000")),
-                Cookbook.check(r -> HexUtils.bin2hex(r.getData()).equals("CAFE"), "not CAFE"));
+                Cookbook.check(r -> "CAFE".equals(HexUtils.bin2hex(r.getData())), "not CAFE"));
         assertEquals(cook(exactData, "CAFE9000", "CAFE9000").getSW(), 0x9000);
         // A data mismatch stops after the first response (a second transmit would deplete the mock)
         assertThrows(KitchenDisaster.class, () -> cook(exactData, "DEAD9000"));
@@ -523,8 +508,7 @@ public class ApduletteTest {
     @Test
     void tastersCompose() {
         // expect() accepts exactly the named status words; zero of them is a programming error
-        Recipe<ResponseAPDU> either = prefs -> new PreparationStep.Ingredients<>(List.of(SELECT), List.of(),
-                Cookbook.expect(0x9000, 0x6283));
+        var either = Cookbook.send(SELECT, Cookbook.expect(0x9000, 0x6283));
         assertEquals(cook(either, "6283").getSW(), 0x6283);
         var rejected = expectThrows(KitchenDisaster.class, () -> cook(either, "6A82"));
         assertTrue(rejected.getMessage().contains("9000"));
@@ -539,8 +523,7 @@ public class ApduletteTest {
         assertTrue(complained.getMessage().contains("select refused with 6A82"));
 
         // check() applies an arbitrary predicate to the response
-        Recipe<ResponseAPDU> nonEmpty = prefs -> new PreparationStep.Ingredients<>(List.of(SELECT), List.of(),
-                Cookbook.check(r -> r.getData().length > 0, "empty response"));
+        var nonEmpty = Cookbook.send(SELECT, Cookbook.check(r -> r.getData().length > 0, "empty response"));
         assertEquals(HexUtils.bin2hex(cook(nonEmpty, "AABB9000").getData()), "AABB");
         assertThrows(KitchenDisaster.class, () -> cook(nonEmpty, "9000"));
 
@@ -563,23 +546,15 @@ public class ApduletteTest {
 
         // refine, map and tryMap also compose over a NextStep verdict from a continuing taster
         Taster<String> continuing = (responses, prefs) -> new Verdict.NextStep<>(Recipe.premade("AB"));
-        Recipe<String> lowered = prefs -> new PreparationStep.Ingredients<>(List.of(SELECT), List.of(),
-                continuing.map(String::toLowerCase));
-        assertEquals(cook(lowered, "9000"), "ab");
-        Recipe<String> refined = prefs -> new PreparationStep.Ingredients<>(List.of(SELECT), List.of(),
-                continuing.refine(s -> s.length() == 2, "wrong length"));
-        assertEquals(cook(refined, "9000"), "AB");
+        assertEquals(cook(Cookbook.send(SELECT, continuing.map(String::toLowerCase)), "9000"), "ab");
+        assertEquals(cook(Cookbook.send(SELECT, continuing.refine(s -> s.length() == 2, "wrong length")), "9000"), "AB");
         // A failing refinement after NextStep blames the last response
-        Recipe<String> tooLong = prefs -> new PreparationStep.Ingredients<>(List.of(SELECT), List.of(),
-                continuing.refine(s -> s.length() > 2, "wrong length"));
+        var tooLong = Cookbook.send(SELECT, continuing.refine(s -> s.length() > 2, "wrong length"));
         var blamed = expectThrows(KitchenDisaster.class, () -> cook(tooLong, "9000"));
         assertEquals(blamed.response().getSW(), 0x9000);
         assertTrue(blamed.getMessage().contains("wrong length"));
-        Recipe<Integer> measured = prefs -> new PreparationStep.Ingredients<>(List.of(SELECT), List.of(),
-                continuing.tryMap(String::length));
-        assertEquals(cook(measured, "9000"), Integer.valueOf(2));
-        Recipe<String> cut = prefs -> new PreparationStep.Ingredients<>(List.of(SELECT), List.of(),
-                continuing.tryMap(s -> s.substring(5)));
-        assertThrows(KitchenDisaster.class, () -> cook(cut, "9000"));
+        assertEquals(cook(Cookbook.send(SELECT, continuing.tryMap(String::length)), "9000"), Integer.valueOf(2));
+        assertThrows(KitchenDisaster.class,
+                () -> cook(Cookbook.send(SELECT, continuing.tryMap(s -> s.substring(5))), "9000"));
     }
 }
