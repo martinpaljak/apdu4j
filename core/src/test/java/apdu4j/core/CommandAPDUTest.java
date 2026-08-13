@@ -100,6 +100,9 @@ public class CommandAPDUTest {
         assertEquals(new CommandAPDU(hex.parseHex("00CA0000000000")).getNe(), 65536);
         // ne=0: no Le -> case 1
         assertEquals(new CommandAPDU(0x00, 0xCA, 0x00, 0x00, 0).getBytes().length, 4);
+        // ne alone cannot tell the two encodings of 256 apart, only isExtended() can
+        assertFalse(new CommandAPDU(hex.parseHex("00CA000000")).isExtended());
+        assertTrue(new CommandAPDU(hex.parseHex("00CA0000000100")).isExtended());
     }
 
     @Test

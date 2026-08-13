@@ -96,6 +96,11 @@ public record CommandAPDU(byte[] apdu) {
         return parseFields(apdu)[1];
     }
 
+    // A zero first length byte introduces the extended form (cases 2e, 3e, 4e)
+    public boolean isExtended() {
+        return apdu.length > 5 && apdu[4] == 0;
+    }
+
     public byte[] getBytes() {
         return apdu.clone();
     }
