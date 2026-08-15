@@ -6,14 +6,14 @@ import apdu4j.core.BIBO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.StandardCharsets;
 import java.util.HexFormat;
 import java.util.function.Function;
 
-public final class VSmartCardClient extends AbstractTCPAdapter {
+public final class VSmartCardClient extends AbstractTCPClient {
     private static final Logger log = LoggerFactory.getLogger(VSmartCardClient.class);
 
     // Default values
@@ -21,7 +21,7 @@ public final class VSmartCardClient extends AbstractTCPAdapter {
     public static final String DEFAULT_VSMARTCARD_HOST = "127.0.0.1";
 
     // Protocol:
-    // We are a client, connecting to vpcd server
+    // We are a client, connecting to the vsmartcard driver
     // Server initiates messaging, to which we answer
     // messages are uint16, followed with payload
     // command messages are of length 1, where commands are:
@@ -48,75 +48,48 @@ public final class VSmartCardClient extends AbstractTCPAdapter {
         return payload;
     }
 
+    // The presence poll: an ATR means the card is here, an empty answer means it is gone. That
+    // encoding is this format's own, so the poll is a message of this adapter's own.
+    @Override
+    protected RemoteMessage vendor(byte[] request) throws IOException {
+        if (request.length != 1 || request[0] != 0x04) {
+            throw new IOException("Unknown command: " + HexFormat.of().formatHex(request));
+        }
+        boolean gone = tapped() || !present();
+        return new RemoteMessage(RemoteMessage.Type.VENDOR, gone ? new byte[0] : atr());
+    }
+
     @Override
     protected void send(SocketChannel channel, RemoteMessage message) throws IOException {
-        if (message.getType() != RemoteMessage.Type.ATR) {
-            log.trace("Sending {}", message.getType());
+        switch (message.type()) {
+            case APDU, VENDOR -> channel.write(_send(message.payload()));
+            // A power on and a power off are told, not asked, so nothing goes back for them.
+            case POWERUP, POWERDOWN -> log.trace("Nothing to answer to {}", message.type());
+            // This format has no way to say no, and a peer waiting for a response would wait
+            // forever, so the connection goes instead: a card that cannot answer has left.
+            case ERROR -> throw new IOException(new String(message.payload(), StandardCharsets.UTF_8));
         }
-        ByteBuffer msg;
-        switch (message.getType()) {
-            case ATR:
-                msg = _send(atr);
-                break;
-            case APDU:
-                msg = _send(message.getPayload());
-                break;
-            default:
-                log.trace("Trying to send ignored message: " + message.getType());
-                return;
-        }
-        if (message.getType() != RemoteMessage.Type.ATR) {
-            log.trace("Sending {}", HexFormat.of().formatHex(msg.array()));
-        }
-        channel.write(msg);
-    }
-
-    @Override
-    protected SocketChannel getSocket() throws IOException {
-        return AbstractTCPAdapter.connect(host, port);
-    }
-
-    ByteBuffer _read(SocketChannel channel, int len) throws IOException {
-        //log.trace("Waiting for input ...");
-        ByteBuffer buf = ByteBuffer.allocate(len);
-        int read = channel.read(buf);
-        if (read == -1) {
-            throw new EOFException("Peer is gone");
-        }
-        if (read != len) {
-            throw new IOException("Could not read buffer: " + read);
-        }
-        buf.rewind();
-        return buf;
     }
 
     @Override
     protected RemoteMessage recv(SocketChannel channel) throws IOException {
-        ByteBuffer hdr = _read(channel, 2);
-
-        short len = hdr.getShort(0);
+        short len = read(channel, 2).getShort(0);
         if (len < 0) {
             throw new IOException("Received unexpected length: " + len);
         }
 
         // command
         if (len == 0x01) {
-            ByteBuffer cmd = _read(channel, 1);
-            switch (cmd.get(0)) {
-                case 0x00: // power off;
-                    return new RemoteMessage(RemoteMessage.Type.POWERDOWN);
-                case 0x01: // power on;
-                    return new RemoteMessage(RemoteMessage.Type.POWERUP);
-                case 0x02: // reset;
-                    return new RemoteMessage(RemoteMessage.Type.RESET);
-                case 0x04: // ATR
-                    return new RemoteMessage(RemoteMessage.Type.ATR);
-                default:
-                    throw new IOException("Received unknown command: " + cmd);
-            }
+            byte cmd = read(channel, 1).get(0);
+            return switch (cmd) {
+                case 0x00 -> new RemoteMessage(RemoteMessage.Type.POWERDOWN);
+                // A reset gets a fresh session, the same as a power on. On Windows and macOS a
+                // connection starts with one.
+                case 0x01, 0x02 -> new RemoteMessage(RemoteMessage.Type.POWERUP);
+                default -> new RemoteMessage(RemoteMessage.Type.VENDOR, new byte[]{cmd});
+            };
         }
         // APDU otherwise
-        ByteBuffer apdu = _read(channel, len);
-        return new RemoteMessage(RemoteMessage.Type.APDU, apdu.array());
+        return new RemoteMessage(RemoteMessage.Type.APDU, read(channel, len).array());
     }
 }

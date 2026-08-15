@@ -2,35 +2,26 @@
 // SPDX-License-Identifier: MIT
 package apdu4j.remote;
 
-// Essentially simple tagged byte array.
-public class RemoteMessage {
+// Essentially simple tagged byte array. A message with nothing to carry carries no bytes.
+public record RemoteMessage(Type type, byte[] payload) {
     public enum Type {
-        POWERUP,
+        POWERUP, // opens a session, carrying the ATR back
         POWERDOWN,
-        RESET,
-        ATR,
         APDU,
-        ERROR
+        ERROR, // sent as a reply only
+        VENDOR // adapter-specific, contents known only to the adapter
     }
 
-    byte[] payload;
-    Type type;
-
-    public RemoteMessage(Type type, byte[] payload) {
-        this.payload = payload.clone();
-        this.type = type;
+    public RemoteMessage {
+        payload = payload == null ? new byte[0] : payload.clone();
     }
 
     public RemoteMessage(Type type) {
-        this.type = type;
-        this.payload = null;
+        this(type, new byte[0]);
     }
 
-    public Type getType() {
-        return type;
-    }
-
-    public byte[] getPayload() {
-        return payload == null ? null : payload.clone();
+    @Override
+    public byte[] payload() {
+        return payload.clone();
     }
 }
