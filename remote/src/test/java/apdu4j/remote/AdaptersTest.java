@@ -172,7 +172,7 @@ public class AdaptersTest {
         int port = serve(json);
 
         try (Client client = new Client(port)) {
-            // The ATR of the card the session opened, not the one configured on the adapter.
+            // The ATR of the card the session opened, not the adapter's default.
             assertEquals(client.ask("{\"command\":\"open\"}").path("response").asText(), CARD_ATR);
 
             // Powering up twice, as vsmartcard does on Linux, closes the abandoned session.
@@ -240,12 +240,11 @@ public class AdaptersTest {
         int port = serve(server);
 
         JCSDKClient reader = new JCSDKClient("127.0.0.1", port);
-        try (var card = (JCSDKClient) reader.apply("*")) {
-            // Asking for the ATR is this format's powerup, so it reports the card's own.
-            assertEquals(HexFormat.of().formatHex(card.getATR()), CARD_ATR);
+        try (var card = (BIBOSA) reader.apply("*")) {
+            // Asking for the ATR is this format's powerup, so the session publishes the card's own.
+            assertEquals(card.preferences().valueOf(CardInfo.ATR).orElseThrow(), HexBytes.v(CARD_ATR));
             assertEquals(HexFormat.of().formatHex(card.transceive(HexFormat.of().parseHex("00a40400"))), "6f009000");
             assertEquals(HexFormat.of().formatHex(card.transceive(HexFormat.of().parseHex("80ca9f7f"))), "9f7f109000");
-            assertFalse(card.isClosed());
         }
         assertEquals(cards.size(), 1);
         expectThrows(BIBOException.class, () -> cards.get(0).transceive(new byte[]{0}));
@@ -263,12 +262,12 @@ public class AdaptersTest {
         try (ServerSocketChannel driver = ServerSocketChannel.open()) {
             driver.bind(new InetSocketAddress("127.0.0.1", 0));
             adapter = new VSmartCardClient(sim()).withHost("127.0.0.1").withPort(driver.socket().getLocalPort())
-                    .withProtocol("T=CL").withUID(HexFormat.of().parseHex("01020304"));
+                    .withProtocol("T=CL");
             executor = Executors.newSingleThreadExecutor();
             executor.submit(adapter);
 
             try (SocketChannel peer = driver.accept()) {
-                // No session yet, so the card is announced with the ATR the adapter was given.
+                // No session yet, so the card is announced with a default ATR.
                 assertEquals(ask(peer, (byte) 0x04), ATR);
 
                 tell(peer, (byte) 0x01); // power on, answered by saying nothing

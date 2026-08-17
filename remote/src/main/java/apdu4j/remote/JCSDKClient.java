@@ -4,6 +4,8 @@ package apdu4j.remote;
 
 import apdu4j.core.BIBO;
 import apdu4j.core.BIBOException;
+import apdu4j.core.BIBOSA;
+import apdu4j.core.CardInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,9 +22,6 @@ public class JCSDKClient implements Function<String, BIBO>, BIBO {
     final String host;
     final int port;
     private SocketChannel channel;
-    private byte[] atr;
-
-    private boolean closed;
 
     public JCSDKClient(String host, int port) {
         this.port = port;
@@ -62,11 +61,6 @@ public class JCSDKClient implements Function<String, BIBO>, BIBO {
         return received;
     }
 
-    // The ATR of the card behind the connection, as the powerup that opened it reported.
-    public byte[] getATR() {
-        return this.atr.clone();
-    }
-
     @Override
     public byte[] transceive(byte[] commandAPDU) {
         try {
@@ -76,13 +70,15 @@ public class JCSDKClient implements Function<String, BIBO>, BIBO {
         }
     }
 
+    // Powering up reports the ATR of the card behind the connection, published on the session so
+    // that whoever serves it announces the card by its own answer to reset.
     @Override
     public BIBO apply(String protocol) {
         try {
-            JCSDKClient connection = new JCSDKClient(host, port);
+            var connection = new JCSDKClient(host, port);
             connection.channel = AbstractTCPAdapter.connect(host, port);
-            connection.atr = send(connection.channel, new RemoteMessage(RemoteMessage.Type.POWERUP)).payload();
-            return connection;
+            byte[] atr = send(connection.channel, new RemoteMessage(RemoteMessage.Type.POWERUP)).payload();
+            return new BIBOSA(connection, CardInfo.params(atr, protocol));
         } catch (IOException e) {
             throw new BIBOException(e.getMessage(), e);
         }
@@ -93,15 +89,10 @@ public class JCSDKClient implements Function<String, BIBO>, BIBO {
         log.trace("Closing connection");
         try {
             send(this.channel, new RemoteMessage(RemoteMessage.Type.POWERDOWN));
-            closed = true;
             this.channel.close();
         } catch (IOException e) {
             log.warn("Could not send POWERDOWN: {}", e.getMessage(), e);
             throw new BIBOException(e.getMessage(), e);
         }
-    }
-
-    public boolean isClosed() {
-        return closed;
     }
 }

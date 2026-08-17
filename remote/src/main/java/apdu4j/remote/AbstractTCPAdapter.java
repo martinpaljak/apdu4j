@@ -6,7 +6,6 @@ import apdu4j.core.BIBO;
 import apdu4j.core.BIBOSA;
 import apdu4j.core.CardInfo;
 import apdu4j.core.HexBytes;
-import apdu4j.prefs.Preference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import apdu4j.remote.RemoteMessage.Type;
@@ -49,8 +48,6 @@ public abstract class AbstractTCPAdapter implements Callable<Boolean> {
     protected abstract void send(SocketChannel channel, RemoteMessage message) throws IOException;
 
     protected final Function<String, BIBO> sim;
-    protected byte[] atr; // Set with withATR(), otherwise a default matching the protocol
-    protected byte[] uid; // Set with withUID(), otherwise a default
     protected String configuredProtocol = "*"; // CLI-set protocol, "*" means dynamic
     protected String protocol = "*"; // runtime protocol, may be set by incoming messages
     protected String host;
@@ -60,21 +57,11 @@ public abstract class AbstractTCPAdapter implements Callable<Boolean> {
     private volatile BIBO session; // The card in use, null when closed
     private volatile boolean connected = true; // Is a card in the field
     private volatile boolean tap; // A tap the loop has not acted on yet
-    private volatile boolean removed; // One absent answer owed to a peer that polls for presence
+    private volatile boolean removed; // A tap not yet reported to the peer
     private volatile boolean running = true; // Cleared by shutdown() alone
 
     protected AbstractTCPAdapter(Function<String, BIBO> sim) {
         this.sim = sim;
-    }
-
-    public AbstractTCPAdapter withATR(byte[] atr) {
-        this.atr = atr.clone();
-        return this;
-    }
-
-    public AbstractTCPAdapter withUID(byte[] uid) {
-        this.uid = uid.clone();
-        return this;
     }
 
     public AbstractTCPAdapter withPort(int port) {
@@ -93,22 +80,17 @@ public abstract class AbstractTCPAdapter implements Callable<Boolean> {
         return this;
     }
 
-    // The card's answer to reset: what the session published, else what was configured,
-    // else a default the protocol in use can be negotiated from.
+    // The card's answer to reset, as published by the open session. With no session, or one that
+    // says nothing, a default the protocol in use can be negotiated from. A caller wanting a
+    // specific ATR publishes it on the sessions it hands out.
     protected final byte[] atr() {
-        return published(CardInfo.ATR, atr != null ? atr : "T=1".equals(protocol) ? DEFAULT_T1_ATR : DEFAULT_ATR);
+        byte[] fallback = "T=1".equals(protocol) ? DEFAULT_T1_ATR : DEFAULT_ATR;
+        return session instanceof BIBOSA sa ? sa.preferences().valueOf(CardInfo.ATR).map(HexBytes::v).orElse(fallback) : fallback;
     }
 
     // The same, for the fact a contactless card is known by instead.
     protected final byte[] uid() {
-        return published(CardInfo.UID, uid != null ? uid : DEFAULT_UID);
-    }
-
-    private byte[] published(Preference<HexBytes> fact, byte[] fallback) {
-        if (session instanceof BIBOSA sa) {
-            return sa.preferences().valueOf(fact).map(HexBytes::v).orElse(fallback);
-        }
-        return fallback;
+        return session instanceof BIBOSA sa ? sa.preferences().valueOf(CardInfo.UID).map(HexBytes::v).orElse(DEFAULT_UID) : DEFAULT_UID;
     }
 
     // Every session opened by the adapter ends here, as soon as the reason to end it shows up.
@@ -170,11 +152,11 @@ public abstract class AbstractTCPAdapter implements Callable<Boolean> {
         return session != null;
     }
 
-    // One absent answer owed to a peer that learns of a tap by asking. Asking pays the debt.
+    // A tap shows to a peer that polls for presence as one absent answer. Reading it clears it.
     protected final boolean tapped() {
-        boolean owed = removed;
+        boolean pending = removed;
         removed = false;
-        return owed;
+        return pending;
     }
 
     protected static RemoteMessage error(String reason) {

@@ -37,7 +37,7 @@ public final class VSmartCardClient extends AbstractTCPClient {
         host = DEFAULT_VSMARTCARD_HOST;
     }
 
-    static ByteBuffer _send(byte[] data) throws IOException {
+    static ByteBuffer _send(byte[] data) {
         if (data.length > Short.MAX_VALUE) {
             throw new IllegalArgumentException("Too big payload");
         }

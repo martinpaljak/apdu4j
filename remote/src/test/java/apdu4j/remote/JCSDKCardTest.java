@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT
 package apdu4j.remote;
 
+import apdu4j.core.BIBOSA;
+import apdu4j.core.CardInfo;
 import apdu4j.core.CommandAPDU;
 import apdu4j.core.HexUtils;
 import apdu4j.core.ResponseAPDU;
@@ -28,10 +30,10 @@ public class JCSDKCardTest {
         String[] address = server.split(":");
         int port = address.length == 2 ? Integer.parseInt(address[1]) : JCSDKServer.DEFAULT_JCSDK_PORT;
 
-        try (var card = (JCSDKClient) new JCSDKClient(address[0], port).apply("*")) {
+        try (var card = (BIBOSA) new JCSDKClient(address[0], port).apply("*")) {
             // TS is 3B or 3F, so anything else means this side read the wrong bytes. A pair of
             // our own would agree on a mistake, a foreign server does not.
-            byte[] atr = card.getATR();
+            byte[] atr = card.preferences().valueOf(CardInfo.ATR).orElseThrow().v();
             assertTrue(atr.length > 2 && (atr[0] == 0x3B || atr[0] == 0x3F), "Not an ATR: " + HexUtils.bin2hex(atr));
 
             ResponseAPDU selected = card.transmit(new CommandAPDU(HexUtils.hex2bin(SELECT_ISD)));
