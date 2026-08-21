@@ -54,7 +54,7 @@ public class VSmartCardTest {
                     return reader;
                 }
             }
-        } catch (BIBOException e) {
+        } catch (IllegalStateException | BIBOException e) {
             throw new SkipException("No PC/SC on this host: " + e.getMessage());
         }
         throw new SkipException("No vsmartcard reader waiting for a card, is vsmartcard installed?");
