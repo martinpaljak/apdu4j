@@ -291,8 +291,8 @@ public final class AndroidKitchen implements KitchenManager {
     public void close() {
         closed = true;
         onPause();
-        current = null;
         synchronized (cardArrived) {
+            current = null;
             cardArrived.notifyAll();
         }
         worker.shutdownNow();
