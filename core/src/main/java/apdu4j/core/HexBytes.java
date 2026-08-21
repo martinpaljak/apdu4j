@@ -4,6 +4,7 @@ package apdu4j.core;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Optional;
 
 // Simple wrapper for byte[] represented as hex. Usable as map key or cmdline parser
 public final class HexBytes {
@@ -18,10 +19,25 @@ public final class HexBytes {
     }
 
     public static HexBytes valueOf(String s) {
-        if (s.startsWith("|") && s.endsWith("|")) {
-            return new HexBytes(s.substring(1, s.length() - 1).getBytes(StandardCharsets.UTF_8));
+        return text(s).orElseGet(() -> new HexBytes(HexUtils.hex2bin(s)));
+    }
+
+    // For human-facing identifiers, where a name is as likely as bytes: |text| first, then hex, then the string itself
+    public static HexBytes lenient(String s) {
+        return text(s).orElseGet(() -> {
+            try {
+                return new HexBytes(HexUtils.stringToBin(s));
+            } catch (IllegalArgumentException e) {
+                return new HexBytes(s.getBytes(StandardCharsets.UTF_8));
+            }
+        });
+    }
+
+    private static Optional<HexBytes> text(String s) {
+        if (s.length() >= 2 && s.startsWith("|") && s.endsWith("|")) {
+            return Optional.of(new HexBytes(s.substring(1, s.length() - 1).getBytes(StandardCharsets.UTF_8)));
         }
-        return new HexBytes(HexUtils.hex2bin(s));
+        return Optional.empty();
     }
 
     public static HexBytes v(String s) {
