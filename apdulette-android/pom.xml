@@ -5,9 +5,9 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.github.martinpaljak</groupId>
+        <groupId>pro.javacard</groupId>
         <artifactId>apdu4j</artifactId>
-        <version>26.07.13-SNAPSHOT</version>
+        <version>26.08.28-SNAPSHOT</version>
     </parent>
 
     <artifactId>apdu4j-apdulette-android</artifactId>
@@ -33,7 +33,7 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.github.martinpaljak</groupId>
+            <groupId>pro.javacard</groupId>
             <artifactId>apdu4j-apdulette</artifactId>
             <version>${project.version}</version>
         </dependency>

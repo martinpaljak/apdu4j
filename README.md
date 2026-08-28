@@ -1,9 +1,10 @@
 # `apdu4j` &middot; a modern take on smart cards
 
 [![Build Status](https://github.com/martinpaljak/apdu4j/actions/workflows/robot.yml/badge.svg?branch=master)](https://github.com/martinpaljak/apdu4j/actions)
-&nbsp;[![Maven version](https://img.shields.io/maven-metadata/v?label=javacard.pro%20version&metadataUrl=https%3A%2F%2Fmvn.javacard.pro%2Fmaven%2Fcom%2Fgithub%2Fmartinpaljak%2Fapdu4j-pcsc%2Fmaven-metadata.xml)](https://gist.github.com/martinpaljak/c77d11d671260e24eef6c39123345cae)
+&nbsp;[![Latest release](https://img.shields.io/github/release/martinpaljak/apdu4j.svg)](https://github.com/martinpaljak/apdu4j/releases/latest)
+&nbsp;[![Maven version](https://img.shields.io/maven-metadata/v?label=mvn.javacard.pro&metadataUrl=https%3A%2F%2Fmvn.javacard.pro%2Fpublic-snapshots%2Fpro%2Fjavacard%2Fapdu4j-pcsc%2Fmaven-metadata.xml)](https://mvn.javacard.pro/)
 &nbsp;[![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/martinpaljak/apdu4j/blob/master/LICENSE)
-&nbsp;[![Made in Estonia](https://img.shields.io/badge/Made_in-Estonia-blue)](https://estonia.ee)
+&nbsp;[![Made in Estonia](https://img.shields.io/badge/Made_in-Estonia-0072CE?style=flat&label=Made%20in&labelColor=black)](https://estonia.ee)
 
 Modern Java 17+ smart-card library built on one functional interface, **BIBO**: `byte[] transceive(byte[])`.
 
@@ -193,7 +194,7 @@ cd apdu4j
 ```xml
 
 <dependency>
-    <groupId>com.github.martinpaljak</groupId>
+    <groupId>pro.javacard</groupId>
     <artifactId>apdu4j-pcsc</artifactId>
     <version>LATEST</version>
 </dependency>
@@ -208,7 +209,7 @@ Add the repository to your `pom.xml`:
 <repositories>
     <repository>
         <id>javacard-pro</id>
-        <url>https://mvn.javacard.pro/maven/</url>
+        <url>https://mvn.javacard.pro/public/</url>
     </repository>
 </repositories>
 ```
