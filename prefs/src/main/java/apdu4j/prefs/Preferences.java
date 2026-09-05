@@ -118,7 +118,6 @@ public final class Preferences {
     }
 
     // Resolve from provider: convert + validate, or empty
-    @SuppressWarnings("unchecked")
     private <V> Optional<Sourced> resolveFromProvider(Preference<V> key) {
         if (provider == null) {
             return Optional.empty();

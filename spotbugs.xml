@@ -3,12 +3,6 @@
                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                 xsi:schemaLocation="https://github.com/spotbugs/filter/3.0.0 https://raw.githubusercontent.com/spotbugs/spotbugs/3.1.0/spotbugs/etc/findbugsfilter.xsd">
 
-    <!-- record validates ISO 7816-4 minimum 2-byte SW; record is final so no finalizer risk -->
-    <Match>
-        <Class name="apdu4j.core.ResponseAPDU"/>
-        <Bug pattern="CT_CONSTRUCTOR_THROW"/>
-    </Match>
-
     <!-- platform-specific PC/SC library paths for Linux/macOS detection -->
     <Match>
         <Class name="apdu4j.pcsc.TerminalManager"/>
@@ -23,22 +17,9 @@
         <Bug pattern="DMI_HARDCODED_ABSOLUTE_FILENAME"/>
     </Match>
 
-    <!-- sealed final subclasses only - no finalizer risk; equals checks interface type by design -->
+    <!-- sealed class, final subclasses only - no finalizer risk -->
     <Match>
         <Class name="apdu4j.prefs.Preference$Base"/>
-        <Bug pattern="CT_CONSTRUCTOR_THROW,EQ_UNUSUAL"/>
-    </Match>
-
-    <!-- PrintStream wraps caller's OutputStream -closing it would close the underlying stream -->
-    <Match>
-        <Class name="apdu4j.pcsc.ReaderSelectorImpl"/>
-        <Method name="wrapBIBO"/>
-        <Bug pattern="OS_OPEN_STREAM"/>
-    </Match>
-
-    <!-- TerminalFactorySpi contract requires Object parameter; validates type at construction -->
-    <Match>
-        <Class name="apdu4j.pcsc.sim.SynthesizedTerminalsProvider$SynthesizedSpi"/>
         <Bug pattern="CT_CONSTRUCTOR_THROW"/>
     </Match>
 
@@ -46,30 +27,6 @@
     <Match>
         <Class name="apdu4j.pcsc.sim.SynthesizedTerminalsProvider$SynthesizedSpi"/>
         <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
-    </Match>
-
-    <!-- sealed gather records: byte[] flows through internal pattern matching only -->
-    <Match>
-        <Class name="apdu4j.apdulette.Cookbook$Gather$Done"/>
-        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
-    </Match>
-    <Match>
-        <Class name="apdu4j.apdulette.Cookbook$Gather$More"/>
-        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
-    </Match>
-
-    <!-- disconnect cleanup on beginExclusive() failure -best effort -->
-    <Match>
-        <Class name="apdu4j.pcsc.ReaderSelectorImpl"/>
-        <Method name="connectAndRun"/>
-        <Bug pattern="DE_MIGHT_IGNORE"/>
-    </Match>
-
-    <!-- close() in disconnect cleanup -exception intentionally swallowed -->
-    <Match>
-        <Class name="apdu4j.pcsc.sim.SynthesizedCardTerminal$SynthesizedCard"/>
-        <Method name="disconnect"/>
-        <Bug pattern="DE_MIGHT_IGNORE"/>
     </Match>
 
 </FindBugsFilter>

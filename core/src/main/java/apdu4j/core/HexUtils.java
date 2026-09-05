@@ -3,6 +3,7 @@
 package apdu4j.core;
 
 import java.util.HexFormat;
+import java.util.Locale;
 
 public final class HexUtils {
     private HexUtils() {
@@ -19,7 +20,7 @@ public final class HexUtils {
     }
 
     public static byte[] stringToBin(String s) {
-        s = s.toUpperCase().replace(" ", "").replace(":", "").replace(",", "");
+        s = s.toUpperCase(Locale.ROOT).replace(" ", "").replace(":", "").replace(",", "");
         s = s.replace("(BYTE)", "").replace("0X", "");
         s = s.replace("\n", "").replace("\t", "").replace("\r", "");
         return HEX.parseHex(s);

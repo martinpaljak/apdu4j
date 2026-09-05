@@ -19,6 +19,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -137,7 +138,7 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
     }
 
     public static boolean isEnabled(String feature, boolean def) {
-        return Boolean.parseBoolean(System.getProperty(feature, System.getenv().getOrDefault("_" + feature.toUpperCase().replace(".", "_"), Boolean.toString(def))));
+        return Boolean.parseBoolean(System.getProperty(feature, System.getenv().getOrDefault("_" + feature.toUpperCase(Locale.ROOT).replace(".", "_"), Boolean.toString(def))));
     }
 
     // SunPCSC needs to have the path to the loadable library to work, for whatever reasons.
@@ -447,7 +448,12 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
     private void dispatch(OnCardReg reg, PCSCReader reader) {
         executor(reader.name()).run(() -> {
             if (onCardRegs.contains(reg)) {
-                reg.action().accept(reader, terminal(reader.name()));
+                try {
+                    reg.action().accept(reader, terminal(reader.name()));
+                } catch (RuntimeException e) {
+                    // Nobody waits on the executor's future, so a throwing handler would vanish here.
+                    logger.error("On-card handler for {} failed: {}", reader.name(), e.getMessage(), e);
+                }
             }
         });
     }
@@ -525,6 +531,6 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
     }
 
     public static boolean isWindows() {
-        return System.getProperty("os.name").toLowerCase().startsWith("windows");
+        return System.getProperty("os.name").toLowerCase(Locale.ROOT).startsWith("windows");
     }
 }

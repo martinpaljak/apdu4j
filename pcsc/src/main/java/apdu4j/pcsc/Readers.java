@@ -138,9 +138,9 @@ public final class Readers {
             return null;
         }
         var aliases = ReaderAliases.getDefault().apply(readers.stream().map(PCSCReader::name).toList());
-        var h = hint.toLowerCase();
+        var h = hint.toLowerCase(Locale.ROOT);
         var matches = readers.stream()
-                .filter(r -> aliases.extended(r.name()).toLowerCase().contains(h))
+                .filter(r -> aliases.extended(r.name()).toLowerCase(Locale.ROOT).contains(h))
                 .toList();
         if (matches.size() == 1) {
             return matches.get(0).name();
@@ -152,8 +152,8 @@ public final class Readers {
 
     // Returns true if the reader name matches any ignore fragment
     public static boolean isIgnored(List<String> fragments, String name) {
-        var lower = name.toLowerCase();
-        return fragments.stream().anyMatch(f -> lower.contains(f.toLowerCase()));
+        var lower = name.toLowerCase(Locale.ROOT);
+        return fragments.stream().anyMatch(f -> lower.contains(f.toLowerCase(Locale.ROOT)));
     }
 
     // DWIM: auto-pick single reader, fail on ambiguity

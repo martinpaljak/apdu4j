@@ -17,7 +17,7 @@ public final class SynthesizedTerminalsProvider extends Provider {
         put("TerminalFactory.PC/SC", SynthesizedSpi.class.getName());
     }
 
-    public static class SynthesizedSpi extends TerminalFactorySpi {
+    public static final class SynthesizedSpi extends TerminalFactorySpi {
         private final SynthesizedCardTerminals terminals;
 
         public SynthesizedSpi(Object parameter) {

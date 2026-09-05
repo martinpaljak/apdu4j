@@ -6,6 +6,7 @@ import jnasmartcardio.Smartcardio.JnaCard;
 
 import javax.smartcardio.Card;
 import javax.smartcardio.CardException;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
@@ -46,7 +47,7 @@ public final class SCard {
     public static final String SCARD_E_READER_UNAVAILABLE = "SCARD_E_READER_UNAVAILABLE";
 
     public static int CARD_CTL_CODE(int c) {
-        var os = System.getProperty("os.name", "unknown").toLowerCase();
+        var os = System.getProperty("os.name", "unknown").toLowerCase(Locale.ROOT);
         if (os.contains("windows")) {
             return 0x31 << 16 | c << 2;
         } else {

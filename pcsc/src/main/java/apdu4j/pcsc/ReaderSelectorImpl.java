@@ -17,6 +17,7 @@ import java.io.OutputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -232,8 +233,8 @@ record ReaderSelectorImpl(
     public CardWatch onCard(BiConsumer<PCSCReader, ? super BIBOSA> fn) {
         Predicate<PCSCReader> matcher = selection.filter();
         if (selection.hint() != null && !selection.hint().isBlank()) {
-            var h = selection.hint().toLowerCase();
-            matcher = matcher.and(r -> r.name().toLowerCase().contains(h));
+            var h = selection.hint().toLowerCase(Locale.ROOT);
+            matcher = matcher.and(r -> r.name().toLowerCase(Locale.ROOT).contains(h));
         }
         if (!selection.ignoreFragments().isEmpty()) {
             var fragments = selection.ignoreFragments();

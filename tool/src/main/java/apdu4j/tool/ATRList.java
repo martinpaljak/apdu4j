@@ -64,7 +64,7 @@ public final class ATRList {
     }
 
     public Optional<Map.Entry<String, List<String>>> match(byte[] atr) {
-        var q = HexUtils.bin2hex(atr).toUpperCase();
+        var q = HexUtils.bin2hex(atr).toUpperCase(Locale.ROOT);
         return map.entrySet().stream().filter(e -> q.matches(e.getKey())).findFirst();
     }
 

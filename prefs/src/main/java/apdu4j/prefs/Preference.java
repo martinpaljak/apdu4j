@@ -6,7 +6,7 @@ import java.util.Comparator;
 import java.util.Objects;
 import java.util.function.Predicate;
 
-public sealed interface Preference<V> permits Preference.Default, Preference.Parameter {
+public sealed interface Preference<V> permits Preference.Base {
     String name();
 
     Class<V> type();
@@ -42,7 +42,7 @@ public sealed interface Preference<V> permits Preference.Default, Preference.Par
     }
 
     // Not a record: equals/hashCode on name + type only (excludes validator, converter, metadata)
-    abstract class Base<V> {
+    abstract sealed class Base<V> implements Preference<V> permits Default, Parameter {
         private final String name;
         private final Class<V> type;
         private final boolean readonly;
@@ -64,22 +64,27 @@ public sealed interface Preference<V> permits Preference.Default, Preference.Par
             this.converter = Objects.requireNonNull(converter);
         }
 
+        @Override
         public String name() {
             return name;
         }
 
+        @Override
         public Class<V> type() {
             return type;
         }
 
+        @Override
         public boolean readonly() {
             return readonly;
         }
 
+        @Override
         public Predicate<V> validator() {
             return validator;
         }
 
+        @Override
         public StringConverter<V> converter() {
             return converter;
         }
@@ -95,7 +100,7 @@ public sealed interface Preference<V> permits Preference.Default, Preference.Par
         }
     }
 
-    final class Default<V> extends Base<V> implements Preference<V> {
+    final class Default<V> extends Base<V> {
         private final V defaultValue;
 
         public Default(String name, Class<V> type, V defaultValue, boolean readonly, Predicate<V> validator) {
@@ -128,7 +133,7 @@ public sealed interface Preference<V> permits Preference.Default, Preference.Par
         }
     }
 
-    final class Parameter<V> extends Base<V> implements Preference<V> {
+    final class Parameter<V> extends Base<V> {
         public Parameter(String name, Class<V> type, boolean readonly, Predicate<V> validator) {
             super(name, type, readonly, validator);
         }

@@ -33,19 +33,19 @@ public final class ReaderAliases {
     }
 
     private boolean matches(String name, String match) {
-        return name.toLowerCase().contains(match.toLowerCase());
+        return name.toLowerCase(Locale.ROOT).contains(match.toLowerCase(Locale.ROOT));
     }
 
     static boolean verify(Map<String, String> aliases) {
         // Matches must be unique
-        var matches = aliases.keySet().stream().map(String::toLowerCase).collect(Collectors.toSet());
+        var matches = aliases.keySet().stream().map(s -> s.toLowerCase(Locale.ROOT)).collect(Collectors.toSet());
         if (matches.size() != aliases.size()) {
             logger.error("Matches are not unique");
             return false;
         }
 
         // Aliases must be unique
-        var all = aliases.values().stream().map(String::toLowerCase).collect(Collectors.toSet());
+        var all = aliases.values().stream().map(s -> s.toLowerCase(Locale.ROOT)).collect(Collectors.toSet());
         if (aliases.size() != all.size()) {
             logger.error("Aliases are not unique");
             return false;
