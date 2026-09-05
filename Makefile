@@ -1,4 +1,5 @@
-TZ = UTC # same as Github
+# same as Github
+TZ = UTC
 export TZ
 SHELL = bash
 JDK := zulu
@@ -12,10 +13,10 @@ ANDROID_HOME ?= $(if $(filter Darwin,$(shell uname)),$(HOME)/Library/Android/sdk
 export ANDROID_HOME
 
 default: today reportjava
-	./mvnw verify install
+	./mvnw install
 
 ci: reportjava
-	CI=true ./mvnw -P exe
+	CI=true ./mvnw -U -P exe
 
 reportjava:
 	@echo using java $(shell java -version 2>&1 | grep version) from \"$(JAVA_HOME)\"
