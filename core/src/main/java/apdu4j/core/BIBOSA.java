@@ -18,7 +18,7 @@ import java.util.function.Function;
  * <ul>
  *   <li>{@link #then(Function)} - simple BIBO wrappers ({@code Function<BIBO, BIBO>}),
  *       preferences pass through unchanged</li>
- *   <li>{@link #then(BIBOMiddleware)} - full middleware that can both wrap the transport
+ *   <li>{@link #with(BIBOMiddleware)} - full middleware that can both wrap the transport
  *       and add typed preferences to the stack</li>
  * </ul>
  *
@@ -26,7 +26,7 @@ import java.util.function.Function;
  * <pre>{@code
  * var stack = new BIBOSA(transport)
  *     .then(GetResponseWrapper::wrap)       // simple wrapper
- *     .then(secureChannelMiddleware);        // adds blockSize preference
+ *     .with(secureChannelMiddleware);        // adds blockSize preference
  * int blockSize = stack.preferences().get(BLOCK_SIZE);
  * }</pre>
  *
@@ -92,7 +92,7 @@ public final class BIBOSA implements BIBO {
      * @param middleware the middleware to apply
      * @return the BIBOSA returned by the middleware
      */
-    public BIBOSA then(BIBOMiddleware middleware) {
+    public BIBOSA with(BIBOMiddleware middleware) {
         return middleware.wrap(this);
     }
 
@@ -112,7 +112,7 @@ public final class BIBOSA implements BIBO {
      * but reads in the same order the APDU bytes traverse the stack.
      *
      * <p>Preferences pass through unchanged. For middlewares that contribute
-     * preferences, use {@link #then(BIBOMiddleware)}.
+     * preferences, use {@link #with(BIBOMiddleware)}.
      *
      * @param wrappers wrappers to apply, leftmost = outermost
      * @return a new BIBOSA with the wrappers installed and preferences preserved
@@ -134,7 +134,7 @@ public final class BIBOSA implements BIBO {
      * <p>This enables runtime-adaptive stacks where earlier layers set
      * preferences that influence which middleware gets applied later:
      * <pre>{@code
-     * stack.then(initUpdateMiddleware)                            // sets SCP_VERSION
+     * stack.with(initUpdateMiddleware)                            // sets SCP_VERSION
      *      .adapt(prefs -> createWrapper(prefs.get(SCP_VERSION))); // picks SCP02 vs SCP03
      * }</pre>
      *

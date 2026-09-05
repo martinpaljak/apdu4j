@@ -4,9 +4,13 @@ package apdu4j.pcsc.sim;
 
 import javax.smartcardio.CardTerminals;
 import javax.smartcardio.TerminalFactorySpi;
+import java.io.Serial;
 import java.security.Provider;
 
 public final class SynthesizedTerminalsProvider extends Provider {
+
+    @Serial
+    private static final long serialVersionUID = 2109163395459157027L;
 
     public SynthesizedTerminalsProvider() {
         super("SynthesizedTerminals", "1.0", "Synthesized javax.smartcardio from apdu4j");

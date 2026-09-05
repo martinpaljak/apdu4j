@@ -54,7 +54,7 @@ public class BIBOSATest {
     @Test
     void testThenMiddlewareAddsPreferences() {
         BIBOMiddleware mw = s -> new BIBOSA(s.bibo(), s.preferences().with(BLOCK_SIZE, "231"));
-        var stack = new BIBOSA(MockBIBO.of()).then(mw);
+        var stack = new BIBOSA(MockBIBO.of()).with(mw);
         assertEquals(stack.preferences().get(BLOCK_SIZE), "231");
     }
 
@@ -62,7 +62,7 @@ public class BIBOSATest {
     void testMiddlewareChainAccumulatesPreferences() {
         BIBOMiddleware first = s -> new BIBOSA(s.bibo(), s.preferences().with(A, "1"));
         BIBOMiddleware second = s -> new BIBOSA(s.bibo(), s.preferences().with(B, "2"));
-        var stack = new BIBOSA(MockBIBO.of()).then(first).then(second);
+        var stack = new BIBOSA(MockBIBO.of()).with(first).with(second);
         assertEquals(stack.preferences().get(A), "1");
         assertEquals(stack.preferences().get(B), "2");
     }
@@ -113,7 +113,7 @@ public class BIBOSATest {
     void testFactorySelectedMiddlewareAddsPreferences() {
         BIBOMiddleware first = s -> new BIBOSA(s.bibo(), s.preferences().with(A, "SCP03"));
         var stack = new BIBOSA(MockBIBO.of())
-                .then(first)
+                .with(first)
                 .adapt(prefs -> {
                     var scp = prefs.get(A);
                     return s -> new BIBOSA(s.bibo(), s.preferences().with(B, "wrapped-by-" + scp));
@@ -125,7 +125,7 @@ public class BIBOSATest {
     @Test
     void testIdentityMiddlewareIsNoOp() {
         var prefs = new Preferences().with(KEY, "preserved");
-        var stack = new BIBOSA(MockBIBO.of("9000"), prefs).then(BIBOMiddleware.identity());
+        var stack = new BIBOSA(MockBIBO.of("9000"), prefs).with(BIBOMiddleware.identity());
         assertEquals(stack.preferences().get(KEY), "preserved");
         assertEquals(stack.transceive(HexUtils.hex2bin("00A40400")), HexUtils.hex2bin("9000"));
     }
@@ -134,7 +134,7 @@ public class BIBOSATest {
     void testMiddlewareCanWrapBIBO() {
         BIBOMiddleware mw = s -> new BIBOSA(GetResponseWrapper.wrap(s.bibo()), s.preferences().with(WRAPPED, "true"));
         var mock = MockBIBO.of("AA6102", "BBCC9000");
-        var stack = new BIBOSA(mock).then(mw);
+        var stack = new BIBOSA(mock).with(mw);
         var result = stack.transceive(HexUtils.hex2bin("00A40400"));
         assertEquals(result, HexUtils.hex2bin("AABBCC9000"));
         assertEquals(stack.preferences().get(WRAPPED), "true");

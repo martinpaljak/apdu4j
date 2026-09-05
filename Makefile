@@ -14,6 +14,9 @@ export ANDROID_HOME
 default: today reportjava
 	./mvnw verify install
 
+ci: reportjava
+	CI=true ./mvnw -P exe
+
 reportjava:
 	@echo using java $(shell java -version 2>&1 | grep version) from \"$(JAVA_HOME)\"
 

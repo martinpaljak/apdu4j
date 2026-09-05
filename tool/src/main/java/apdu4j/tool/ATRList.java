@@ -5,7 +5,8 @@ package apdu4j.tool;
 import apdu4j.core.HexUtils;
 
 import java.io.*;
-import java.net.URL;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -44,7 +45,11 @@ public final class ATRList {
     public static ATRList from(String path) throws IOException {
         final InputStream in;
         if (path.startsWith("http")) {
-            in = new URL(path).openStream();
+            try {
+                in = new URI(path).toURL().openStream();
+            } catch (URISyntaxException e) {
+                throw new IOException("Not a valid URL: " + path, e);
+            }
         } else if (Files.isRegularFile(Paths.get(path))) {
             in = new FileInputStream(path);
         } else {

@@ -7,9 +7,9 @@ import java.util.List;
 
 public class NoMatchingReaderException extends IllegalStateException {
     @Serial
-    private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = -384402774410015652L;
 
-    private final List<String> available;
+    private final transient List<String> available;
 
     public NoMatchingReaderException(List<String> available) {
         super("No matching reader. Available: " + available);

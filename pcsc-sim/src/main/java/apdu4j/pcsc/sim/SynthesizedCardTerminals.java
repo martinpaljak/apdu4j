@@ -23,6 +23,9 @@ public final class SynthesizedCardTerminals extends CardTerminals {
     private Set<String> lastInserted = Set.of();
     private Set<String> lastRemoved = Set.of();
 
+    public SynthesizedCardTerminals() {
+    }
+
     public synchronized void addTerminal(SynthesizedCardTerminal terminal) {
         if (terminals.stream().anyMatch(t -> t.getName().equals(terminal.getName()))) {
             throw new IllegalArgumentException("Terminal with name '%s' already exists".formatted(terminal.getName()));

@@ -174,10 +174,11 @@ public class PCSCKitchenTest {
                     Duration.ofSeconds(5)));
             var errors = new CopyOnWriteArrayList<Throwable>();
             var served = new CountDownLatch(1);
-            try (var subscription = kitchen.pass(refused, (dish, err) -> {
+            var subscription = kitchen.pass(refused, (dish, err) -> {
                 errors.add(err);
                 served.countDown();
-            })) {
+            });
+            try (subscription) {
                 terminal.present(MockBIBO.of("6A82"));
                 Assert.assertTrue(served.await(5, TimeUnit.SECONDS));
                 Assert.assertTrue(errors.get(0) instanceof KitchenDisaster, "got " + errors.get(0));

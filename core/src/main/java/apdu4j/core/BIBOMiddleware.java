@@ -18,10 +18,10 @@ package apdu4j.core;
  *     var session = openSecureChannel(stack.bibo(), keys);
  *     return new BIBOSA(session, stack.preferences().with(BLOCK_SIZE, session.maxPayload()));
  * };
- * var secured = new BIBOSA(transport).then(scp);
+ * var secured = new BIBOSA(transport).with(scp);
  * }</pre>
  *
- * @see BIBOSA#then(BIBOMiddleware)
+ * @see BIBOSA#with(BIBOMiddleware)
  */
 @FunctionalInterface
 public interface BIBOMiddleware {
@@ -38,7 +38,7 @@ public interface BIBOMiddleware {
      * Returns a no-op middleware that passes the stack through unchanged.
      * Useful in conditional composition with preference-driven factories:
      * <pre>{@code
-     * stack.then(prefs -> prefs.get(USE_SM)
+     * stack.adapt(prefs -> prefs.get(USE_SM)
      *     ? secureChannelMiddleware
      *     : BIBOMiddleware.identity());
      * }</pre>

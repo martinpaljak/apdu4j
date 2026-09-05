@@ -11,6 +11,9 @@ import java.util.Collections;
 // Pre-computation executor: feeds expected responses to taster, no I/O
 public final class MiseEnPlaceChef implements Chef {
 
+    public MiseEnPlaceChef() {
+    }
+
     @Override
     public <T> Dish<T> serve(Recipe<T> recipe, Preferences prefs) {
         return SousChef.serve(recipe, prefs, MiseEnPlaceChef::simulate);
