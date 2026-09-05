@@ -70,6 +70,7 @@ public class SimTests {
         var terminal = new SynthesizedCardTerminal("Contactless Reader");
         var biboCf = new CompletableFuture<BIBO>();
         terminal.present(biboCf, SynthesizedCardTerminal.defaultAtr());
+        var start = System.currentTimeMillis();
         CompletableFuture.runAsync(() -> {
             try {
                 Thread.sleep(200);
@@ -79,7 +80,6 @@ public class SimTests {
             biboCf.complete(MockBIBO.of("9000"));
         });
         try (var mgr = TerminalManager.managerOf(terminal)) {
-            var start = System.currentTimeMillis();
             var bibo = Readers.select(mgr).connectWhenReady();
             var elapsed = System.currentTimeMillis() - start;
             Assert.assertNotNull(bibo);
