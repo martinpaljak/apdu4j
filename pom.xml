@@ -32,11 +32,11 @@
             <url>https://mvn.javacard.pro/public-snapshots/</url>
         </repository>
     </repositories>
-    <!-- TODO: remove once m2ssh is released -->
     <pluginRepositories>
+        <!-- For picking up the m2ssh build extension -->
         <pluginRepository>
-            <id>javacard-pro-snapshots</id>
-            <url>https://mvn.javacard.pro/public-snapshots/</url>
+            <id>javacard-pro</id>
+            <url>https://mvn.javacard.pro/public/</url>
         </pluginRepository>
     </pluginRepositories>
     <distributionManagement>
@@ -88,8 +88,7 @@
             <extension>
                 <groupId>pro.javacard.maven</groupId>
                 <artifactId>m2ssh</artifactId>
-                <!-- TODO: move to released once available -->
-                <version>26.08.28-SNAPSHOT</version>
+                <version>26.09.07</version>
             </extension>
         </extensions>
         <pluginManagement>
