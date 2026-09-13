@@ -139,9 +139,10 @@ public final class Readers {
         }
         var aliases = ReaderAliases.getDefault().apply(readers.stream().map(PCSCReader::name).toList());
         var h = hint.toLowerCase(Locale.ROOT);
-        var matches = readers.stream()
+        var exact = readers.stream().filter(r -> r.name().equalsIgnoreCase(hint)).toList();
+        var matches = exact.isEmpty() ? readers.stream()
                 .filter(r -> aliases.extended(r.name()).toLowerCase(Locale.ROOT).contains(h))
-                .toList();
+                .toList() : exact;
         if (matches.size() == 1) {
             return matches.get(0).name();
         }

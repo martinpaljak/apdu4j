@@ -72,6 +72,14 @@ Feature: DWIM Reader Selection
     Then "Reader A" is selected
     And message contains "Reader A"
 
+  Scenario: Full name wins over a longer name containing it
+    Given readers:
+      | name         | present |
+      | Simulator 1  | no      |
+      | Simulator 10 | yes     |
+    When I use hint "Simulator 1"
+    Then "Simulator 1" is selected
+
   Scenario: Hint matching several readers picks the one with a card
     Given readers:
       | name        | present |
