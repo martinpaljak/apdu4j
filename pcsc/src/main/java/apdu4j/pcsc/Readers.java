@@ -36,6 +36,8 @@ public final class Readers {
             Preference.of("reader.fresh", Boolean.class, true, false);
     public static final Preference.Default<Boolean> TRANSPARENT =
             Preference.of("reader.transparent", Boolean.class, false, false);
+    public static final Preference.Default<Boolean> CONTACTLESS =
+            Preference.of("reader.contactless", Boolean.class, true, false);
 
 
     private Readers() {

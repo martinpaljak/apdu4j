@@ -10,8 +10,6 @@ import static org.testng.Assert.*;
 
 public class LoggingBIBOTest {
 
-    // === APDU case formatting ===
-
     @Test
     void testApduCaseLogFormatting() {
         // Case 1: header only
@@ -43,8 +41,6 @@ public class LoggingBIBOTest {
         assertEquals(lines.get(0), ">> 00A40400 07 A0000000628101 00");
         assertTrue(lines.get(1).startsWith("<< AABB 9000 ("));
     }
-
-    // === Error and edge cases ===
 
     @Test
     void testErrorLogging() {

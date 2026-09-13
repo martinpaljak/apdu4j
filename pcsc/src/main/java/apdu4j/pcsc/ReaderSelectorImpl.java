@@ -439,6 +439,16 @@ record ReaderSelectorImpl(
                 .with(CardInfo.READER_NAME, readerName)
                 .with(CardInfo.FRESH_TAP, fresh)
                 .with(CardInfo.EXCLUSIVE_HELD, exclusive);
+        if (config.get(Readers.CONTACTLESS)) {
+            try {
+                var uid = TerminalManager.uid(new BIBOSA(bibo, sessionPrefs));
+                if (uid.isPresent()) {
+                    sessionPrefs = sessionPrefs.with(CardInfo.UID, HexBytes.b(uid.get()));
+                }
+            } catch (BIBOException | IllegalStateException e) {
+                logger.warn("UID probe failed on {}: {}", readerName, e.getMessage());
+            }
+        }
         if (dumpStream != null) {
             DumpFormat.writeHeader(dumpStream, sessionPrefs);
             bibo = DumpingBIBO.wrap(bibo, dumpStream);

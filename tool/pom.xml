@@ -5,7 +5,7 @@
     <parent>
         <artifactId>apdu4j</artifactId>
         <groupId>pro.javacard</groupId>
-        <version>26.08.28-SNAPSHOT</version>
+        <version>26.09.08-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 

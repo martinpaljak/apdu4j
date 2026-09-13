@@ -19,8 +19,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class MonitorTest {
 
-    // === Card detection: insertion on existing reader and dynamic reader addition ===
-
     @Test
     void testMonitorDetectsCardEvents() throws Exception {
         var terminals = new SynthesizedCardTerminals();
@@ -55,8 +53,6 @@ public class MonitorTest {
             Assert.assertEquals(readerName.get(), "Contact Reader");
         }
     }
-
-    // === Yank and re-insertion cycle ===
 
     @Test
     void testMonitorYankAndReinsert() throws Exception {
@@ -93,8 +89,6 @@ public class MonitorTest {
             Assert.assertTrue(secondSeen.await(10, TimeUnit.SECONDS), "Re-insertion should fire");
         }
     }
-
-    // === fresh flag: controls whether already-present cards trigger onCard ===
 
     // fresh=true skips a card that was already on the reader and waits for a genuine tap, whether
     // or not the monitor was started before the pass registered. fresh=false serves it right away.
@@ -157,8 +151,6 @@ public class MonitorTest {
         return new Object[][]{{false}, {true}};
     }
 
-    // === fresh flag: controls whenReady/connectWhenReady behavior ===
-
     @Test
     void testFreshFlagWhenReady() throws Exception {
         var terminals = new SynthesizedCardTerminals();
@@ -196,8 +188,6 @@ public class MonitorTest {
         }
     }
 
-    // === Card vs reader removal ordering ===
-
     @Test
     void testCardRemovedBeforeReader() throws Exception {
         var terminals = new SynthesizedCardTerminals();
@@ -224,8 +214,6 @@ public class MonitorTest {
                     Duration.ofSeconds(5)));
         }
     }
-
-    // === Executor dispatch: monitor-backed run() and timeout-based waiting ===
 
     @Test
     void testMonitorBackedRun() throws Exception {
@@ -281,8 +269,6 @@ public class MonitorTest {
             Assert.assertEquals(result, HexUtils.hex2bin("9000"));
         }
     }
-
-    // === Multiple concurrent passes: disjoint reader subsets, no matcher overlap ===
 
     @Test
     void testMultiplePassesDisjointReaders() throws Exception {

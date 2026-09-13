@@ -14,8 +14,6 @@ public class PreferencesTest {
     static final Preference.Default<String> READONLY = Preference.of("readonly", String.class, "readonly_default", true);
     static final Preference.Parameter<String> SESSION = Preference.parameter("session", String.class, true);
 
-    // === Preference type: construction, identity, invariants ===
-
     @Test
     void preferenceCreation() {
         // Default: accessors
@@ -59,8 +57,6 @@ public class PreferencesTest {
         Assert.assertEquals(def.hashCode(), par.hashCode());
     }
 
-    // === Resolution without provider ===
-
     @Test
     void getAndValueOfSemantics() {
         var prefs = new Preferences();
@@ -89,8 +85,6 @@ public class PreferencesTest {
         prefs = prefs.with(SESSION, "abc123");
         Assert.assertEquals(prefs.valueOf(SESSION).orElseThrow(), "abc123");
     }
-
-    // === Explicit value manipulation, collection ops, ordering ===
 
     @Test
     void withWithoutAndKeys() {
@@ -124,8 +118,6 @@ public class PreferencesTest {
         Assert.assertEquals(keys.get(2).name(), "ccc");
     }
 
-    // === Readonly semantics ===
-
     @Test
     void readonlyContract() {
         var prefs = new Preferences().with(READONLY, "locked");
@@ -136,8 +128,6 @@ public class PreferencesTest {
         var empty = new Preferences();
         Assert.assertSame(empty.without(READONLY), empty);
     }
-
-    // === Merge ===
 
     @Test
     void mergeSemantics() {
@@ -168,8 +158,6 @@ public class PreferencesTest {
         Assert.assertEquals(mergedProviders.sourceOf(NAME).orElseThrow(), "a");
     }
 
-    // === Display formatting ===
-
     @Test
     void toStringFormatting() {
         Assert.assertEquals(new Preferences().with(NAME, "val").toString(),
@@ -195,8 +183,6 @@ public class PreferencesTest {
         Assert.assertEquals(new Preferences().with(param, "abc").toString(),
                 "Preferences{token(java.lang.String)=abc[code];}");
     }
-
-    // === Provider lifecycle: lazy fallback, precedence, propagation ===
 
     @Test
     void providerResolution() {
@@ -233,8 +219,6 @@ public class PreferencesTest {
         Assert.assertTrue(envPrefs.isEmpty());
     }
 
-    // === Custom converter: parse, format, identity ===
-
     @Test
     void withConverterParseAndFormat() {
         // Parse-only lambda on Parameter
@@ -256,8 +240,6 @@ public class PreferencesTest {
                 .get(upper), new byte[]{(byte) 0xCA, (byte) 0xFE});
         Assert.assertTrue(new Preferences().with(upper, new byte[]{(byte) 0xCA, (byte) 0xFE}).toString().contains("CAFE"));
     }
-
-    // === Static factories ===
 
     @Test
     void ofFactories() {

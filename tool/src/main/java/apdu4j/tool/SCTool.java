@@ -111,16 +111,17 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
             }
         }
         var i = 0;
-        String filler = readers.size() > 10 ? "              " : "             ";
+        var headFormat = "%" + String.valueOf(readers.size()).length() + "d: [%c] ";
         if (atrList != null && verbose) {
             verbose("ATR info from " + atrList.getSource().orElse("unknown source"));
         }
         for (PCSCReader r : readers) {
             i++;
-            var vmdString = r.getVMD().map("[%s] "::formatted).orElse("");
-            char marker = verbose ? PCSCReader.presenceMarker(r) : (r.present() ? '*' : ' ');
-            to.println("%d: [%c] %s%s".formatted(i, marker, vmdString, aliases.extended(r.name())));
+            char marker = verbose ? PCSCReader.presenceMarker(r) : r.exclusive() ? 'X' : r.present() ? '*' : ' ';
+            var head = headFormat.formatted(i, marker) + (verbose ? "[%-4s] ".formatted(r.getVMD().orElse("")) : "");
+            to.println(head + aliases.extended(r.name()));
             if (verbose) {
+                var filler = " ".repeat(head.length());
                 if (r.getATR().isPresent()) {
                     var atr = r.getATR().get();
                     to.println("%s%s".formatted(filler, HexUtils.bin2hex(atr)));

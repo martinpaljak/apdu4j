@@ -17,8 +17,6 @@ public class DumpFormatTest {
         return new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
     }
 
-    // === Positive: parsing coverage ===
-
     @Test
     void testParseSimple() {
         var dump = DumpFormat.parse(stream("00A40400\n9000\n"));
@@ -54,8 +52,6 @@ public class DumpFormatTest {
         assertEquals(dump.responses().get(1), HexUtils.hex2bin("6A88"));
     }
 
-    // === API contracts ===
-
     @Test
     void testParseEmptyThrows() {
         assertThrows(IllegalArgumentException.class, () -> DumpFormat.parse(stream("")));
@@ -78,8 +74,6 @@ public class DumpFormatTest {
         var dump = DumpFormat.parse(stream("00A40400\n9000\n"));
         assertThrows(IllegalStateException.class, dump::protocol);
     }
-
-    // === Round-trip: writeHeader + DumpingBIBO -> parse -> fromDump reproduces params and script ===
 
     @Test
     void testHeaderRoundTrip() {

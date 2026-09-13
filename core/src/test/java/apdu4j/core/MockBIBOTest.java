@@ -11,8 +11,6 @@ import static org.testng.Assert.assertThrows;
 
 public class MockBIBOTest {
 
-    // === Positive: factory methods and chaining ===
-
     @Test
     void testDepletionThrows() {
         var mock = MockBIBO.of("9000");
@@ -67,8 +65,6 @@ public class MockBIBOTest {
         assertEquals(mock.transceive(HexUtils.hex2bin("00CA0000")), HexUtils.hex2bin("6A88"));
     }
 
-    // === API contracts: verification and loading ===
-
     @Test
     void testClosedThrows() {
         var mock = MockBIBO.of("9000");
@@ -82,8 +78,6 @@ public class MockBIBOTest {
         var mock = MockBIBO.fromDump(new ByteArrayInputStream(input.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         assertThrows(BIBOException.class, () -> mock.transceive(HexUtils.hex2bin("00CA0000")));
     }
-
-    // === Skipping mode ===
 
     @Test
     void testSkippingFindsMatch() {

@@ -9,8 +9,6 @@ import static org.testng.Assert.assertThrows;
 
 public class ResponseAPDUTest {
 
-    // === Positive: accessor coverage ===
-
     @Test
     void testStatusWord() {
         var r = ResponseAPDU.of(0x6A88);
@@ -29,8 +27,6 @@ public class ResponseAPDUTest {
         assertEquals(r.getBytes(), raw);
         assertEquals(r.getSWBytes(), HexUtils.hex2bin("9000"));
     }
-
-    // === API contracts ===
 
     @Test
     void testLengths() {

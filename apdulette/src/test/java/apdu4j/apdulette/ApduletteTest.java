@@ -34,8 +34,6 @@ public class ApduletteTest {
         return new MasterChef(MockBIBO.of(responses)).cook(recipe);
     }
 
-    // === Recipes compose into pipelines: send, map, then, and, consume, data extraction ===
-
     @Test
     void recipesComposeIntoPipelines() {
         // A card that answers SELECT with an FCI, READ BINARY with file data,
@@ -64,8 +62,6 @@ public class ApduletteTest {
         assertEquals(HexUtils.bin2hex(fci.get().getData()), "6F07A505800101");
         assertEquals(HexUtils.bin2hex(uid.get()), "01020304050607");
     }
-
-    // === Card-tier errors recover with orElse, recover, optional, firstOf; scope follows placement ===
 
     @Test
     void cardErrorsRecoverWherePlaced() {
@@ -132,8 +128,6 @@ public class ApduletteTest {
         assertEquals(count.get(), 2);
     }
 
-    // === Programmer-tier failures escape all recovery; disasters carry their payload ===
-
     @Test
     void programmerFailuresEscapeRecovery() {
         // Recipe.fail throws at prepare: then never runs, orElse and optional do not catch
@@ -181,8 +175,6 @@ public class ApduletteTest {
         assertTrue(runaway.getMessage().contains("iterations"));
     }
 
-    // === Preferences flow into recipes: defaults, baseline, deferred construction ===
-
     @Test
     void preferencesDriveRecipes() {
         var maxLen = Preference.of("maxApduData", Integer.class, 255, false);
@@ -219,8 +211,6 @@ public class ApduletteTest {
         // preference() lifts a default key to its resolved value without I/O
         assertEquals(OFFLINE.cook(Cookbook.preference(le), new Preferences().with(le, 42)), Integer.valueOf(42));
     }
-
-    // === Preferences flow out of recipes: NextStep and season accumulate, serve surfaces them ===
 
     @Test
     void recipesEmitPreferences() {
@@ -310,8 +300,6 @@ public class ApduletteTest {
         assertEquals(dish.preferences().valueOf(sessionId).orElseThrow(), "test");
     }
 
-    // === Batches: one step, many commands; expected responses gate transmission ===
-
     @Test
     void batchesUseExpectedResponses() {
         var cmds = List.of(
@@ -376,8 +364,6 @@ public class ApduletteTest {
                 List.of(), List.of(), Cookbook.any()));
     }
 
-    // === MiseEnPlaceChef executes recipes without a card, from expected responses ===
-
     @Test
     void miseEnPlaceReplaysWithoutCard() {
         var chef = new MiseEnPlaceChef();
@@ -416,8 +402,6 @@ public class ApduletteTest {
             assertEquals(chef.cook(combined).getSW(), 0x9000);
         }
     }
-
-    // === Looping and chunked accumulation ===
 
     @Test
     void loopsGatherChunkedData() {
@@ -469,8 +453,6 @@ public class ApduletteTest {
         assertTrue(expectThrows(KitchenDisaster.class, () -> cook(strict, "6A82")).getMessage().contains("read failed"));
     }
 
-    // === Bulk combinators: sequence, traverse, foldLeft, require ===
-
     @Test
     void bulkCombinatorsSequenceWork() {
         // sequence runs all recipes in order and collects results
@@ -502,8 +484,6 @@ public class ApduletteTest {
                 () -> cook(Cookbook.require(probe, "file missing"), "6A82"));
         assertTrue(missing.getMessage().contains("file missing"));
     }
-
-    // === Tasters compose: expect variants, check, refine, map, tryMap ===
 
     @Test
     void tastersCompose() {

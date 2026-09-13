@@ -16,8 +16,6 @@ public class PreferenceProviderTest {
     static final Preference.Default<Integer> TIMEOUT = Preference.of("reader.timeout", Integer.class, 5000, false);
     static final Preference.Parameter<String> SESSION_KEY = Preference.parameter("session.key", String.class, true);
 
-    // === Provider factories: env, sysprop, properties, map ===
-
     @Test
     void builtInProviders() {
         // Environment: dots/hyphens -> underscores, uppercased
@@ -53,8 +51,6 @@ public class PreferenceProviderTest {
         assertTrue(map.resolve(TIMEOUT).isEmpty());
     }
 
-    // === Pre-typed values: typed map, mixed map, passthrough ===
-
     @Test
     void typedAndMixedProviders() {
         // Typed map: already correct types
@@ -78,8 +74,6 @@ public class PreferenceProviderTest {
         var dbl = Preference.of("thing", Double.class, 3.14, false);
         assertEquals(Preferences.from(PreferenceProvider.typed(Map.of(dbl, 2.71), "test")).get(dbl), 2.71);
     }
-
-    // === orElse composition: priority, fallback, source tracking ===
 
     @Test
     void orElseChaining() {
@@ -119,8 +113,6 @@ public class PreferenceProviderTest {
         assertEquals(prefs.sourceOf(PROTOCOL).orElseThrow(), "default");
     }
 
-    // === String -> typed conversion: all built-in types, hex, whitespace ===
-
     @Test
     void providerTypeConversion() {
         // All 5 built-in types from string
@@ -152,8 +144,6 @@ public class PreferenceProviderTest {
         assertEquals(prefs3.get(hexInt), Integer.valueOf(255));
         assertEquals(prefs3.get(hexLong), Long.valueOf(0xDEADBEEFL));
     }
-
-    // === Error paths: bad conversion, unknown type, validator rejection ===
 
     @Test
     void providerFailuresAndValidation() {
@@ -187,8 +177,6 @@ public class PreferenceProviderTest {
         assertTrue(badParam.valueOf(param).isEmpty());
         assertTrue(badParam.sourceOf(param).isEmpty());
     }
-
-    // === StringConverter direct edge cases ===
 
     @Test
     void stringConverterEdgeCases() {

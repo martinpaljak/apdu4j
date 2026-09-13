@@ -11,6 +11,7 @@ import javax.smartcardio.CardException;
 import javax.smartcardio.CardTerminal;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -111,19 +112,29 @@ public final class PinPadTerminal {
     }
 
 
-    public static String getVMD(CardTerminal t, Card c) {
+    public static EnumSet<PCSCReader.Flag> capabilities(CardTerminal t, Card c) {
+        var flags = EnumSet.noneOf(PCSCReader.Flag.class);
         try {
             PinPadTerminal ppt = probe(t, c);
-            return (ppt.canVerify() ? "V" : " ") + (ppt.canModify() ? "M" : " ") + (ppt.hasDisplay() ? "D" : " ");
+            if (ppt.canVerify()) {
+                flags.add(PCSCReader.Flag.VERIFY);
+            }
+            if (ppt.canModify()) {
+                flags.add(PCSCReader.Flag.MODIFY);
+            }
+            if (ppt.hasDisplay()) {
+                flags.add(PCSCReader.Flag.DISPLAY);
+            }
         } catch (CardException e) {
-            String err = SCard.getExceptionMessage(e);
-            logger.warn("PinPad probe failed: {}", err);
-            if (SCard.SCARD_E_SHARING_VIOLATION.equals(err)) {
-                return "???";
+            var err = SCard.getExceptionMessage(e);
+            if (SCard.SCARD_E_UNSUPPORTED_FEATURE.equals(err)) {
+                logger.debug("{} has no pinpad features", t.getName());
             } else {
-                return "EEE";
+                logger.warn("PinPad probe failed: {}", err);
+                flags.add(PCSCReader.Flag.PROBE_ERROR);
             }
         }
+        return flags;
     }
 
     public boolean canVerify() {

@@ -3,6 +3,10 @@
 package apdu4j.pcsc;
 
 import apdu4j.core.BIBOException;
+import apdu4j.core.BIBOSA;
+import apdu4j.core.CardInfo;
+import apdu4j.core.CommandAPDU;
+import apdu4j.core.HexBytes;
 import apdu4j.pcsc.sim.SynthesizedCardTerminal;
 import apdu4j.pcsc.sim.SynthesizedCardTerminals;
 import apdu4j.pcsc.terminals.LoggingCardTerminal;
@@ -18,6 +22,7 @@ import java.io.OutputStream;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -29,6 +34,8 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
+
+import static apdu4j.pcsc.PCSCReader.Flag.*;
 
 /**
  * Facilitates working with javax.smartcardio TerminalFactory/CardTerminals
@@ -47,6 +54,8 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
     private static final String freebsd_path = "/usr/local/lib/libpcsclite.so";
     private static final String fedora64_path = "/usr/lib64/libpcsclite.so.1";
     private static final String raspbian_path = "/usr/lib/arm-linux-gnueabihf/libpcsclite.so.1";
+
+    private static final byte[] GET_UID = {(byte) 0xFF, (byte) 0xCA, 0x00, 0x00, 0x00};
 
     // Only one active instance per JVM -PC/SC context is process-global
     private static final AtomicReference<TerminalManager> active = new AtomicReference<>();
@@ -226,6 +235,21 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
         return listPCSC(terminals, logStream, probePinpad, false);
     }
 
+    // PC/SC part 3 3.2.2.1.3: 4, 7 or 10 byte ISO 14443 UID, 8 byte ISO 15693 UID
+    static Optional<byte[]> uid(BIBOSA bibosa) {
+        if ("T=0".equals(bibosa.preferences().valueOf(CardInfo.NEGOTIATED_PROTOCOL).orElse(null))) {
+            return Optional.empty();
+        }
+        var r = bibosa.transmit(new CommandAPDU(GET_UID));
+        if (r.getSW() != 0x9000) {
+            return Optional.empty();
+        }
+        return switch (r.getData().length) {
+            case 4, 7, 8, 10 -> Optional.of(r.getData());
+            default -> throw new IllegalStateException("Bad UID length: " + r.getData().length);
+        };
+    }
+
     // Fetch what is a combination of CardTerminal + Card data and handle all the weird errors of PC/SC
     public static List<PCSCReader> listPCSC(List<CardTerminal> terminals, OutputStream logStream, boolean probePinpad, boolean reportMute) throws CardException {
         var result = new ArrayList<PCSCReader>();
@@ -235,12 +259,12 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
             }
             try {
                 final var name = t.getName();
-                var present = t.isCardPresent();
-                var exclusive = false;
-                var mute = false;
-                String vmd = null;
+                var flags = EnumSet.noneOf(PCSCReader.Flag.class);
+                if (t.isCardPresent()) {
+                    flags.add(PRESENT);
+                }
                 byte[] atr = null;
-                if (present) {
+                if (flags.contains(PRESENT)) {
                     Card c = null;
                     // Try to connect in shared mode, also detects EXCLUSIVE
                     try {
@@ -248,44 +272,49 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
                         // If successful, we get the protocol and ATR
                         atr = c.getATR().getBytes();
                         if (probePinpad) {
-                            vmd = PinPadTerminal.getVMD(t, c);
+                            flags.addAll(PinPadTerminal.capabilities(t, c));
+                            try {
+                                if (uid(new BIBOSA(CardBIBO.wrap(c), CardInfo.params(atr, c.getProtocol()))).isPresent()) {
+                                    flags.add(CONTACTLESS);
+                                }
+                            } catch (BIBOException | IllegalStateException e) {
+                                logger.warn("UID probe failed on {}: {}", name, e.getMessage());
+                            }
                         }
                     } catch (CardException e) {
                         String err = SCard.getExceptionMessage(e);
                         if (SCard.SCARD_W_UNPOWERED_CARD.equals(err)) {
                             logger.warn("Unpowered card. Contact card inserted wrong way or card mute?");
                             if (reportMute) {
-                                mute = true;
+                                flags.add(MUTE);
                             } else {
-                                present = false;
+                                flags.remove(PRESENT);
                             }
                         } else if (SCard.SCARD_E_NO_SMARTCARD.equals(err) || SCard.SCARD_W_REMOVED_CARD.equals(err) || SCard.SCARD_E_READER_UNAVAILABLE.equals(err)) {
                             // Race: card/reader removed between list and connect
                             logger.debug("Card removed from {} during enumeration", name);
-                            present = false;
+                            flags.remove(PRESENT);
                         } else if (SCard.SCARD_E_SHARING_VIOLATION.equals(err)) {
-                            exclusive = true;
+                            flags.add(EXCLUSIVE);
                             // macOS allows to connect to reader in DIRECT mode when device is in EXCLUSIVE
                             try {
                                 c = t.connect("DIRECT");
                                 atr = c.getATR().getBytes();
                                 if (probePinpad) {
-                                    vmd = PinPadTerminal.getVMD(t, c);
+                                    flags.addAll(PinPadTerminal.capabilities(t, c));
                                 }
                             } catch (CardException e2) {
                                 String err2 = SCard.getExceptionMessage(e2);
                                 if (probePinpad) {
-                                    if (SCard.SCARD_E_SHARING_VIOLATION.equals(err2)) {
-                                        vmd = "???";
-                                    } else {
-                                        vmd = "EEE";
+                                    flags.add(PROBE_ERROR);
+                                    if (!SCard.SCARD_E_SHARING_VIOLATION.equals(err2)) {
                                         logger.warn("Unexpected error: {}", err2, e2);
                                     }
                                 }
                             }
                         } else {
                             if (probePinpad) {
-                                vmd = "EEE";
+                                flags.add(PROBE_ERROR);
                             }
                             logger.warn("Unexpected error: {}", err, e);
                         }
@@ -305,10 +334,10 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
                         // Try to connect in DIRECT mode
                         try {
                             c = t.connect("DIRECT");
-                            vmd = PinPadTerminal.getVMD(t, c);
+                            flags.addAll(PinPadTerminal.capabilities(t, c));
                         } catch (CardException e) {
-                            vmd = "EEE";
                             String err = SCard.getExceptionMessage(e);
+                            flags.add(PROBE_ERROR);
                             logger.debug("Could not connect to reader in direct mode: {}", err, e);
                         } finally {
                             if (c != null) {
@@ -321,7 +350,7 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
                         }
                     }
                 }
-                result.add(new PCSCReader(name, atr, present, exclusive, mute, vmd));
+                result.add(new PCSCReader(name, atr == null ? null : HexBytes.b(atr), flags));
             } catch (CardException e) {
                 String err = SCard.getExceptionMessage(e);
                 logger.warn("Unexpected PC/SC error: {}", err, e);

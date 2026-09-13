@@ -47,8 +47,6 @@ public class CommandAPDUSymmetryTest {
         assertEquals(ours.getBytes(), jdk.getBytes(), ctx + " getBytes");
     }
 
-    // === Case 1: header only ===
-
     @Test
     void case1Standard() {
         assertSymmetric(0x00, 0xA4, 0x04, 0x00);
@@ -70,8 +68,6 @@ public class CommandAPDUSymmetryTest {
         // All header bytes as signed byte values
         assertSymmetric((byte) 0x84, (byte) 0xE2, (byte) 0x80, (byte) 0xFF);
     }
-
-    // === Case 2: header + Le ===
 
     @Test
     void case2ShortLe() {
@@ -96,8 +92,6 @@ public class CommandAPDUSymmetryTest {
         assertSymmetric((byte) 0x80, 0x50, 0x00, 0x00, 256);
     }
 
-    // === Case 3: header + data ===
-
     @Test
     void case3ShortData() {
         assertSymmetric(0x80, 0xE8, 0x00, 0x00, new byte[]{0x01, 0x02});
@@ -117,8 +111,6 @@ public class CommandAPDUSymmetryTest {
     void case3SignedByteCLA() {
         assertSymmetric((byte) 0x80, (byte) 0xE8, 0x00, 0x00, new byte[]{0x42});
     }
-
-    // === Case 4: header + data + Le ===
 
     @Test
     void case4Short() {
@@ -142,8 +134,6 @@ public class CommandAPDUSymmetryTest {
         // GP INSTALL [for load]: CLA=0x80 INS=0xE6
         assertSymmetric((byte) 0x80, (byte) 0xE6, 0x0C, 0x00, new byte[]{0x01, 0x02, 0x03}, 256);
     }
-
-    // === Byte array round-trip ===
 
     @Test
     void byteArrayRoundTrip() {

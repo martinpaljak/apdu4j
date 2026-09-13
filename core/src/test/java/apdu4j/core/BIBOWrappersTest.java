@@ -9,8 +9,6 @@ import static org.testng.Assert.assertSame;
 
 public class BIBOWrappersTest {
 
-    // === Positive: wrapper coverage ===
-
     // --- GetResponseWrapper ---
 
     @Test

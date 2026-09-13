@@ -22,6 +22,7 @@ public final class DumpFormat {
     // Header prefixes shared by parse() and writeHeader().
     static final String ATR_COMMENT = "# ATR: ";
     static final String PROTOCOL_COMMENT = "# PROTOCOL: ";
+    static final String UID_COMMENT = "# UID: ";
 
     private DumpFormat() {
     }
@@ -51,7 +52,10 @@ public final class DumpFormat {
                 logger.warn("Dump lacks an ATR/PROTOCOL header; the replayed session carries no card params");
                 return new Preferences();
             }
-            return CardInfo.params(HexUtils.hex2bin(atr.get()), protocol.get());
+            var params = CardInfo.params(HexUtils.hex2bin(atr.get()), protocol.get());
+            return comment(UID_COMMENT)
+                    .map(uid -> params.with(CardInfo.UID, HexBytes.b(HexUtils.hex2bin(uid))))
+                    .orElse(params);
         }
 
         private Optional<String> comment(String prefix) {
@@ -69,6 +73,7 @@ public final class DumpFormat {
         var ps = new PrintStream(out, true, StandardCharsets.UTF_8);
         params.valueOf(CardInfo.ATR).ifPresent(atr -> ps.println(ATR_COMMENT + atr.s()));
         params.valueOf(CardInfo.NEGOTIATED_PROTOCOL).ifPresent(protocol -> ps.println(PROTOCOL_COMMENT + protocol));
+        params.valueOf(CardInfo.UID).ifPresent(uid -> ps.println(UID_COMMENT + uid.s()));
         ps.println("#");
     }
 

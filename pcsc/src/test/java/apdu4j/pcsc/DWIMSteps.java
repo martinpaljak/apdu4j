@@ -8,10 +8,12 @@ import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static apdu4j.pcsc.PCSCReader.Flag.*;
 import static org.testng.Assert.*;
 
 @SuppressWarnings("unused")
@@ -25,12 +27,22 @@ public class DWIMSteps {
     @Given("readers:")
     public void readers_table(DataTable table) {
         readers = table.asMaps().stream()
-                .map(row -> new PCSCReader(row.get("name"), null,
-                        !"no".equals(row.get("present")),
-                        "yes".equals(row.get("exclusive")),
-                        "yes".equals(row.get("mute")),
-                        null, false, false))
+                .map(row -> new PCSCReader(row.get("name"), null, flagsOf(row)))
                 .toList();
+    }
+
+    private static EnumSet<PCSCReader.Flag> flagsOf(Map<String, String> row) {
+        var flags = EnumSet.noneOf(PCSCReader.Flag.class);
+        if (!"no".equals(row.get("present"))) {
+            flags.add(PRESENT);
+        }
+        if ("yes".equals(row.get("exclusive"))) {
+            flags.add(EXCLUSIVE);
+        }
+        if ("yes".equals(row.get("mute"))) {
+            flags.add(MUTE);
+        }
+        return flags;
     }
 
     @Given("no readers")

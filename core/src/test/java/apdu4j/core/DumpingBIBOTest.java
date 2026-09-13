@@ -11,8 +11,6 @@ import static org.testng.Assert.assertTrue;
 
 public class DumpingBIBOTest {
 
-    // === Positive: output format coverage ===
-
     @Test
     void testDumpWritesHexPairs() {
         var out = new ByteArrayOutputStream();

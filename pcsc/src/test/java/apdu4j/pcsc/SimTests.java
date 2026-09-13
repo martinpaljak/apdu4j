@@ -11,6 +11,7 @@ import apdu4j.prefs.Preferences;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import javax.smartcardio.CardTerminal;
 import javax.smartcardio.CommandAPDU;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -23,8 +24,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class SimTests {
-
-    // === Replay: end-to-end through javax.smartcardio SPI ===
 
     @Test
     void testReplaySession() throws Exception {
@@ -63,8 +62,6 @@ public class SimTests {
         }
     }
 
-    // === Async card insertion ===
-
     @Test
     void testDelayedCardInsertion() {
         var terminal = new SynthesizedCardTerminal("Contactless Reader");
@@ -87,8 +84,6 @@ public class SimTests {
             bibo.close();
         }
     }
-
-    // === Protocol variants ===
 
     @Test
     void testProtocols() throws Exception {
@@ -113,8 +108,6 @@ public class SimTests {
         }
         Assert.assertEquals(receivedProtocol.get(), "T=CL");
     }
-
-    // === Fluent API: wrappers, preferences, DWIM ===
 
     @Test
     void testFluentApiWithLoggingAndDump() {
@@ -206,8 +199,6 @@ public class SimTests {
         }
     }
 
-    // === CardBIBO channel interception and typed transmit ===
-
     @Test
     void testTypedAndRawChannelAPIs() {
         var terminal = new SynthesizedCardTerminal("Channel Reader");
@@ -225,8 +216,6 @@ public class SimTests {
             });
         }
     }
-
-    // === Disconnect disposition: what the session leaves behind in the reader ===
 
     // LEAVE keeps the card powered so the next session continues where this one stopped; RESET tears
     // the session down. UNPOWER is not covered here: javax.smartcardio narrows disconnect to a
@@ -276,8 +265,6 @@ public class SimTests {
         }
     }
 
-    // === Logical channel routing: CardBIBO flattens the channel API into one byte stream ===
-
     @Test
     void testLogicalChannelRouting() {
         // A card that assigns channel 5, reaching the ISO 7816-4 further-interindustry CLA range
@@ -310,8 +297,6 @@ public class SimTests {
         }
     }
 
-    // === Escape hatches: raw javax.smartcardio for code that needs it ===
-
     @Test
     void testRawTerminalAndCard() throws Exception {
         var terminal = new SynthesizedCardTerminal("Escape Reader");
@@ -333,8 +318,6 @@ public class SimTests {
             Assert.assertThrows(BIBOException.class, () -> Readers.select(mgr).card());
         }
     }
-
-    // === Pass conflicts: two named passes coexist, an ambiguous one is refused ===
 
     @Test
     void testNamedPassesDoNotOverlap() throws Exception {
@@ -367,8 +350,6 @@ public class SimTests {
         }
     }
 
-    // === Wait notifier: the hook a GUI uses to raise and dismiss a "tap your card" prompt ===
-
     @Test
     void testWaitNotifierSeesBothPhases() throws Exception {
         var terminal = new SynthesizedCardTerminal("Notify Reader");
@@ -395,8 +376,6 @@ public class SimTests {
         Assert.assertEquals(phases, List.of("REMOVAL:Notify Reader", "INSERTION:Notify Reader"));
         Assert.assertEquals(dismissed.get(), 2, "each notification is dismissed when its wait ends");
     }
-
-    // === Handler failures cross the reader executor unwrapped ===
 
     @Test
     void testHandlerErrorSurfacesThroughExecutor() throws Exception {
@@ -429,8 +408,6 @@ public class SimTests {
         }
     }
 
-    // === Dump round-trip ===
-
     @Test
     void testDumpRoundTrip() {
         var dump = new ByteArrayOutputStream();
@@ -444,7 +421,63 @@ public class SimTests {
         }
     }
 
-    // === Error propagation ===
+    @Test
+    void testContactlessUID() throws Exception {
+        var uid = HexUtils.hex2bin("04A1B2C3");
+        var dump = new ByteArrayOutputStream();
+
+        var nfc = new SynthesizedCardTerminal("Contactless Reader");
+        nfc.uid(uid);
+        nfc.present(MockBIBO.with("00A4040000", "9000"), SynthesizedCardTerminal.defaultAtr());
+        try (var mgr = TerminalManager.managerOf(nfc)) {
+            var prefs = Readers.select(mgr).dump(dump).run(s -> {
+                Assert.assertEquals(s.transceive(HexUtils.hex2bin("00A4040000")), HexUtils.hex2bin("9000"));
+                return s.preferences();
+            });
+            Assert.assertEquals(prefs.valueOf(CardInfo.UID).orElseThrow(), HexBytes.b(uid));
+            nfc.yank();
+            Assert.assertFalse(mgr.readers().get(0).contactless());
+        }
+
+        Assert.assertTrue(dump.toString().contains("# UID: " + HexUtils.bin2hex(uid)), dump.toString());
+        Assert.assertFalse(dump.toString().contains("FFCA000000"), dump.toString());
+        var replayed = MockBIBO.fromDump(new ByteArrayInputStream(dump.toByteArray()));
+        Assert.assertEquals(replayed.preferences().valueOf(CardInfo.UID).orElseThrow(), HexBytes.b(uid));
+
+        var contact = new SynthesizedCardTerminal("Contact Reader");
+        contact.present(MockBIBO.with("00A4040000", "9000"), SynthesizedCardTerminal.defaultAtr());
+        try (var mgr = TerminalManager.managerOf(contact)) {
+            var prefs = Readers.select(mgr).run(s -> s.preferences());
+            Assert.assertTrue(prefs.valueOf(CardInfo.UID).isEmpty());
+            Assert.assertFalse(mgr.readers().get(0).contactless());
+        }
+
+        var listed = new SynthesizedCardTerminal("Listed Reader");
+        listed.uid(uid);
+        listed.present(MockBIBO.with("00A4040000", "9000"), SynthesizedCardTerminal.defaultAtr());
+        var probed = TerminalManager.listPCSC(List.<CardTerminal>of(listed), null, true).get(0);
+        Assert.assertEquals(probed.getVMD().orElseThrow(), "   C");
+        listed.uid(HexUtils.hex2bin("04A1B2C3D5"));
+        Assert.assertTrue(TerminalManager.listPCSC(List.<CardTerminal>of(listed), null, true).get(0).getVMD().isEmpty());
+
+        var off = new SynthesizedCardTerminal("Probe Off Reader");
+        off.uid(uid);
+        off.present(MockBIBO.with("00A4040000", "9000"), SynthesizedCardTerminal.defaultAtr());
+        try (var mgr = TerminalManager.managerOf(off)) {
+            Readers.select(mgr).with(Readers.CONTACTLESS, false)
+                    .run(s -> s.transceive(HexUtils.hex2bin("00A4040000")));
+            Assert.assertFalse(mgr.readers().get(0).contactless());
+        }
+
+        var t0 = new SynthesizedCardTerminal("T=0 Reader", "T=0");
+        t0.uid(uid);
+        t0.present(MockBIBO.with("00A4040000", "9000"), SynthesizedCardTerminal.defaultAtr());
+        try (var mgr = TerminalManager.managerOf(t0)) {
+            var prefs = Readers.select(mgr).run(s -> s.preferences());
+            Assert.assertEquals(prefs.valueOf(CardInfo.NEGOTIATED_PROTOCOL).orElseThrow(), "T=0");
+            Assert.assertTrue(prefs.valueOf(CardInfo.UID).isEmpty());
+        }
+    }
 
     @Test
     void testErrorPropagation() {

@@ -16,8 +16,6 @@ public class CommandAPDUTest {
     // SELECT AID: CLA=00 INS=A4 P1=04 P2=00 Lc=07 data=A0000000628101 Le=00
     static final byte[] C1 = hex.parseHex("00A4040007A000000062810100");
 
-    // === API contract: all constructor forms produce equivalent APDUs ===
-
     @Test
     void testConstructorEquivalence() {
         var fromBytes = new CommandAPDU(C1);
@@ -72,8 +70,6 @@ public class CommandAPDUTest {
         padded[0] = (byte) 0xFF;
         assertEquals(new CommandAPDU(padded, 5, C1.length).getBytes(), C1);
     }
-
-    // === API contract: ISO 7816-4 APDU case encoding ===
 
     @Test
     void testCase1HeaderOnly() {
@@ -155,8 +151,6 @@ public class CommandAPDUTest {
         assertEquals(cmd4eBig.getNe(), 1);
     }
 
-    // === API contract: serialize -> parse round-trip ===
-
     @Test
     void testParseRoundTrip() {
         byte[] data = {0x01, 0x02, 0x03};
@@ -177,8 +171,6 @@ public class CommandAPDUTest {
             assertEquals(parsed, orig);
         }
     }
-
-    // === API contract: equals, hashCode, toString ===
 
     @Test
     void testEqualsHashCode() {
@@ -205,8 +197,6 @@ public class CommandAPDUTest {
         assertEquals(new CommandAPDU(0x00, 0xA4, 0x04, 0x00, data256, 257).toString(),
                 "CommandAPDU[00A40400 000100 AA" + "00".repeat(254) + "BB 0101]");
     }
-
-    // === Invalid inputs ===
 
     @Test
     void testInvalidByteArrayParsing() {

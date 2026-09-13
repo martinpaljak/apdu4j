@@ -12,6 +12,7 @@ import javax.smartcardio.ResponseAPDU;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ReadOnlyBufferException;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -25,6 +26,9 @@ public final class SynthesizedCardTerminal extends CardTerminal {
     private static final Logger logger = LoggerFactory.getLogger(SynthesizedCardTerminal.class);
 
     private static final byte[] DEFAULT_ATR = HexUtils.hex2bin("3B00");
+    private static final byte[] GET_UID = HexUtils.hex2bin("FFCA000000");
+    private static final byte[] NO_UID = HexUtils.hex2bin("6A81");
+    private static final byte[] SW_OK = HexUtils.hex2bin("9000");
 
     public static byte[] defaultAtr() {
         return DEFAULT_ATR.clone();
@@ -40,6 +44,7 @@ public final class SynthesizedCardTerminal extends CardTerminal {
     private byte[] activeAtr;                    // non-null = card is "in the reader"
     // Protocol tracks the current presentation.
     private String presentedProtocol;
+    private volatile byte[] uidAnswer;
     private Iterator<BIBO> biboQueue;            // queue mode: pops next BIBO per session
     private Function<String, BIBO> biboFactory;  // factory mode: creates BIBO per session
 
@@ -58,6 +63,10 @@ public final class SynthesizedCardTerminal extends CardTerminal {
     public SynthesizedCardTerminal(String name, String defaultProtocol) {
         this.name = name;
         this.defaultProtocol = defaultProtocol;
+    }
+
+    public void uid(byte[] uid) {
+        uidAnswer = HexBytes.concatenate(uid, SW_OK);
     }
 
     public static SynthesizedCardTerminal replay(InputStream in) {
@@ -424,7 +433,7 @@ public final class SynthesizedCardTerminal extends CardTerminal {
 
         @Override
         public byte[] transmitControlCommand(int i, byte[] bytes) throws CardException {
-            throw new CardException("transmitControlCommand is not supported");
+            throw new CardException("SCARD_E_UNSUPPORTED_FEATURE");
         }
 
         @Override
@@ -521,6 +530,9 @@ public final class SynthesizedCardTerminal extends CardTerminal {
                 }
                 checkFresh();
                 checkExclusive();
+                if (Arrays.equals(cmd, GET_UID)) {
+                    return uidAnswer == null ? NO_UID.clone() : uidAnswer.clone();
+                }
                 var bibo = resolveBibo();
                 var apdu = withChannel(cmd);
                 logger.trace("transmit({})", HexUtils.bin2hex(apdu));
