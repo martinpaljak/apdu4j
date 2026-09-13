@@ -3,6 +3,7 @@
 package apdu4j.remote;
 
 import apdu4j.core.BIBO;
+import apdu4j.core.BIBOException;
 import apdu4j.core.BIBOSA;
 import apdu4j.core.CardInfo;
 import apdu4j.core.HexBytes;
@@ -128,18 +129,32 @@ public abstract class AbstractTCPAdapter implements Callable<Boolean> {
     }
 
     protected final RemoteMessage apdu(byte[] cmd) {
-        if (session == null) {
+        if (!open()) {
             return error("no session");
         }
-        if (Arrays.equals(cmd, GET_UID) && "T=CL".equals(protocol)) {
-            // A question the card never sees: over a real reader the driver answers it from the field.
-            log.info("Intercepting GET UID");
-            return new RemoteMessage(Type.APDU, HexBytes.concatenate(uid(), SW_OK));
+        return new RemoteMessage(Type.APDU, bibo().transceive(cmd));
+    }
+
+    // The open session as the peer sees it, until that session ends. Closing it closes nothing.
+    protected final BIBO bibo() {
+        BIBO current = session;
+        if (current == null) {
+            throw new IllegalStateException("no session");
         }
-        log.info(">> {}", HexFormat.of().formatHex(cmd));
-        byte[] response = session.transceive(cmd);
-        log.info("<< {}", HexFormat.of().formatHex(response));
-        return new RemoteMessage(Type.APDU, response);
+        return cmd -> {
+            if (session != current) {
+                throw new BIBOException("session closed");
+            }
+            if (Arrays.equals(cmd, GET_UID) && "T=CL".equals(protocol)) {
+                // A question the card never sees: over a real reader the driver answers it from the field.
+                log.info("Intercepting GET UID");
+                return HexBytes.concatenate(uid(), SW_OK);
+            }
+            log.info(">> {}", HexFormat.of().formatHex(cmd));
+            byte[] response = current.transceive(cmd);
+            log.info("<< {}", HexFormat.of().formatHex(response));
+            return response;
+        };
     }
 
     // Is a card in the field.

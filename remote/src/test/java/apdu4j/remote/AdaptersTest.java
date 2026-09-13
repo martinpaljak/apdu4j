@@ -92,9 +92,8 @@ public class AdaptersTest {
         // Runs on the open session, or on one of its own when nothing is open.
         private JsonNode select(JsonNode request) {
             byte[] aid = HexFormat.of().parseHex(request.path("aid").asText());
-            RemoteMessage selected = apdu(aid);
-            if (selected.type() == RemoteMessage.Type.APDU) {
-                return reply(request).put("selected", HexFormat.of().formatHex(selected.payload()));
+            if (open()) {
+                return reply(request).put("selected", HexFormat.of().formatHex(bibo().transceive(aid)));
             }
             try (BIBO temporary = sim.apply(protocol)) {
                 return reply(request).put("selected", HexFormat.of().formatHex(temporary.transceive(aid)));
@@ -186,8 +185,12 @@ public class AdaptersTest {
         }
 
         try (Client client = new Client(port)) {
+            BIBO view = json.bibo();
+            view.close();
             assertEquals(client.ask("{\"command\":\"apdu\",\"data\":\"00b0000000\"}").path("response").asText(), "01029000", "the session survives the connection");
             assertTrue(client.ask("{\"command\":\"close\"}").path("error").isMissingNode());
+            expectThrows(BIBOException.class, () -> view.transceive(new byte[]{0}));
+            expectThrows(IllegalStateException.class, json::bibo);
         }
         assertEquals(cards.size(), 2);
         expectThrows(BIBOException.class, () -> cards.get(1).transceive(new byte[]{0}));
