@@ -118,20 +118,33 @@ public class SCTool implements Callable<Integer>, IVersionProvider {
         for (PCSCReader r : readers) {
             i++;
             char marker = verbose ? PCSCReader.presenceMarker(r) : r.exclusive() ? 'X' : r.present() ? '*' : ' ';
-            var head = headFormat.formatted(i, marker) + (verbose ? "[%-4s] ".formatted(r.getVMD().orElse("")) : "");
+            var head = headFormat.formatted(i, marker);
             to.println(head + aliases.extended(r.name()));
             if (verbose) {
                 var filler = " ".repeat(head.length());
+                var features = new ArrayList<String>();
+                for (var flag : List.of(PCSCReader.Flag.PROBE_ERROR, PCSCReader.Flag.VERIFY, PCSCReader.Flag.MODIFY, PCSCReader.Flag.DISPLAY, PCSCReader.Flag.CONTACTLESS)) {
+                    if (r.flags().contains(flag)) {
+                        features.add(flag.name().toLowerCase(Locale.ROOT).replace('_', ' '));
+                    }
+                }
+                if (!features.isEmpty()) {
+                    to.printf("%s(%s)%n", filler, String.join(", ", features));
+                }
+                if (r.uid() != null) {
+                    to.printf("%sUID: %s%n", filler, r.uid().s());
+                }
                 if (r.getATR().isPresent()) {
                     var atr = r.getATR().get();
-                    to.println("%s%s".formatted(filler, HexUtils.bin2hex(atr)));
+                    var sub = filler + "     ";
+                    to.printf("%sATR: %s%n", filler, HexUtils.bin2hex(atr));
                     if (atrList != null) {
                         var desc = atrList.match(atr);
                         if (desc.isPresent()) {
-                            desc.get().getValue().stream().forEachOrdered(l -> to.printf("%s- %s%n", filler, l));
+                            desc.get().getValue().stream().forEachOrdered(l -> to.printf("%s- %s%n", sub, l));
                         }
                     } else {
-                        to.printf("%shttps://smartcard-atr.apdu.fr/parse?ATR=%s%n", filler, HexUtils.bin2hex(atr));
+                        to.printf("%shttps://smartcard-atr.apdu.fr/parse?ATR=%s%n", sub, HexUtils.bin2hex(atr));
                     }
                 }
             }

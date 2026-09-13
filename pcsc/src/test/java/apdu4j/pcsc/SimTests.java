@@ -456,9 +456,10 @@ public class SimTests {
         listed.uid(uid);
         listed.present(MockBIBO.with("00A4040000", "9000"), SynthesizedCardTerminal.defaultAtr());
         var probed = TerminalManager.listPCSC(List.<CardTerminal>of(listed), null, true).get(0);
-        Assert.assertEquals(probed.getVMD().orElseThrow(), "   C");
+        Assert.assertTrue(probed.contactless());
+        Assert.assertEquals(probed.uid(), HexBytes.b(uid));
         listed.uid(HexUtils.hex2bin("04A1B2C3D5"));
-        Assert.assertTrue(TerminalManager.listPCSC(List.<CardTerminal>of(listed), null, true).get(0).getVMD().isEmpty());
+        Assert.assertFalse(TerminalManager.listPCSC(List.<CardTerminal>of(listed), null, true).get(0).contactless());
 
         var off = new SynthesizedCardTerminal("Probe Off Reader");
         off.uid(uid);

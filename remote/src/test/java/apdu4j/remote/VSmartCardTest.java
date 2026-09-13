@@ -13,6 +13,7 @@ import org.testng.SkipException;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -47,12 +48,14 @@ public class VSmartCardTest {
     // The virtual readers are listed whether or not anything serves them, so an empty one is a
     // driver waiting for a card. One with a card in it is somebody else's, and none at all means
     // vsmartcard is not installed here.
-    private static PCSCReader waiting() {
+    private static List<String> waiting() {
         try {
-            for (PCSCReader reader : Readers.select().list()) {
-                if (reader.name().toLowerCase(Locale.ROOT).contains("vsmartcard") && !reader.present()) {
-                    return reader;
-                }
+            var names = Readers.select().list().stream()
+                    .filter(r -> r.name().toLowerCase(Locale.ROOT).contains("vsmartcard") && !r.present())
+                    .map(PCSCReader::name)
+                    .toList();
+            if (!names.isEmpty()) {
+                return names;
             }
         } catch (IllegalStateException | BIBOException e) {
             throw new SkipException("No PC/SC on this host: " + e.getMessage());
@@ -64,14 +67,14 @@ public class VSmartCardTest {
         return Readers.select().list().stream().anyMatch(r -> r.name().equals(name) && r.present());
     }
 
-    // Serves the card and returns the name of the reader that picked it up.
+    // Serves the card and returns the name of the reader that picked it up, which PC/SC may list in any order.
     private String serve(AbstractTCPAdapter client) throws Exception {
-        PCSCReader reader = waiting();
+        var names = waiting();
         adapter = client;
         executor = Executors.newSingleThreadExecutor();
         executor.submit(client);
-        waitFor(() -> present(reader.name()), "The card never reached " + reader.name());
-        return reader.name();
+        waitFor(() -> names.stream().anyMatch(VSmartCardTest::present), "The card never reached any of " + names);
+        return names.stream().filter(VSmartCardTest::present).findFirst().orElseThrow();
     }
 
     // A card that answers SELECT and refuses everything else. The host probes an appearing card

@@ -10,7 +10,7 @@ import java.util.Optional;
 import java.util.Set;
 
 // Immutable snapshot combining CardTerminal + Card state from javax.smartcardio
-public record PCSCReader(String name, HexBytes atr, Set<Flag> flags) {
+public record PCSCReader(String name, HexBytes atr, HexBytes uid, Set<Flag> flags) {
 
     // PRESENT..PROBE_ERROR are observed from PC/SC, PREFERRED and IGNORED come from the consumer
     public enum Flag {PRESENT, MUTE, EXCLUSIVE, CONTACTLESS, VERIFY, MODIFY, DISPLAY, PROBE_ERROR, PREFERRED, IGNORED}
@@ -62,28 +62,16 @@ public record PCSCReader(String name, HexBytes atr, Set<Flag> flags) {
         } else {
             f.remove(flag);
         }
-        return new PCSCReader(name, atr, f);
+        return new PCSCReader(name, atr, uid, f);
     }
 
     public Optional<byte[]> getATR() {
         return atr == null ? Optional.empty() : Optional.of(atr.v());
     }
 
-    public Optional<String> getVMD() {
-        if (flags.contains(Flag.PROBE_ERROR)) {
-            return Optional.of("EEE" + letter(Flag.CONTACTLESS, 'C'));
-        }
-        var s = letter(Flag.VERIFY, 'V') + letter(Flag.MODIFY, 'M') + letter(Flag.DISPLAY, 'D') + letter(Flag.CONTACTLESS, 'C');
-        return s.isBlank() ? Optional.empty() : Optional.of(s);
-    }
-
-    private String letter(Flag flag, char c) {
-        return flags.contains(flag) ? String.valueOf(c) : " ";
-    }
-
     @Override
     public String toString() {
-        return "PCSCReader{" + name + "," + flags + getATR().map(a -> "," + HexBytes.b(a).s()).orElse("") + "}";
+        return "PCSCReader{" + name + "," + flags + getATR().map(a -> "," + HexBytes.b(a).s()).orElse("") + (uid == null ? "" : "," + uid.s()) + "}";
     }
 
     public static char presenceMarker(PCSCReader r) {

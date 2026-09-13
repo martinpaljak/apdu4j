@@ -27,7 +27,7 @@ public class DWIMSteps {
     @Given("readers:")
     public void readers_table(DataTable table) {
         readers = table.asMaps().stream()
-                .map(row -> new PCSCReader(row.get("name"), null, flagsOf(row)))
+                .map(row -> new PCSCReader(row.get("name"), null, null, flagsOf(row)))
                 .toList();
     }
 

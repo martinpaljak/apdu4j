@@ -264,6 +264,7 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
                     flags.add(PRESENT);
                 }
                 byte[] atr = null;
+                HexBytes uid = null;
                 if (flags.contains(PRESENT)) {
                     Card c = null;
                     // Try to connect in shared mode, also detects EXCLUSIVE
@@ -274,7 +275,8 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
                         if (probePinpad) {
                             flags.addAll(PinPadTerminal.capabilities(t, c));
                             try {
-                                if (uid(new BIBOSA(CardBIBO.wrap(c), CardInfo.params(atr, c.getProtocol()))).isPresent()) {
+                                uid = uid(new BIBOSA(CardBIBO.wrap(c), CardInfo.params(atr, c.getProtocol()))).map(HexBytes::b).orElse(null);
+                                if (uid != null) {
                                     flags.add(CONTACTLESS);
                                 }
                             } catch (BIBOException | IllegalStateException e) {
@@ -350,7 +352,7 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
                         }
                     }
                 }
-                result.add(new PCSCReader(name, atr == null ? null : HexBytes.b(atr), flags));
+                result.add(new PCSCReader(name, atr == null ? null : HexBytes.b(atr), uid, flags));
             } catch (CardException e) {
                 String err = SCard.getExceptionMessage(e);
                 logger.warn("Unexpected PC/SC error: {}", err, e);
