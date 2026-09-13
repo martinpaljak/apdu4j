@@ -147,17 +147,17 @@ public class SimTests {
 
     @Test
     void testMultiReaderDWIM() {
-        var reader1 = new SynthesizedCardTerminal("ACS ACR122U 0");
+        var reader1 = new SynthesizedCardTerminal("NFC Reader 0");
         reader1.present(MockBIBO.of("9000"));
-        var reader2 = new SynthesizedCardTerminal("Gemalto USB SmartCard Reader 0");
+        var reader2 = new SynthesizedCardTerminal("Smart Card Reader 0");
         reader2.present(MockBIBO.of("6A82"));
         try (var mgr = TerminalManager.managerOf(reader1, reader2)) {
-            // Hint selects ACR
-            Assert.assertEquals(Readers.select(mgr, "ACR").run(b -> b.transceive(HexUtils.hex2bin("00A4040000"))),
+            // Hint selects NFC
+            Assert.assertEquals(Readers.select(mgr, "NFC").run(b -> b.transceive(HexUtils.hex2bin("00A4040000"))),
                     HexUtils.hex2bin("9000"));
 
-            // Ignore ACR picks Gemalto
-            Assert.assertEquals(Readers.select(mgr).ignore("ACR").run(b -> b.transceive(HexUtils.hex2bin("00A4040000"))),
+            // Ignore NFC picks the other reader
+            Assert.assertEquals(Readers.select(mgr).ignore("NFC").run(b -> b.transceive(HexUtils.hex2bin("00A4040000"))),
                     HexUtils.hex2bin("6A82"));
 
             // No match throws with available list
@@ -166,7 +166,7 @@ public class SimTests {
                 Assert.fail("Should have thrown");
             } catch (NoMatchingReaderException e) {
                 Assert.assertEquals(e.getAvailable().size(), 2);
-                Assert.assertTrue(e.getAvailable().contains("ACS ACR122U 0"));
+                Assert.assertTrue(e.getAvailable().contains("NFC Reader 0"));
             }
         }
     }
@@ -177,22 +177,22 @@ public class SimTests {
         var HINT = Preference.of("myapp.reader", String.class, "", false);
         var IGNORE = Preference.of("myapp.reader.ignore", String.class, "", false);
 
-        var acr = new SynthesizedCardTerminal("ACS ACR122U 0");
-        acr.present(MockBIBO.of("9000"));
-        var gemalto = new SynthesizedCardTerminal("Gemalto USB SmartCard Reader 0");
-        gemalto.present(MockBIBO.of("6A82"));
+        var nfc = new SynthesizedCardTerminal("NFC Reader 0");
+        nfc.present(MockBIBO.of("9000"));
+        var contact = new SynthesizedCardTerminal("Smart Card Reader 0");
+        contact.present(MockBIBO.of("6A82"));
 
-        try (var mgr = TerminalManager.managerOf(acr, gemalto)) {
+        try (var mgr = TerminalManager.managerOf(nfc, contact)) {
             // Hint via Preferences picks the matching reader; empty IGNORE exercises blank branch in parseIgnoreHints
-            var hintOnly = Preferences.of(HINT, "ACR");
+            var hintOnly = Preferences.of(HINT, "NFC");
             Assert.assertEquals(
                     Readers.fromPreferences(mgr, hintOnly, HINT, IGNORE).run(b -> b.transceive(HexUtils.hex2bin("00A4040000"))),
                     HexUtils.hex2bin("9000"));
 
             // Provider-backed prefs with semicolon-separated ignore (exercises parseIgnoreHints split + too-short filter)
-            // "ab" is < 3 chars (filtered with warning); "ACR" survives and ignores the ACR reader
+            // "ab" is < 3 chars (filtered with warning); "NFC" survives and ignores the NFC reader
             var providerBacked = Preferences.from(PreferenceProvider.map(
-                    Map.of("myapp.reader.ignore", "ab;ACR"), "test"));
+                    Map.of("myapp.reader.ignore", "ab;NFC"), "test"));
             Assert.assertEquals(
                     Readers.fromPreferences(mgr, providerBacked, HINT, IGNORE).run(b -> b.transceive(HexUtils.hex2bin("00A4040000"))),
                     HexUtils.hex2bin("6A82"));

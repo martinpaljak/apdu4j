@@ -42,24 +42,24 @@ Feature: DWIM Reader Selection
   Scenario: Selects reader by name fragment
     Given readers:
       | name          | present |
-      | ACS ACR122U   | yes     |
-      | YubiKey 5 NFC | yes     |
-    When I use hint "Yubi"
-    Then "YubiKey 5 NFC" is selected
+      | NFC Reader    | yes     |
+      | SecureToken 5 | yes     |
+    When I use hint "Token"
+    Then "SecureToken 5" is selected
 
   Scenario: Matches hint case-insensitively
     Given readers:
       | name          | present |
-      | ACS ACR122U   | yes     |
-      | YubiKey 5 NFC | yes     |
-    When I use hint "yubikey"
-    Then "YubiKey 5 NFC" is selected
+      | NFC Reader    | yes     |
+      | SecureToken 5 | yes     |
+    When I use hint "securetoken"
+    Then "SecureToken 5" is selected
 
   Scenario: Three-digit number treated as name fragment
     Given readers:
       | name          | present |
       | Model 100     | yes     |
-      | YubiKey 5 NFC | yes     |
+      | SecureToken 5 | yes     |
     When I use hint "100"
     Then "Model 100" is selected
 
@@ -82,11 +82,11 @@ Feature: DWIM Reader Selection
 
   Scenario: Hint matching several readers picks the one with a card
     Given readers:
-      | name        | present |
-      | ACS ACR1 00 | no      |
-      | ACS ACR1 01 | yes     |
-    When I use hint "ACR1"
-    Then "ACS ACR1 01" is selected
+      | name           | present |
+      | Twin Reader 00 | no      |
+      | Twin Reader 01 | yes     |
+    When I use hint "Twin"
+    Then "Twin Reader 01" is selected
 
   Scenario: Hint selects reader even without a card
     Given readers:
@@ -149,10 +149,10 @@ Feature: DWIM Reader Selection
       | name               | present |
       | Virtual Smart Card | yes     |
       | Contact Reader     | yes     |
-      | YubiKey 5 NFC      | yes     |
+      | SecureToken 5      | yes     |
     When I ignore "Virtual"
     And I ignore "Contact"
-    Then "YubiKey 5 NFC" is selected
+    Then "SecureToken 5" is selected
 
   Scenario: Ignore fragment shorter than three characters has no effect
     Given readers:
@@ -176,21 +176,21 @@ Feature: DWIM Reader Selection
   Scenario: Selects reader from environment hint
     Given readers:
       | name          | present |
-      | ACS ACR122U   | yes     |
-      | YubiKey 5 NFC | yes     |
-    And environment "READER" is "Yubi"
+      | NFC Reader    | yes     |
+      | SecureToken 5 | yes     |
+    And environment "READER" is "Token"
     When I use env hint "READER" and ignore "IGNORE"
-    Then "YubiKey 5 NFC" is selected
+    Then "SecureToken 5" is selected
 
   Scenario: Explicit hint overrides environment hint
     Given readers:
       | name          | present |
-      | ACS ACR122U   | yes     |
-      | YubiKey 5 NFC | yes     |
-    And environment "READER" is "Yubi"
+      | NFC Reader    | yes     |
+      | SecureToken 5 | yes     |
+    And environment "READER" is "Token"
     When I use env hint "READER" and ignore "IGNORE"
-    And I use hint "ACS"
-    Then "ACS ACR122U" is selected
+    And I use hint "NFC"
+    Then "NFC Reader" is selected
 
   # --- Exclusive readers ---
 
