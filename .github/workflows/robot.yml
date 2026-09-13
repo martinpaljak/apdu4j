@@ -6,9 +6,7 @@ on:
     branches:
       - master
       - next
-  pull_request:
-    branches:
-      - master
+      - wip
 
 concurrency:
   group: robot
@@ -57,6 +55,22 @@ jobs:
           path: |
             tool/target/apdu4j.jar
             tool/target/apdu4j.exe
+
+  windows:
+    runs-on: windows-2025
+    name: Windows
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Java
+        uses: actions/setup-java@v6
+        with:
+          java-version: 21
+          distribution: temurin
+          cache: maven
+      - name: Build and test
+        run: .\mvnw.cmd -B -U
+
   release:
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
