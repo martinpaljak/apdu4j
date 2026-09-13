@@ -391,6 +391,10 @@ public final class TerminalManager implements PCSCMonitor, Closeable {
         try {
             return listPCSC(terminals().list(CardTerminals.State.ALL), null, false);
         } catch (CardException | Smartcardio.EstablishContextException e) {
+            var err = SCard.getExceptionMessage(e);
+            if (SCard.SCARD_E_NO_SERVICE.equals(err) || SCard.SCARD_E_SERVICE_STOPPED.equals(err)) {
+                threadLocalTerminals.remove();
+            }
             throw new BIBOException("Failed to list readers", e);
         }
     }
