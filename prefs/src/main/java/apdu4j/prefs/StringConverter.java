@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: MIT
 package apdu4j.prefs;
 
+import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.Locale;
 import java.util.function.Function;
 
 // Bidirectional String <-> V conversion for preferences.
 // @FunctionalInterface: parse-only lambdas work directly (e.g. HexBytes::valueOf).
-// Built-in types (String, Boolean, Integer, Long, byte[]) auto-derive via forType().
+// Built-in types (String, Boolean, Integer, Long, byte[]) and any enum auto-derive via forType().
 @FunctionalInterface
 public interface StringConverter<V> {
 
@@ -51,7 +52,19 @@ public interface StringConverter<V> {
         if (type == byte[].class) {
             return (StringConverter<V>) BYTES;
         }
+        if (type.isEnum()) {
+            return enumeration(type);
+        }
         return (StringConverter<V>) UNSUPPORTED;
+    }
+
+    private static <V> StringConverter<V> enumeration(Class<V> type) {
+        return StringConverter.of(
+                s -> Arrays.stream(type.getEnumConstants())
+                        .filter(v -> ((Enum<?>) v).name().equalsIgnoreCase(s.strip()))
+                        .findFirst()
+                        .orElseThrow(() -> new IllegalArgumentException("Not a " + type.getSimpleName() + " value: " + s.strip())),
+                v -> ((Enum<?>) v).name().toLowerCase(Locale.ROOT));
     }
 
     // Cached stateless singletons

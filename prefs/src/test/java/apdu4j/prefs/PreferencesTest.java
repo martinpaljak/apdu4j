@@ -14,6 +14,11 @@ public class PreferencesTest {
     static final Preference.Default<String> READONLY = Preference.of("readonly", String.class, "readonly_default", true);
     static final Preference.Parameter<String> SESSION = Preference.parameter("session", String.class, true);
 
+    enum Mode {
+        TRACE,
+        COUNT
+    }
+
     @Test
     void preferenceCreation() {
         // Default: accessors
@@ -239,6 +244,10 @@ public class PreferencesTest {
         Assert.assertEquals(Preferences.from(PreferenceProvider.map(Map.of("key", "cafe"), "test"))
                 .get(upper), new byte[]{(byte) 0xCA, (byte) 0xFE});
         Assert.assertTrue(new Preferences().with(upper, new byte[]{(byte) 0xCA, (byte) 0xFE}).toString().contains("CAFE"));
+
+        // An enum preference resolves from a string source with no withConverter
+        var mode = Preference.parameter("mode", Mode.class, false);
+        Assert.assertEquals(Preferences.from(PreferenceProvider.map(Map.of("mode", "count"), "test")).valueOf(mode).orElseThrow(), Mode.COUNT);
     }
 
     @Test
