@@ -10,8 +10,8 @@ import apdu4j.core.CommandAPDU;
 import apdu4j.core.HexBytes;
 import apdu4j.core.MockBIBO;
 import apdu4j.core.ResponseAPDU;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
@@ -54,14 +54,14 @@ public class AdaptersTest {
 
         @Override
         protected RemoteMessage request(JsonNode json) {
-            return switch (json.path("command").asText()) {
+            return switch (json.path("command").asString()) {
                 case "open" -> {
                     if ("*".equals(configuredProtocol)) {
-                        protocol = json.path("protocol").asText("*");
+                        protocol = json.path("protocol").asString("*");
                     }
                     yield new RemoteMessage(RemoteMessage.Type.POWERUP);
                 }
-                case "apdu" -> new RemoteMessage(RemoteMessage.Type.APDU, HexFormat.of().parseHex(json.path("data").asText()));
+                case "apdu" -> new RemoteMessage(RemoteMessage.Type.APDU, HexFormat.of().parseHex(json.path("data").asString()));
                 case "close" -> new RemoteMessage(RemoteMessage.Type.POWERDOWN);
                 default -> new RemoteMessage(RemoteMessage.Type.VENDOR);
             };
@@ -80,18 +80,18 @@ public class AdaptersTest {
 
         // Commands of this adapter's own, deciding for themselves what to do with the session.
         private JsonNode vendor(JsonNode request) {
-            String command = request.path("command").asText();
+            String command = request.path("command").asString();
             return switch (command) {
                 case "notify" -> null; // nothing goes back
                 case "select" -> select(request);
-                case "turboselect" -> turboselect(request.path("aid").asText());
+                case "turboselect" -> turboselect(request.path("aid").asString());
                 default -> reply(request).put("error", "unsupported: " + command);
             };
         }
 
         // Runs on the open session, or on one of its own when nothing is open.
         private JsonNode select(JsonNode request) {
-            byte[] aid = HexFormat.of().parseHex(request.path("aid").asText());
+            byte[] aid = HexFormat.of().parseHex(request.path("aid").asString());
             if (open()) {
                 return reply(request).put("selected", HexFormat.of().formatHex(bibo().transceive(aid)));
             }
@@ -172,22 +172,22 @@ public class AdaptersTest {
 
         try (Client client = new Client(port)) {
             // The ATR of the card the session opened, not the adapter's default.
-            assertEquals(client.ask("{\"command\":\"open\"}").path("response").asText(), CARD_ATR);
+            assertEquals(client.ask("{\"command\":\"open\"}").path("response").asString(), CARD_ATR);
 
             // Powering up twice, as vsmartcard does on Linux, closes the abandoned session.
-            assertEquals(client.ask("{\"command\":\"open\"}").path("response").asText(), CARD_ATR);
+            assertEquals(client.ask("{\"command\":\"open\"}").path("response").asString(), CARD_ATR);
             assertEquals(cards.size(), 2);
             expectThrows(BIBOException.class, () -> cards.get(0).transceive(new byte[]{0}));
 
-            assertEquals(client.ask("{\"command\":\"apdu\",\"data\":\"00a40400\"}").path("response").asText(), "6f009000");
+            assertEquals(client.ask("{\"command\":\"apdu\",\"data\":\"00a40400\"}").path("response").asString(), "6f009000");
             // Vendor command, running on the session opened above.
-            assertEquals(client.ask("{\"command\":\"select\",\"aid\":\"80ca9f7f\"}").path("selected").asText(), "9f7f109000");
+            assertEquals(client.ask("{\"command\":\"select\",\"aid\":\"80ca9f7f\"}").path("selected").asString(), "9f7f109000");
         }
 
         try (Client client = new Client(port)) {
             BIBO view = json.bibo();
             view.close();
-            assertEquals(client.ask("{\"command\":\"apdu\",\"data\":\"00b0000000\"}").path("response").asText(), "01029000", "the session survives the connection");
+            assertEquals(client.ask("{\"command\":\"apdu\",\"data\":\"00b0000000\"}").path("response").asString(), "01029000", "the session survives the connection");
             assertTrue(client.ask("{\"command\":\"close\"}").path("error").isMissingNode());
             expectThrows(BIBOException.class, () -> view.transceive(new byte[]{0}));
             expectThrows(IllegalStateException.class, json::bibo);
@@ -196,7 +196,7 @@ public class AdaptersTest {
         expectThrows(BIBOException.class, () -> cards.get(1).transceive(new byte[]{0}));
 
         try (Client client = new Client(port)) {
-            assertEquals(client.ask("{\"command\":\"select\",\"aid\":\"00a40400\"}").path("selected").asText(), "6f009000");
+            assertEquals(client.ask("{\"command\":\"select\",\"aid\":\"00a40400\"}").path("selected").asString(), "6f009000");
         }
         assertEquals(cards.size(), 3, "a session of the vendor command's own");
         expectThrows(BIBOException.class, () -> cards.get(2).transceive(new byte[]{0}));
@@ -204,13 +204,13 @@ public class AdaptersTest {
         // A format with no presence poll learns of a card the only way it can: nothing opens.
         try (Client client = new Client(port)) {
             adapter.connected(false);
-            assertEquals(client.ask("{\"command\":\"open\"}").path("error").asText(), "no card", "the card is out");
+            assertEquals(client.ask("{\"command\":\"open\"}").path("error").asString(), "no card", "the card is out");
 
             // A vendor command of a shape of its own, answering what it was asked rather than
             // echoing the question. With no card there is nothing to power up.
             JsonNode answer = client.ask(turboselect(AID));
             assertTrue(answer.path("command").isMissingNode(), "the answer is not the question");
-            assertEquals(answer.path("turboselect").path("aid").asText(), AID);
+            assertEquals(answer.path("turboselect").path("aid").asString(), AID);
             assertFalse(answer.path("turboselect").path("selected").asBoolean(), "no card to select on");
             assertEquals(cards.size(), 3, "a card that is not there opens nothing");
 
@@ -219,16 +219,16 @@ public class AdaptersTest {
             assertTrue(client.ask(turboselect(AID)).path("turboselect").path("selected").asBoolean());
             assertEquals(cards.size(), 4, "a session of its own");
             expectThrows(BIBOException.class, () -> cards.get(3).transceive(new byte[]{0}));
-            assertEquals(client.ask("{\"command\":\"apdu\",\"data\":\"00a40400\"}").path("error").asText(), "no session", "and closed again");
+            assertEquals(client.ask("{\"command\":\"apdu\",\"data\":\"00a40400\"}").path("error").asString(), "no session", "and closed again");
 
             // A session it did not open is a session it does not close.
-            assertEquals(client.ask("{\"command\":\"open\"}").path("response").asText(), CARD_ATR);
+            assertEquals(client.ask("{\"command\":\"open\"}").path("response").asString(), CARD_ATR);
             assertFalse(client.ask(turboselect(MISSING_AID)).path("turboselect").path("selected").asBoolean(), "the card says no");
             assertEquals(cards.size(), 5, "the open session served it");
-            assertEquals(client.ask("{\"command\":\"apdu\",\"data\":\"00a40400\"}").path("response").asText(), "6f009000", "still open");
+            assertEquals(client.ask("{\"command\":\"apdu\",\"data\":\"00a40400\"}").path("response").asString(), "6f009000", "still open");
 
             adapter.connected(false);
-            assertEquals(client.ask("{\"command\":\"apdu\",\"data\":\"00a40400\"}").path("error").asText(), "no session", "the session left with the card");
+            assertEquals(client.ask("{\"command\":\"apdu\",\"data\":\"00a40400\"}").path("error").asString(), "no session", "the session left with the card");
         }
     }
 
@@ -330,13 +330,13 @@ public class AdaptersTest {
         int port = serve(json);
 
         try (Client client = new Client(port)) {
-            assertEquals(client.ask("{\"command\":\"nosuchthing\"}").path("error").asText(), "unsupported: nosuchthing");
+            assertEquals(client.ask("{\"command\":\"nosuchthing\"}").path("error").asString(), "unsupported: nosuchthing");
             // Requests that are not objects have no command either.
-            assertEquals(client.ask("[]").path("error").asText(), "unsupported: ");
+            assertEquals(client.ask("[]").path("error").asString(), "unsupported: ");
 
             // A command answering nothing sends nothing, leaving the connection ready.
             client.tell("{\"command\":\"notify\"}");
-            assertEquals(client.ask("{\"command\":\"open\"}").path("error").asText(), "card is busy");
+            assertEquals(client.ask("{\"command\":\"open\"}").path("error").asString(), "card is busy");
         }
     }
 

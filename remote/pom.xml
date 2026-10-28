@@ -27,9 +27,9 @@
         </dependency>
         <!-- JSON adapter wire format -->
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
+            <groupId>tools.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.22.4</version>
+            <version>3.2.4</version>
         </dependency>
         <!-- Testing -->
         <dependency>

@@ -4,7 +4,7 @@
 module apdu4j.remote {
     requires transitive apdu4j.core;
     requires org.slf4j;
-    requires transitive com.fasterxml.jackson.databind;
+    requires transitive tools.jackson.databind;
 
     exports apdu4j.remote;
 }
