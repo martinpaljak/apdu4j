@@ -1,6 +1,6 @@
 # same as Github
-TZ = UTC
-export TZ
+export TZ := UTC
+export LC_ALL := C.UTF-8
 SHELL = bash
 JDK := zulu
 JAVA17 := /Library/Java/JavaVirtualMachines/$(JDK)-17.jdk/Contents/Home

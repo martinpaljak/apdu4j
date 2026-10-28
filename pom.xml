@@ -4,16 +4,14 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>pro.javacard</groupId>
     <artifactId>apdu4j</artifactId>
-    <version>26.09.08-SNAPSHOT</version>
+    <version>26.10.28-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>apdu4j</name>
     <url>https://github.com/martinpaljak/apdu4j</url>
     <description>Working with smart card readers? This is for you.</description>
     <inceptionYear>2015</inceptionYear>
     <properties>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <project.build.outputTimestamp>2026-09-08T06:48:22Z</project.build.outputTimestamp>
+        <project.build.outputTimestamp>2026-10-28T18:51:31Z</project.build.outputTimestamp>
     </properties>
     <scm>
         <url>https://github.com/martinpaljak/apdu4j</url>
@@ -68,12 +66,12 @@
             <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-api</artifactId>
-                <version>2.0.19</version>
+                <version>2.0.20</version>
             </dependency>
             <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-simple</artifactId>
-                <version>2.0.19</version>
+                <version>2.0.20</version>
             </dependency>
             <dependency>
                 <groupId>org.testng</groupId>
@@ -107,7 +105,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
-                    <version>3.6.0</version>
+                    <version>3.6.1</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -124,12 +122,12 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-install-plugin</artifactId>
-                    <version>3.1.4</version>
+                    <version>3.2.0</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-deploy-plugin</artifactId>
-                    <version>3.1.4</version>
+                    <version>3.2.0</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -141,6 +139,7 @@
                     <artifactId>rewrite-maven-plugin</artifactId>
                     <version>6.46.1</version>
                     <configuration>
+                        <skipMavenParsing>true</skipMavenParsing>
                         <activeRecipes>
                             <!-- Control flow / style -->
                             <recipe>org.openrewrite.staticanalysis.NeedBraces</recipe>
@@ -218,7 +217,7 @@
                                     <message>Project requires JDK 17+</message>
                                 </requireJavaVersion>
                                 <requireMavenVersion>
-                                    <version>[3.9.16,)</version>
+                                    <version>[3.10.0,)</version>
                                 </requireMavenVersion>
                                 <requirePluginVersions/>
                             </rules>
@@ -249,7 +248,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.15</version>
+                <version>0.8.16</version>
                 <executions>
                     <execution>
                         <goals>
@@ -265,6 +264,19 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>3.4.0</version>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals>
+                            <goal>jar-no-fork</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
     <profiles>
@@ -276,6 +288,9 @@
                     <name>env.CI</name>
                     <value>true</value>
                 </property>
+                <file>
+                    <exists>${basedir}/src/main/java</exists>
+                </file>
             </activation>
             <build>
                 <plugins>
@@ -305,7 +320,7 @@
                     <plugin>
                         <groupId>com.github.spotbugs</groupId>
                         <artifactId>spotbugs-maven-plugin</artifactId>
-                        <version>4.10.4.1</version>
+                        <version>4.10.5.0</version>
                         <executions>
                             <execution>
                                 <phase>verify</phase>
